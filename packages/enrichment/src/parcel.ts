@@ -1,23 +1,17 @@
-import type { EnrichmentAdapter, LatLng, ParcelData, Result } from './types';
+import { err } from '@landmatch/config';
 
-const ENABLE_PARCEL_DATA = process.env.ENABLE_PARCEL_DATA === 'true';
+import type { EnrichmentAdapter, LatLng, ParcelData, Result } from './types';
 
 export const parcelAdapter: EnrichmentAdapter<ParcelData> = {
   name: 'regrid',
 
   isAvailable(): boolean {
-    return ENABLE_PARCEL_DATA;
+    return process.env.ENABLE_PARCEL_DATA === 'true';
   },
 
-  async enrich(coords: LatLng): Promise<Result<ParcelData>> {
-    if (!this.isAvailable()) {
-      return { ok: false, error: 'Parcel data disabled (ENABLE_PARCEL_DATA)' };
-    }
+  async enrich(_coords: LatLng): Promise<Result<ParcelData>> {
     // TODO: Implement Regrid API call
     // https://regrid.com/api
-    return {
-      ok: false,
-      error: 'Regrid adapter not yet implemented',
-    };
+    return err('Regrid adapter not yet implemented');
   },
 };

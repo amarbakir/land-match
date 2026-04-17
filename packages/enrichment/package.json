@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "dependencies": {
+    "@landmatch/config": "workspace:*"
+  },
   "scripts": {
     "lint": "tsc --noEmit && eslint src/",
     "test": "vitest",

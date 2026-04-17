@@ -2,14 +2,26 @@ import { climateAdapter } from './climate';
 import { floodAdapter } from './flood';
 import { parcelAdapter } from './parcel';
 import { soilAdapter } from './soil';
-import type { EnrichmentAdapter, EnrichmentResult, LatLng } from './types';
+import type { EnrichmentAdapter, EnrichmentKey, EnrichmentResult, LatLng } from './types';
 
-const adapters: EnrichmentAdapter<unknown>[] = [soilAdapter, floodAdapter, parcelAdapter, climateAdapter];
+interface RegisteredAdapter {
+  key: EnrichmentKey;
+  adapter: EnrichmentAdapter<unknown>;
+}
+
+const registeredAdapters: RegisteredAdapter[] = [
+  { key: 'soil', adapter: soilAdapter },
+  { key: 'flood', adapter: floodAdapter },
+  { key: 'parcel', adapter: parcelAdapter },
+  { key: 'climate', adapter: climateAdapter },
+];
 
 export async function runEnrichmentPipeline(coords: LatLng): Promise<EnrichmentResult> {
-  const available = adapters.filter((a) => a.isAvailable());
+  const available = registeredAdapters.filter((r) => r.adapter.isAvailable());
 
-  const results = await Promise.allSettled(available.map((a) => a.enrich(coords).then((r) => ({ name: a.name, result: r }))));
+  const results = await Promise.allSettled(
+    available.map((r) => r.adapter.enrich(coords).then((result) => ({ key: r.key, name: r.adapter.name, result }))),
+  );
 
   const enrichment: EnrichmentResult = {
     sourcesUsed: [],
@@ -22,7 +34,7 @@ export async function runEnrichmentPipeline(coords: LatLng): Promise<EnrichmentR
       continue;
     }
 
-    const { name, result } = settled.value;
+    const { key, name, result } = settled.value;
 
     if (!result.ok) {
       enrichment.errors.push({ source: name, error: result.error });
@@ -30,22 +42,25 @@ export async function runEnrichmentPipeline(coords: LatLng): Promise<EnrichmentR
     }
 
     enrichment.sourcesUsed.push(name);
-
-    switch (name) {
-      case 'usda-soil':
-        enrichment.soil = result.data as EnrichmentResult['soil'];
-        break;
-      case 'fema-nfhl':
-        enrichment.flood = result.data as EnrichmentResult['flood'];
-        break;
-      case 'regrid':
-        enrichment.parcel = result.data as EnrichmentResult['parcel'];
-        break;
-      case 'first-street':
-        enrichment.climate = result.data as EnrichmentResult['climate'];
-        break;
-    }
+    assignResult(enrichment, key, result.data);
   }
 
   return enrichment;
+}
+
+function assignResult(enrichment: EnrichmentResult, key: EnrichmentKey, data: unknown): void {
+  switch (key) {
+    case 'soil':
+      enrichment.soil = data as EnrichmentResult['soil'];
+      break;
+    case 'flood':
+      enrichment.flood = data as EnrichmentResult['flood'];
+      break;
+    case 'parcel':
+      enrichment.parcel = data as EnrichmentResult['parcel'];
+      break;
+    case 'climate':
+      enrichment.climate = data as EnrichmentResult['climate'];
+      break;
+  }
 }

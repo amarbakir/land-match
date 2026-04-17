@@ -69,7 +69,7 @@ CREATE TABLE "search_profiles" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"name" text NOT NULL,
-	"is_active" text DEFAULT 'true' NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
 	"alert_frequency" text DEFAULT 'daily' NOT NULL,
 	"alert_threshold" integer DEFAULT 60 NOT NULL,
 	"criteria" jsonb NOT NULL,

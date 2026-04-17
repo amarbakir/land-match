@@ -1,9 +1,13 @@
+import type { Result } from '@landmatch/config';
+
+export type { Result };
+
 export interface LatLng {
   lat: number;
   lng: number;
 }
 
-export type Result<T, E = string> = { ok: true; data: T } | { ok: false; error: E };
+export type EnrichmentKey = keyof Omit<EnrichmentResult, 'sourcesUsed' | 'errors'>;
 
 export interface EnrichmentAdapter<T> {
   name: string;

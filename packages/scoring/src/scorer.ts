@@ -3,7 +3,10 @@ import type { ComponentScores, EnrichmentData, ListingData, ScoringResult, Searc
 import { DEFAULT_WEIGHTS } from './types';
 
 export function scoreListing(listing: ListingData, enrichment: EnrichmentData, criteria: SearchCriteria): ScoringResult {
-  // Check hard filters first
+  // Compute geography score once — used for both hard filter and component score
+  const geoScore = scoreGeography(listing.latitude, listing.longitude, criteria.geography);
+
+  // Check hard filters
   const failedFilters: string[] = [];
 
   if (criteria.floodZoneExclude && enrichment.floodZone && criteria.floodZoneExclude.includes(enrichment.floodZone)) {
@@ -12,9 +15,8 @@ export function scoreListing(listing: ListingData, enrichment: EnrichmentData, c
   if (criteria.price?.max && listing.price && listing.price > criteria.price.max * 1.5) {
     failedFilters.push('price_over_hard_limit');
   }
-  if (criteria.geography?.type === 'radius' && criteria.geography.center && criteria.geography.radiusMiles) {
-    const geoScore = scoreGeography(listing.latitude, listing.longitude, criteria.geography);
-    if (geoScore === 0) failedFilters.push('outside_geography');
+  if (geoScore === 0 && criteria.geography?.type === 'radius') {
+    failedFilters.push('outside_geography');
   }
 
   if (failedFilters.length > 0) {
@@ -32,7 +34,7 @@ export function scoreListing(listing: ListingData, enrichment: EnrichmentData, c
     price: scorePrice(listing.price, criteria.price),
     acreage: scoreAcreage(listing.acreage, criteria.acreage),
     zoning: scoreZoning(enrichment.zoningCode, criteria.zoning),
-    geography: scoreGeography(listing.latitude, listing.longitude, criteria.geography),
+    geography: geoScore,
     infrastructure: scoreInfrastructure(enrichment.infrastructure, criteria.infrastructure),
     climate: scoreClimate(enrichment, criteria.climateRisk),
   };

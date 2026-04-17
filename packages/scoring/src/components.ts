@@ -1,16 +1,18 @@
-import type { EnrichmentData, ListingData, SearchCriteria } from './types';
+import type { EnrichmentData, SearchCriteria } from './types';
+
+const SOIL_SCORES: Record<number, number> = { 1: 100, 2: 85, 3: 65, 4: 45, 5: 30, 6: 20, 7: 10, 8: 0 };
+const FLOOD_SCORES: Record<string, number> = { X: 100, B: 70, C: 70, A: 30, AE: 30, VE: 0 };
+const AGRICULTURAL_ZONES = ['agricultural', 'residential-agricultural', 'farm', 'rural'];
 
 export function scoreSoil(capabilityClass: number | undefined): number {
   if (capabilityClass === undefined) return 50; // neutral if missing
-  const scores: Record<number, number> = { 1: 100, 2: 85, 3: 65, 4: 45, 5: 30, 6: 20, 7: 10, 8: 0 };
-  return scores[capabilityClass] ?? 0;
+  return SOIL_SCORES[capabilityClass] ?? 0;
 }
 
 export function scoreFlood(zone: string | undefined, excluded: string[]): number {
   if (!zone) return 50; // neutral if missing
   if (excluded.includes(zone)) return 0;
-  const scores: Record<string, number> = { X: 100, B: 70, C: 70, A: 30, AE: 30, VE: 0 };
-  return scores[zone] ?? 50;
+  return FLOOD_SCORES[zone] ?? 50;
 }
 
 export function scorePrice(price: number | undefined, criteria: SearchCriteria['price']): number {
@@ -36,9 +38,8 @@ export function scoreAcreage(acreage: number | undefined, criteria: SearchCriter
 export function scoreZoning(zoningCode: string | undefined, preferred: string[] | undefined): number {
   if (!zoningCode || !preferred || preferred.length === 0) return 50;
   if (preferred.includes(zoningCode)) return 100;
-  // Compatible but not exact match
-  const agricultural = ['agricultural', 'residential-agricultural', 'farm', 'rural'];
-  if (agricultural.some((a) => zoningCode.toLowerCase().includes(a)) && preferred.some((p) => agricultural.includes(p))) return 60;
+  const lower = zoningCode.toLowerCase();
+  if (AGRICULTURAL_ZONES.some((a) => lower.includes(a)) && preferred.some((p) => AGRICULTURAL_ZONES.includes(p))) return 60;
   return 0;
 }
 

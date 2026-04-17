@@ -1,4 +1,4 @@
-import { jsonb, pgTable, text, timestamp, integer, real } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, text, timestamp, integer, real } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -17,7 +17,7 @@ export const searchProfiles = pgTable('search_profiles', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
   name: text('name').notNull(),
-  isActive: text('is_active').notNull().default('true'),
+  isActive: boolean('is_active').notNull().default(true),
   alertFrequency: text('alert_frequency').notNull().default('daily'),
   alertThreshold: integer('alert_threshold').notNull().default(60),
   criteria: jsonb('criteria').notNull(),

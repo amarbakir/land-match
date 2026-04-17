@@ -1,5 +1,5 @@
 {
-  "id": "6cbe193b-9788-4bd4-98cd-8076cce690ca",
+  "id": "0eeb3abd-d3fc-468d-b20c-39aa4d72501b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -512,10 +512,10 @@
         },
         "is_active": {
           "name": "is_active",
-          "type": "text",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": "'true'"
+          "default": true
         },
         "alert_frequency": {
           "name": "alert_frequency",

@@ -1,4 +1,4 @@
-import type { ComponentScores, SearchCriteria, ScoringResult } from './types';
+import type { ScoringResult, SearchCriteria } from './types';
 
 export interface SummaryInput {
   scoringResult: ScoringResult;

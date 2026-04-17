@@ -1,3 +1,5 @@
+import { err } from '@landmatch/config';
+
 import type { EnrichmentAdapter, LatLng, Result } from './types';
 
 export interface GeocodeData {
@@ -13,12 +15,9 @@ export const geocodeAdapter: EnrichmentAdapter<GeocodeData> = {
     return true; // Free, always available
   },
 
-  async enrich(coords: LatLng): Promise<Result<GeocodeData>> {
+  async enrich(_coords: LatLng): Promise<Result<GeocodeData>> {
     // TODO: Implement Census Geocoder API call
     // https://geocoding.geo.census.gov/geocoder/
-    return {
-      ok: false,
-      error: 'Census Geocoder adapter not yet implemented',
-    };
+    return err('Census Geocoder adapter not yet implemented');
   },
 };
