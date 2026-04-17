@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "land_match",
+  "project_id": "1e276bfb-5048-4dfe-97fc-f95986d1c356"
+}
