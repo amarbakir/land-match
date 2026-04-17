@@ -1,0 +1,31 @@
+{
+  "name": "landmatch",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter @landmatch/frontend start",
+    "dev:server": "pnpm --filter @landmatch/server dev",
+    "dev": "pnpm dev:server & pnpm dev:frontend",
+    "build": "pnpm --recursive build",
+    "lint": "pnpm --recursive lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "sst:dev:deploy": "AWS_PROFILE=sandbox-admin npx sst deploy --stage dev",
+    "sst:dev:remove": "AWS_PROFILE=sandbox-admin npx sst remove --stage dev"
+  },
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "@typescript-eslint/parser": "^8.56.1",
+    "eslint": "^9.39.2",
+    "prettier": "^3.8.1",
+    "sst": "^4.3.2",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "unrs-resolver"
+    ]
+  }
+}

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LandMatch — One Pager</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --soil: #3d2b1f;
+    --clay: #7a4f36;
+    --straw: #c8a96e;
+    --sage: #6b7c5c;
+    --sky: #dce8d4;
+    --paper: #f5f0e8;
+    --ink: #1a1410;
+    --muted: #7a6f62;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 300;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Subtle grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.4;
+  }
+
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 60px 48px;
+  }
+
+  /* Header */
+  header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    border-bottom: 2px solid var(--soil);
+    padding-bottom: 28px;
+    margin-bottom: 40px;
+    gap: 24px;
+  }
+
+  .wordmark {
+    font-family: 'Playfair Display', serif;
+    font-size: 52px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    color: var(--soil);
+    line-height: 1;
+  }
+
+  .wordmark span {
+    color: var(--sage);
+  }
+
+  .tagline {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.5;
+  }
+
+  /* Lede */
+  .lede {
+    font-family: 'Playfair Display', serif;
+    font-size: 21px;
+    font-weight: 400;
+    line-height: 1.55;
+    color: var(--soil);
+    max-width: 640px;
+    margin-bottom: 40px;
+    border-left: 3px solid var(--straw);
+    padding-left: 20px;
+  }
+
+  /* Two-column body */
+  .body-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px 48px;
+    margin-bottom: 40px;
+  }
+
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--sage);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--straw);
+    opacity: 0.5;
+  }
+
+  h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--soil);
+    margin-bottom: 10px;
+  }
+
+  p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #3d3228;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  ul li {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: #3d3228;
+    padding: 4px 0;
+    padding-left: 16px;
+    position: relative;
+  }
+
+  ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--sage);
+    font-size: 12px;
+  }
+
+  /* Pipeline visual */
+  .pipeline {
+    background: var(--soil);
+    color: var(--paper);
+    border-radius: 4px;
+    padding: 28px 32px;
+    margin-bottom: 40px;
+  }
+
+  .pipeline .section-label {
+    color: var(--straw);
+    margin-bottom: 16px;
+  }
+
+  .pipeline .section-label::after {
+    background: var(--straw);
+    opacity: 0.25;
+  }
+
+  .pipeline-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+
+  .step {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(200,169,110,0.3);
+    padding: 8px 14px;
+    border-radius: 3px;
+    color: var(--paper);
+    white-space: nowrap;
+  }
+
+  .step strong {
+    display: block;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--straw);
+    margin-bottom: 2px;
+  }
+
+  .arrow {
+    color: var(--straw);
+    font-size: 16px;
+    padding: 0 8px;
+    opacity: 0.6;
+  }
+
+  /* Differentiation callout */
+  .callout {
+    background: var(--sky);
+    border: 1px solid rgba(107,124,92,0.3);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin-bottom: 40px;
+  }
+
+  .callout p {
+    font-size: 13.5px;
+    color: var(--soil);
+  }
+
+  .callout strong {
+    font-weight: 500;
+    color: var(--sage);
+  }
+
+  /* Bottom row */
+  .bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 40px;
+  }
+
+  .metric {
+    text-align: center;
+    padding: 20px 16px;
+    border: 1px solid rgba(61,43,31,0.12);
+    border-radius: 4px;
+  }
+
+  .metric-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--soil);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .metric-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid rgba(61,43,31,0.15);
+    padding-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .footer-left {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .status-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: var(--sage);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 2px;
+  }
+
+  @media (max-width: 640px) {
+    .page { padding: 32px 24px; }
+    .body-grid { grid-template-columns: 1fr; gap: 28px; }
+    .bottom-row { grid-template-columns: 1fr; }
+    header { grid-template-columns: 1fr; }
+    .tagline { text-align: left; }
+    .wordmark { font-size: 38px; }
+    .pipeline-steps { flex-direction: column; align-items: flex-start; }
+    .arrow { transform: rotate(90deg); padding: 4px 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="wordmark">Land<span>Match</span></div>
+    <div class="tagline">
+      Intelligent Property Search<br>for the Back-to-Land Buyer<br>
+      <span style="color:var(--straw)">Concept — April 2026</span>
+    </div>
+  </header>
+
+  <p class="lede">
+    Most people buying rural land for homesteading, small farming, or off-grid living are doing expensive, fragmented research manually. LandMatch automates the signal — surfacing listings that actually match agricultural requirements, enriched with soil quality and flood risk data before the first site visit.
+  </p>
+
+  <div class="body-grid">
+
+    <div>
+      <div class="section-label">The Problem</div>
+      <h2>A buyer no tool is built for</h2>
+      <p>Zillow and Redfin are built for suburban buyers. AcreValue and LandWatch serve commodity farmers and investors. The back-to-land buyer — remote-income earner, modest acreage, food production goals — has no purpose-built search experience. They research soil maps, FEMA zones, zoning laws, and listing databases in four separate browser tabs, by hand, for every property.</p>
+    </div>
+
+    <div>
+      <div class="section-label">The Solution</div>
+      <h2>Automated enrichment + smart alerts</h2>
+      <ul>
+        <li>Natural language search criteria ("3+ acres, Class II soil, no floodplain, barn preferred, under $450k, within 3 hrs of NYC")</li>
+        <li>Real-time listing monitoring across aggregators</li>
+        <li>Auto-enrichment with USDA soil capability class, FEMA flood zone, parcel zoning, and infrastructure checklist</li>
+        <li>AI-generated suitability summary per match — plain English, actionable</li>
+        <li>Alert delivery via email or SMS when a match clears threshold</li>
+      </ul>
+    </div>
+
+    <div>
+      <div class="section-label">Data Sources</div>
+      <h2>Public infrastructure, no licensing risk</h2>
+      <ul>
+        <li>USDA Soil Data Access API — soil capability, drainage class, suitability ratings</li>
+        <li>FEMA National Flood Hazard Layer — flood zone by parcel coordinates</li>
+        <li>Regrid / county GIS — parcel geometry, zoning, acreage verification</li>
+        <li>LandSearch, LandWatch, Realtor.com — listing data via approved feeds or managed scraping</li>
+        <li>First Street Foundation — forward-looking climate risk scores</li>
+      </ul>
+    </div>
+
+    <div>
+      <div class="section-label">Business Model</div>
+      <h2>Multiple monetization paths</h2>
+      <ul>
+        <li>Subscription alert service — $15–25/month per active search</li>
+        <li>On-demand property report — $30–50 per parcel deep-dive</li>
+        <li>Buyer's agent referral — revenue share with rural real estate specialists</li>
+        <li>NRCS / FSA grant pre-qualification layer — premium add-on for serious buyers</li>
+        <li>B2B: white-label for land trusts, farm incubators, state ag departments</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- Pipeline -->
+  <div class="pipeline">
+    <div class="section-label">How It Works</div>
+    <div class="pipeline-steps">
+      <div class="step"><strong>01 — Ingest</strong>Listing found</div>
+      <div class="arrow">›</div>
+      <div class="step"><strong>02 — Geocode</strong>Address → lat/lng</div>
+      <div class="arrow">›</div>
+      <div class="step"><strong>03 — Soil</strong>USDA API query</div>
+      <div class="arrow">›</div>
+      <div class="step"><strong>04 — Flood</strong>FEMA zone lookup</div>
+      <div class="arrow">›</div>
+      <div class="step"><strong>05 — Parcel</strong>Zoning + acreage</div>
+      <div class="arrow">›</div>
+      <div class="step"><strong>06 — Score</strong>AI suitability</div>
+      <div class="arrow">›</div>
+      <div class="step"><strong>07 — Alert</strong>Email / SMS</div>
+    </div>
+  </div>
+
+  <!-- Differentiation -->
+  <div class="callout">
+    <p><strong>Key differentiation:</strong> Existing tools either serve commodity agriculture (AcreValue, LandWatch) or mainstream residential buyers (Zillow, Redfin). Neither speaks to the homestead buyer's actual decision criteria — agricultural viability, not school districts. The AI suitability layer turns raw data into a plain-English verdict: <em>"Good candidate. Class II loam, Zone X flood rating, south-facing with existing outbuildings. Check well depth and Starlink coverage before visiting."</em> No tool produces that today.</p>
+  </div>
+
+  <!-- Metrics -->
+  <div class="bottom-row">
+    <div class="metric">
+      <div class="metric-value">3M+</div>
+      <div class="metric-label">Back-to-land households actively searching in the US</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">$0</div>
+      <div class="metric-label">Purpose-built tools for the homestead buyer segment today</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">~$25</div>
+      <div class="metric-label">Target monthly subscription — comparable to a single data service</div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-left">
+      LandMatch — Concept Document · April 2026<br>
+      Built on public USDA, FEMA, and parcel data infrastructure
+    </div>
+    <div class="status-badge">Pre-Product · Seeking Feedback</div>
+  </footer>
+
+</div>
+</body>
+</html>

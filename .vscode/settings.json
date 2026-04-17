@@ -1,0 +1,12 @@
+{
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit",
+    "source.sortMembers": "explicit"
+  },
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "package.json": "pnpm-lock.yaml, pnpm-workspace.yaml, .npmrc, .nvmrc, .prettierrc, .prettierignore, tsconfig.json, eslint.config.js, sst.config.ts, sst-env.d.ts, docker-compose.yml"
+  }
+}

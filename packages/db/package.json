@@ -1,0 +1,19 @@
+{
+  "name": "@landmatch/db",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "tsc --noEmit && eslint src/",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.8"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules
+dist
+.expo
+drizzle
+*.generated.*
+pnpm-lock.yaml
+
+# Documentation
+docs/
+
+# AI tools
+.agents/
+.claude/
+.cursor/
+.conductor/
+
+.beads/
