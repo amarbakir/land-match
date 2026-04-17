@@ -1,1 +1,1 @@
-export { err, ok, type Result } from '@landmatch/config';
+export { err, ok, type Result } from '@landmatch/api';

@@ -1,4 +1,4 @@
-import type { Result } from '@landmatch/config';
+import type { Result } from '@landmatch/api';
 
 export type { Result };
 

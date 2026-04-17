@@ -4,7 +4,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@landmatch/config": "workspace:*"
+    "@landmatch/api": "workspace:*"
   },
   "scripts": {
     "lint": "tsc --noEmit && eslint src/",

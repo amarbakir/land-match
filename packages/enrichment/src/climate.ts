@@ -1,4 +1,4 @@
-import { err } from '@landmatch/config';
+import { err } from '@landmatch/api';
 
 import type { ClimateData, EnrichmentAdapter, LatLng, Result } from './types';
 

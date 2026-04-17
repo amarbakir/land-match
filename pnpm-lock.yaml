@@ -41,9 +41,6 @@ importers:
       '@landmatch/api':
         specifier: workspace:*
         version: link:../../packages/api
-      '@landmatch/config':
-        specifier: workspace:*
-        version: link:../../packages/config
       '@landmatch/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -146,9 +143,9 @@ importers:
 
   packages/enrichment:
     dependencies:
-      '@landmatch/config':
+      '@landmatch/api':
         specifier: workspace:*
-        version: link:../config
+        version: link:../api
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
