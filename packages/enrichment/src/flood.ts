@@ -36,7 +36,7 @@ export const floodAdapter: EnrichmentAdapter<FloodData> = {
     url.searchParams.set('inSR', '4326');
 
     try {
-      const res = await fetch(url.toString(), {
+      const res = await fetch(url, {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
 

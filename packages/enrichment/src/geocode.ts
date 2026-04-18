@@ -26,7 +26,7 @@ async function geocodeCensus(address: string): Promise<Result<GeocodeData>> {
   url.searchParams.set('format', 'json');
 
   try {
-    const res = await fetch(url.toString(), {
+    const res = await fetch(url, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
 
@@ -62,7 +62,7 @@ async function geocodeNominatim(address: string): Promise<Result<GeocodeData>> {
   url.searchParams.set('countrycodes', 'us');
 
   try {
-    const res = await fetch(url.toString(), {
+    const res = await fetch(url, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: { 'User-Agent': 'LandMatch/1.0' },
     });

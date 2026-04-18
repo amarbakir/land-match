@@ -88,7 +88,7 @@ describe('floodAdapter.enrich', () => {
 
     await floodAdapter.enrich({ lat: 37.215, lng: -93.298 });
 
-    const url = new URL(fetchSpy.mock.calls[0][0] as string);
+    const url = fetchSpy.mock.calls[0][0] as URL;
     const geometry = JSON.parse(url.searchParams.get('geometry')!);
     expect(geometry).toEqual({ x: -93.298, y: 37.215 });
     expect(url.searchParams.get('inSR')).toBe('4326');

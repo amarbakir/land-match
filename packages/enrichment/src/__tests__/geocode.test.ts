@@ -118,7 +118,7 @@ describe('geocode', () => {
     await geocode('123 Main St');
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls[0][0]).toContain('geocoding.geo.census.gov');
+    expect(String(fetchSpy.mock.calls[0][0])).toContain('geocoding.geo.census.gov');
   });
 
   it('handles Census response with malformed coordinates gracefully', async () => {
