@@ -102,6 +102,14 @@ export function featureFlag(name: string, defaultVal: boolean): boolean {
   return v === 'true' || v === '1' || v === 'yes';
 }
 
+/**
+ * LLM configuration (for scoring summaries)
+ */
+export const llm = {
+  anthropicApiKey: required('ANTHROPIC_API_KEY'),
+  model: optional('LLM_SUMMARY_MODEL', 'claude-haiku-4-5-20251001'),
+} as const;
+
 export const features = {
   enableParcelData: featureFlag('ENABLE_PARCEL_DATA', false),
   enableClimateRisk: featureFlag('ENABLE_CLIMATE_RISK', false),
