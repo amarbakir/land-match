@@ -41,19 +41,20 @@ pnpm --filter @landmatch/db db:generate / db:migrate  # DB migrations
 ## Key patterns
 
 - **API versioning**: all routes under `/api/v1/...` (`apps/server/src/app.ts`)
-- **Return types**: `Result<T>` on server (`lib/result.ts`)
+- **Return types**: `Result<T>` from `@landmatch/api` (`packages/api/src/result.ts`)
 - **Validation**: Zod schemas from `@landmatch/api` — no ad-hoc shape checks
 - **DB**: snake_case columns, TEXT UUID ids, repos accept optional `Tx` for transactions
 - **Config/env**: `apps/server/src/config.ts` — missing critical envs throw in production
 - **Enrichment pipeline**: adapters implement `EnrichmentAdapter<T>`, orchestrated in parallel via `pipeline.ts`
 - **Scoring engine**: deterministic component scores (0-100) + weighted average, hard filters for pass/fail
+- **LLM integration**: dependency-injected `generateText` function — adapter in `apps/server/src/lib/llm.ts`, testable without SDK
 - **Data sources**: USDA Soil Data Access (free), FEMA NFHL (free), Regrid (feature-flagged), First Street (feature-flagged)
 
 ## Conventions
 
 - Use `pnpm`, not npm/yarn
 - Run `bd ready` to check for tracked work before starting features
-- Consult `docs/` for implementation designs
+- Consult `docs/superpowers/specs/` for designs and `docs/superpowers/plans/` for implementation plans
 - Announce a short plan before multi-step changes
 - Keep scope tight — no speculative abstractions, no unused helpers
 - Delete dead code instead of commenting it out
