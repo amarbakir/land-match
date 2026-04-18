@@ -1,0 +1,20 @@
+{
+  "name": "@landmatch/feeds",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@landmatch/api": "workspace:*",
+    "rss-parser": "^3.13.0"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit && eslint src/",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.16"
+  }
+}
