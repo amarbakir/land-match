@@ -1,4 +1,4 @@
-import { boolean, jsonb, pgTable, text, timestamp, integer, real } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, text, timestamp, integer, real, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -46,7 +46,9 @@ export const listings = pgTable('listings', {
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   delistedAt: timestamp('delisted_at', { withTimezone: true, mode: 'date' }),
-});
+}, (table) => [
+  uniqueIndex('listings_external_id_source_idx').on(table.externalId, table.source),
+]);
 
 export const enrichments = pgTable('enrichments', {
   id: text('id').primaryKey(),

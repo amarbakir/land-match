@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "listings_external_id_source_idx" ON "listings" USING btree ("external_id","source");
