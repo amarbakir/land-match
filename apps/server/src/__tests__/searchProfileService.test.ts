@@ -28,6 +28,9 @@ describe('searchProfileService', () => {
 
       const result = await searchProfileService.create('user-1', {
         name: 'Hudson Valley Homestead',
+        alertFrequency: 'daily',
+        alertThreshold: 60,
+        isActive: true,
         criteria: { price: { max: 400000 }, acreage: { min: 5 } },
       });
 

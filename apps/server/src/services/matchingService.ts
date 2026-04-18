@@ -61,7 +61,7 @@ export async function matchListingAgainstProfiles(listingId: string): Promise<Re
         listingId,
         searchProfileId: profile.id,
         overallScore: result.overallScore,
-        componentScores: result.componentScores as Record<string, number>,
+        componentScores: result.componentScores as unknown as Record<string, number>,
       });
       scored++;
 
