@@ -1,0 +1,199 @@
+
+<!-- saved from url=(0111)file:///Users/amarbakir/dev/land-match/.superpowers/brainstorm/26800-1776475076/content/palette-comparison.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body><h2>Dark base + warm accents vs. pure Modern Green</h2>
+<p class="subtitle">Comparing your two directions side by side — applied to actual UI patterns</p>
+
+<style>
+  .comparison { display: flex; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
+  .comp-panel { flex: 1; min-width: 300px; border-radius: 12px; overflow: hidden; border: 2px solid #333; cursor: pointer; transition: border-color 0.2s; }
+  .comp-panel:hover { border-color: #888; }
+  .comp-panel.selected { border-color: #D4A843; box-shadow: 0 0 0 2px #D4A84355; }
+
+  .palette-strip { display: flex; height: 48px; }
+  .palette-strip > div { flex: 1; }
+
+  .mock-app { padding: 20px; min-height: 400px; }
+  .mock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 12px; }
+  .mock-logo { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+  .mock-nav-links { display: flex; gap: 16px; font-size: 13px; }
+  .mock-search-bar { border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .mock-btn { padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; border: none; cursor: pointer; }
+  .mock-card { border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .mock-card h4 { margin: 0 0 6px 0; font-size: 15px; }
+  .mock-card p { margin: 0; font-size: 12px; line-height: 1.5; }
+  .mock-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .mock-score { font-size: 28px; font-weight: 700; }
+  .mock-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .panel-title { padding: 12px 16px; font-size: 14px; font-weight: 600; text-align: center; }
+  .score-row { display: flex; gap: 12px; margin-bottom: 16px; }
+  .score-item { flex: 1; border-radius: 8px; padding: 12px; text-align: center; }
+</style>
+
+<!-- Option A: Dark + Warm -->
+<div class="comparison">
+  <div class="comp-panel" data-choice="dark-warm" onclick="toggleSelect(this)">
+    <div class="palette-strip">
+      <div style="background: #0F1410;"></div>
+      <div style="background: #1A2118;"></div>
+      <div style="background: #2C3E2D;"></div>
+      <div style="background: #D4A843;"></div>
+      <div style="background: #C4956A;"></div>
+      <div style="background: #E8DDD3;"></div>
+    </div>
+    <div class="panel-title" style="background: #0F1410; color: #E8DDD3;">A — Dark + Warm Earthy Accents</div>
+
+    <div class="mock-app" style="background: #0F1410; color: #E8DDD3;">
+      <div class="mock-header" style="border-bottom: 1px solid #2C3E2D;">
+        <div class="mock-logo" style="color: #D4A843;">LandMatch</div>
+        <div class="mock-nav-links" style="color: #9BA393;">
+          <span>Search</span><span>Alerts</span><span>Saved</span><span style="color: #D4A843;">Profile</span>
+        </div>
+      </div>
+
+      <div class="mock-search-bar" style="background: #1A2118; border: 1px solid #2C3E2D; color: #9BA393;">
+        🔍 Search by county, state, or coordinates...
+        <div style="margin-left: auto;">
+          <span class="mock-btn" style="background: #D4A843; color: #0F1410; font-size: 12px; padding: 6px 14px;">Search</span>
+        </div>
+      </div>
+
+      <div class="mock-label" style="color: #9BA393;">Top Matches</div>
+
+      <div class="mock-card" style="background: #1A2118; border: 1px solid #2C3E2D;">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h4 style="color: #E8DDD3;">40 Acres — Benton County, AR</h4>
+            <p style="color: #9BA393;">Mixed hardwood, year-round creek, county road access. Class II soils on 60% of parcel.</p>
+          </div>
+          <div style="text-align: center;">
+            <div class="mock-score" style="color: #D4A843;">87</div>
+            <div style="font-size: 10px; color: #9BA393;">Match Score</div>
+          </div>
+        </div>
+        <div class="score-row" style="margin-top: 12px;">
+          <div class="score-item" style="background: #0F1410;">
+            <div style="font-size: 11px; color: #9BA393;">Soil</div>
+            <div style="font-size: 16px; font-weight: 600; color: #7DB88A;">92</div>
+          </div>
+          <div class="score-item" style="background: #0F1410;">
+            <div style="font-size: 11px; color: #9BA393;">Flood</div>
+            <div style="font-size: 16px; font-weight: 600; color: #7DB88A;">95</div>
+          </div>
+          <div class="score-item" style="background: #0F1410;">
+            <div style="font-size: 11px; color: #9BA393;">Climate</div>
+            <div style="font-size: 16px; font-weight: 600; color: #C4956A;">74</div>
+          </div>
+          <div class="score-item" style="background: #0F1410;">
+            <div style="font-size: 11px; color: #9BA393;">Zoning</div>
+            <div style="font-size: 16px; font-weight: 600; color: #D4A843;">88</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <span class="mock-badge" style="background: #2C3E2D; color: #7DB88A;">Low Flood Risk</span>
+          <span class="mock-badge" style="background: #3A2A1A; color: #D4A843;">Prime Farmland</span>
+          <span class="mock-badge" style="background: #2A1F1A; color: #C4956A;">Well Permit OK</span>
+        </div>
+      </div>
+
+      <div class="mock-card" style="background: #1A2118; border: 1px solid #2C3E2D;">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h4 style="color: #E8DDD3;">15 Acres — Ozark County, MO</h4>
+            <p style="color: #9BA393;">South-facing slope, spring-fed pond, gravel road. Timber and pasture mix.</p>
+          </div>
+          <div style="text-align: center;">
+            <div class="mock-score" style="color: #C4956A;">72</div>
+            <div style="font-size: 10px; color: #9BA393;">Match Score</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Modern Green -->
+  <div class="comp-panel" data-choice="modern-green" onclick="toggleSelect(this)">
+    <div class="palette-strip">
+      <div style="background: #0D1117;"></div>
+      <div style="background: #161B22;"></div>
+      <div style="background: #1B4332;"></div>
+      <div style="background: #2D6A4F;"></div>
+      <div style="background: #52B788;"></div>
+      <div style="background: #F8FAF7;"></div>
+    </div>
+    <div class="panel-title" style="background: #0D1117; color: #F8FAF7;">B — Modern Green (Cool)</div>
+
+    <div class="mock-app" style="background: #0D1117; color: #F8FAF7;">
+      <div class="mock-header" style="border-bottom: 1px solid #1B4332;">
+        <div class="mock-logo" style="color: #52B788;">LandMatch</div>
+        <div class="mock-nav-links" style="color: #8B949E;">
+          <span>Search</span><span>Alerts</span><span>Saved</span><span style="color: #52B788;">Profile</span>
+        </div>
+      </div>
+
+      <div class="mock-search-bar" style="background: #161B22; border: 1px solid #1B4332; color: #8B949E;">
+        🔍 Search by county, state, or coordinates...
+        <div style="margin-left: auto;">
+          <span class="mock-btn" style="background: #52B788; color: #0D1117; font-size: 12px; padding: 6px 14px;">Search</span>
+        </div>
+      </div>
+
+      <div class="mock-label" style="color: #8B949E;">Top Matches</div>
+
+      <div class="mock-card" style="background: #161B22; border: 1px solid #1B4332;">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h4 style="color: #F8FAF7;">40 Acres — Benton County, AR</h4>
+            <p style="color: #8B949E;">Mixed hardwood, year-round creek, county road access. Class II soils on 60% of parcel.</p>
+          </div>
+          <div style="text-align: center;">
+            <div class="mock-score" style="color: #52B788;">87</div>
+            <div style="font-size: 10px; color: #8B949E;">Match Score</div>
+          </div>
+        </div>
+        <div class="score-row" style="margin-top: 12px;">
+          <div class="score-item" style="background: #0D1117;">
+            <div style="font-size: 11px; color: #8B949E;">Soil</div>
+            <div style="font-size: 16px; font-weight: 600; color: #52B788;">92</div>
+          </div>
+          <div class="score-item" style="background: #0D1117;">
+            <div style="font-size: 11px; color: #8B949E;">Flood</div>
+            <div style="font-size: 16px; font-weight: 600; color: #52B788;">95</div>
+          </div>
+          <div class="score-item" style="background: #0D1117;">
+            <div style="font-size: 11px; color: #8B949E;">Climate</div>
+            <div style="font-size: 16px; font-weight: 600; color: #2D6A4F;">74</div>
+          </div>
+          <div class="score-item" style="background: #0D1117;">
+            <div style="font-size: 11px; color: #8B949E;">Zoning</div>
+            <div style="font-size: 16px; font-weight: 600; color: #52B788;">88</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <span class="mock-badge" style="background: #1B4332; color: #52B788;">Low Flood Risk</span>
+          <span class="mock-badge" style="background: #1B4332; color: #52B788;">Prime Farmland</span>
+          <span class="mock-badge" style="background: #1B4332; color: #52B788;">Well Permit OK</span>
+        </div>
+      </div>
+
+      <div class="mock-card" style="background: #161B22; border: 1px solid #1B4332;">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h4 style="color: #F8FAF7;">15 Acres — Ozark County, MO</h4>
+            <p style="color: #8B949E;">South-facing slope, spring-fed pond, gravel road. Timber and pasture mix.</p>
+          </div>
+          <div style="text-align: center;">
+            <div class="mock-score" style="color: #2D6A4F;">72</div>
+            <div style="font-size: 10px; color: #8B949E;">Match Score</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="color: #999; font-size: 13px; text-align: center; margin-top: 8px;">
+  <strong>A</strong> uses gold (#D4A843) and clay (#C4956A) accents on a dark green-tinted base — warm and earthy.<br>
+  <strong>B</strong> uses sage green (#52B788) throughout on a neutral dark base — clean and modern.<br>
+  Notice how A's warm accents create more visual hierarchy (scores, badges, CTAs stand out differently).
+</p>
+</body></html>
