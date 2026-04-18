@@ -116,10 +116,10 @@ importers:
         version: link:../../packages/scoring
       '@react-email/components':
         specifier: ^1.0.12
-        version: 1.0.12(react-dom@19.2.5(react@19.2.0))(react@19.2.0)
+        version: 1.0.12(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@react-email/render':
         specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.5(react@19.2.0))(react@19.2.0)
+        version: 2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -147,9 +147,12 @@ importers:
       react:
         specifier: 19.2.0
         version: 19.2.0
+      react-dom:
+        specifier: 19.2.0
+        version: 19.2.0(react@19.2.0)
       resend:
         specifier: ^4.1.2
-        version: 4.8.0(react-dom@19.2.5(react@19.2.0))(react@19.2.0)
+        version: 4.8.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -5427,11 +5430,6 @@ packages:
     peerDependencies:
       react: ^19.2.0
 
-  react-dom@19.2.5:
-    resolution: {integrity: sha512-J5bAZz+DXMMwW/wV3xzKke59Af6CHY7G4uYLN1OvBcKEsWOs4pQExj86BBKamxl/Ik5bx9whOrvBlSDfWzgSag==}
-    peerDependencies:
-      react: ^19.2.5
-
   react-fast-compare@3.2.2:
     resolution: {integrity: sha512-nsO+KSNgo1SbJqJEYRE9ERzo7YtYbou/OqjSQKxV7jcKox7+usiUVZOAC+XnDOABXggQTno0Y1CpVnuWEc1boQ==}
 
@@ -8337,7 +8335,7 @@ snapshots:
     dependencies:
       react: 19.2.0
 
-  '@react-email/components@1.0.12(react-dom@19.2.5(react@19.2.0))(react@19.2.0)':
+  '@react-email/components@1.0.12(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@react-email/body': 0.3.0(react@19.2.0)
       '@react-email/button': 0.2.1(react@19.2.0)
@@ -8354,7 +8352,7 @@ snapshots:
       '@react-email/link': 0.0.13(react@19.2.0)
       '@react-email/markdown': 0.0.18(react@19.2.0)
       '@react-email/preview': 0.0.14(react@19.2.0)
-      '@react-email/render': 2.0.6(react-dom@19.2.5(react@19.2.0))(react@19.2.0)
+      '@react-email/render': 2.0.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@react-email/row': 0.0.13(react@19.2.0)
       '@react-email/section': 0.0.17(react@19.2.0)
       '@react-email/tailwind': 2.0.7(@react-email/body@0.3.0(react@19.2.0))(@react-email/button@0.2.1(react@19.2.0))(@react-email/code-block@0.2.1(react@19.2.0))(@react-email/code-inline@0.0.6(react@19.2.0))(@react-email/container@0.0.16(react@19.2.0))(@react-email/heading@0.0.16(react@19.2.0))(@react-email/hr@0.0.12(react@19.2.0))(@react-email/img@0.0.12(react@19.2.0))(@react-email/link@0.0.13(react@19.2.0))(@react-email/preview@0.0.14(react@19.2.0))(@react-email/text@0.1.6(react@19.2.0))(react@19.2.0)
@@ -8404,27 +8402,27 @@ snapshots:
     dependencies:
       react: 19.2.0
 
-  '@react-email/render@1.1.2(react-dom@19.2.5(react@19.2.0))(react@19.2.0)':
+  '@react-email/render@1.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.8.3
       react: 19.2.0
-      react-dom: 19.2.5(react@19.2.0)
+      react-dom: 19.2.0(react@19.2.0)
       react-promise-suspense: 0.3.4
 
-  '@react-email/render@2.0.6(react-dom@19.2.5(react@19.2.0))(react@19.2.0)':
+  '@react-email/render@2.0.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.8.3
       react: 19.2.0
-      react-dom: 19.2.5(react@19.2.0)
+      react-dom: 19.2.0(react@19.2.0)
 
-  '@react-email/render@2.0.7(react-dom@19.2.5(react@19.2.0))(react@19.2.0)':
+  '@react-email/render@2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.8.3
       react: 19.2.0
-      react-dom: 19.2.5(react@19.2.0)
+      react-dom: 19.2.0(react@19.2.0)
 
   '@react-email/row@0.0.13(react@19.2.0)':
     dependencies:
@@ -12859,11 +12857,6 @@ snapshots:
       react: 19.2.0
       scheduler: 0.27.0
 
-  react-dom@19.2.5(react@19.2.0):
-    dependencies:
-      react: 19.2.0
-      scheduler: 0.27.0
-
   react-fast-compare@3.2.2: {}
 
   react-freeze@1.0.4(react@19.2.0):
@@ -13050,9 +13043,9 @@ snapshots:
 
   require-directory@2.1.1: {}
 
-  resend@4.8.0(react-dom@19.2.5(react@19.2.0))(react@19.2.0):
+  resend@4.8.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     dependencies:
-      '@react-email/render': 1.1.2(react-dom@19.2.5(react@19.2.0))(react@19.2.0)
+      '@react-email/render': 1.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
     transitivePeerDependencies:
       - react
       - react-dom
