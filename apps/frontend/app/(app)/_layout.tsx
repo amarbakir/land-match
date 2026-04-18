@@ -19,6 +19,10 @@ export default function AppLayout() {
           headerTitleStyle: { color: colors.accent, fontWeight: '700' },
         }}
       />
+      <Stack.Screen
+        name="report/index"
+        options={{ title: 'Property Report' }}
+      />
     </Stack>
   );
 }
