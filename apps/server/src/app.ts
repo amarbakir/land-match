@@ -6,6 +6,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { server } from './config';
 import { pool } from './db/client';
 import { generateRequestId } from './middleware/logging';
+import listingsRouter from './routes/listings';
 import type { Env } from './types/env';
 
 export function createApp() {
@@ -49,8 +50,8 @@ export function createApp() {
     return c.json({ status: allOk ? 'ok' : 'error', components: { db } }, allOk ? 200 : 503);
   });
 
-  // Mount API routes here:
-  // app.route('/api/v1/example', exampleRouter);
+  // Mount API routes
+  app.route('/api/v1/listings', listingsRouter);
 
   return app;
 }
