@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { listings, enrichments } from '@landmatch/db';
 import type { EnrichmentResult } from '@landmatch/enrichment';
 import type { RawListing } from '@landmatch/feeds';
@@ -135,6 +135,11 @@ export async function updateEnrichmentStatus(id: string, status: EnrichmentStatu
     .update(listings)
     .set({ enrichmentStatus: status })
     .where(eq(listings.id, id));
+}
+
+export async function findByIds(ids: string[], tx?: Tx) {
+  if (ids.length === 0) return [];
+  return (tx ?? db).select().from(listings).where(inArray(listings.id, ids));
 }
 
 export async function findListingWithEnrichment(id: string, tx?: Tx) {

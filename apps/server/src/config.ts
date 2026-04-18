@@ -119,6 +119,14 @@ export const features = {
   enableClimateRisk: featureFlag('ENABLE_CLIMATE_RISK', false),
 } as const;
 
+export const email = {
+  get resendApiKey() {
+    return required('RESEND_API_KEY');
+  },
+  fromAddress: optional('EMAIL_FROM', 'LandMatch <onboarding@resend.dev>'),
+  deliveryCronSchedule: optional('EMAIL_CRON_SCHEDULE', '*/5 * * * *'),
+} as const;
+
 export const feedPipeline = {
   cronSchedule: optional('FEED_CRON_SCHEDULE', '*/30 * * * *'),
   enrichmentConcurrency: parseInt(optional('FEED_ENRICHMENT_CONCURRENCY', '5'), 10),
@@ -134,6 +142,7 @@ export function validateConfig(): void {
   console.log(`[CONFIG] Environment: ${server.nodeEnv}`);
   console.log(`[CONFIG] Database URL: ${database.url ? 'configured' : 'NOT SET'}`);
   console.log(`[CONFIG] Auth: ${auth.jwtSecret ? 'configured' : 'NOT configured'}`);
+  console.log(`[CONFIG] Email: from=${email.fromAddress}`);
 
   if (isProduction) {
     if (!database.url) {
@@ -146,6 +155,7 @@ export default {
   database,
   server,
   auth,
+  email,
   features,
   validateConfig,
 };

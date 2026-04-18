@@ -1,4 +1,4 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import { scores } from '@landmatch/db';
 
 import { db, type Tx } from '../db/client';
@@ -43,6 +43,11 @@ export async function findScoredProfileIds(listingId: string, tx?: Tx): Promise<
     .from(scores)
     .where(eq(scores.listingId, listingId));
   return new Set(rows.map((r) => r.searchProfileId));
+}
+
+export async function findByIds(ids: string[], tx?: Tx) {
+  if (ids.length === 0) return [];
+  return (tx ?? db).select().from(scores).where(inArray(scores.id, ids));
 }
 
 export async function findByProfileId(profileId: string, tx?: Tx) {
