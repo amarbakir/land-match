@@ -34,7 +34,7 @@ async function geocodeCensus(address: string): Promise<Result<GeocodeData>> {
       return err(`Census Geocoder HTTP ${res.status}`);
     }
 
-    const json = await res.json();
+    const json = (await res.json()) as { result?: { addressMatches?: Array<{ coordinates: { x: number; y: number }; matchedAddress: string }> } };
     const matches = json?.result?.addressMatches;
 
     if (!Array.isArray(matches) || matches.length === 0) {

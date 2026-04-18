@@ -44,7 +44,7 @@ export const floodAdapter: EnrichmentAdapter<FloodData> = {
         return err(`FEMA NFHL HTTP ${res.status}`);
       }
 
-      const json = await res.json();
+      const json = (await res.json()) as { features?: Array<{ attributes?: Record<string, unknown> }> };
       const features = json?.features;
 
       if (!Array.isArray(features) || features.length === 0) {

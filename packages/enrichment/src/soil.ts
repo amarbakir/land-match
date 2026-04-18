@@ -58,7 +58,7 @@ export const soilAdapter: EnrichmentAdapter<SoilData> = {
         return err(`USDA SDM HTTP ${res.status}`);
       }
 
-      const json = await res.json();
+      const json = (await res.json()) as { Table?: unknown[][] };
       const table = json?.Table;
 
       if (!Array.isArray(table) || table.length === 0) {
