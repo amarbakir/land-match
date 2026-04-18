@@ -1,7 +1,5 @@
 import { err, ok, type Result } from '@landmatch/api';
 import { enrichListing } from '@landmatch/enrichment';
-import type { EnrichmentResult } from '@landmatch/enrichment';
-import { mapEnrichmentResult } from '@landmatch/scoring';
 
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
