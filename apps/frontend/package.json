@@ -1,0 +1,35 @@
+{
+  "name": "@landmatch/frontend",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "lint": "tsc --noEmit",
+    "test": "vitest --passWithNoTests",
+    "test:run": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@landmatch/api": "workspace:*",
+    "@tamagui/animations-react-native": "^1.144.4",
+    "@tamagui/config": "^1.144.4",
+    "@tamagui/lucide-icons": "^1.144.4",
+    "@tanstack/react-query": "^5.90.21",
+    "expo": "~55.0.5",
+    "expo-font": "~55.0.4",
+    "expo-router": "~55.0.4",
+    "expo-status-bar": "~55.0.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.2",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-screens": "~4.23.0",
+    "react-native-web": "~0.21.2",
+    "tamagui": "^1.144.4"
+  },
+  "devDependencies": {
+    "@expo/metro-runtime": "^55.0.6",
+    "@types/react": "~19.2.14",
+    "vitest": "^4.0.16"
+  }
+}
