@@ -52,7 +52,7 @@ export const soilAdapter: EnrichmentAdapter<SoilData> = {
       const res = await fetch(SDM_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `query=${encodeURIComponent(query)}`,
+        body: `query=${encodeURIComponent(query)}&format=JSON`,
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
 
