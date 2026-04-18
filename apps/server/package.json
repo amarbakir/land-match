@@ -16,6 +16,7 @@
     "@landmatch/api": "workspace:*",
     "@landmatch/db": "workspace:*",
     "@landmatch/enrichment": "workspace:*",
+    "@landmatch/feeds": "workspace:*",
     "@landmatch/scoring": "workspace:*",
     "@anthropic-ai/sdk": "^0.39.0",
     "@hono/node-server": "^1.11.0",

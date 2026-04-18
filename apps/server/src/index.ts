@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server';
 import { createApp } from './app';
 import { server, validateConfig } from './config';
 import { runMigrations } from './db/client';
+import { startScheduler } from './jobs/scheduler';
 
 function getTimestamp(): string {
   return new Date().toISOString();
@@ -24,6 +25,7 @@ async function startServer() {
   const app = createApp();
   serve({ fetch: app.fetch, port: server.port });
   console.log(`[${getTimestamp()}] [INFO] Hono server running on port ${server.port}`);
+  startScheduler();
 }
 
 startServer().catch((error) => {

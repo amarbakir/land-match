@@ -108,6 +108,9 @@ importers:
       '@landmatch/enrichment':
         specifier: workspace:*
         version: link:../../packages/enrichment
+      '@landmatch/feeds':
+        specifier: workspace:*
+        version: link:../../packages/feeds
       '@landmatch/scoring':
         specifier: workspace:*
         version: link:../../packages/scoring
