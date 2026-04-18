@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as searchProfileRepo from '../repos/searchProfileRepo';
 import * as searchProfileService from '../services/searchProfileService';
@@ -19,7 +19,7 @@ const PROFILE_ROW = {
   updatedAt: new Date('2026-01-01'),
 };
 
-afterEach(() => vi.restoreAllMocks());
+beforeEach(() => vi.resetAllMocks());
 
 describe('searchProfileService', () => {
   describe('create', () => {
@@ -83,6 +83,16 @@ describe('searchProfileService', () => {
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.data.name).toBe('Updated');
     });
+
+    it('returns FORBIDDEN when updating another user profile', async () => {
+      mockRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
+
+      const result = await searchProfileService.update('other-user', 'profile-1', { name: 'Hacked' });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe('FORBIDDEN');
+      expect(mockRepo.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('delete', () => {
@@ -93,6 +103,33 @@ describe('searchProfileService', () => {
       const result = await searchProfileService.remove('user-1', 'profile-1');
 
       expect(result.ok).toBe(true);
+    });
+
+    it('returns FORBIDDEN when deleting another user profile', async () => {
+      mockRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
+
+      const result = await searchProfileService.remove('other-user', 'profile-1');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe('FORBIDDEN');
+      expect(mockRepo.deleteById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('error handling', () => {
+    it('returns INTERNAL_ERROR when repo throws', async () => {
+      mockRepo.insert.mockRejectedValueOnce(new Error('connection refused'));
+
+      const result = await searchProfileService.create('user-1', {
+        name: 'Test',
+        alertFrequency: 'daily',
+        alertThreshold: 60,
+        isActive: true,
+        criteria: {},
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe('INTERNAL_ERROR');
     });
   });
 });

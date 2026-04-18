@@ -177,4 +177,17 @@ describe('matchListingAgainstProfiles', () => {
 
     expect(result.ok).toBe(false);
   });
+
+  it('returns error when listing exists but has no enrichment', async () => {
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: null,
+    });
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('Listing not enriched');
+    expect(mockScoreRepo.insert).not.toHaveBeenCalled();
+  });
 });
