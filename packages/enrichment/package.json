@@ -9,7 +9,8 @@
   "scripts": {
     "lint": "tsc --noEmit && eslint src/",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "smoke-test": "tsx scripts/smoke-test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

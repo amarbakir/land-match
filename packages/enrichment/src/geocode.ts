@@ -8,7 +8,7 @@ export interface GeocodeData {
   matchedAddress: string;
 }
 
-const CENSUS_URL = 'https://geocoding.geo.census.gov/geocoder/addresses/onelineaddress';
+const CENSUS_URL = 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress';
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const TIMEOUT_MS = 10_000;
 
