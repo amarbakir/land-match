@@ -36,6 +36,7 @@ pnpm build / pnpm lint                  # all packages
 pnpm --filter <pkg> test                # unit tests (vitest)
 pnpm --filter @landmatch/server test:integration  # integration tests
 pnpm --filter @landmatch/db db:generate / db:migrate  # DB migrations
+pnpm --filter @landmatch/enrichment smoke-test        # hit real vendor APIs (USDA, FEMA, Census, Nominatim)
 ```
 
 ## Key patterns
