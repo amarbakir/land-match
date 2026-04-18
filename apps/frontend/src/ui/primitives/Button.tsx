@@ -10,7 +10,7 @@ export function Button({ buttonVariant = 'primary', children, ...props }: LandMa
   const variantStyles = {
     primary: {
       backgroundColor: colors.accent,
-      color: '#0F1410',
+      color: colors.background,
       borderWidth: 0,
     },
     secondary: {
