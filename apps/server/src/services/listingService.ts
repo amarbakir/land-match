@@ -1,41 +1,10 @@
-import { err, ok, type Result } from '@landmatch/api';
+import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResponse } from '@landmatch/api';
 import { enrichListing } from '@landmatch/enrichment';
 
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 
-export interface EnrichInput {
-  address: string;
-  price?: number;
-  acreage?: number;
-  url?: string;
-  title?: string;
-}
-
-export interface EnrichOutput {
-  listing: {
-    id: string;
-    address: string;
-    latitude: number;
-    longitude: number;
-    price: number | null;
-    acreage: number | null;
-    enrichmentStatus: string;
-  };
-  enrichment: {
-    soilCapabilityClass: number | null;
-    soilDrainageClass: string | null;
-    soilTexture: string | null;
-    femaFloodZone: string | null;
-    zoningCode: string | null;
-    fireRiskScore: number | null;
-    floodRiskScore: number | null;
-    sourcesUsed: string[];
-    errors: Array<{ source: string; error: string }>;
-  };
-}
-
-export async function enrichAndPersist(input: EnrichInput): Promise<Result<EnrichOutput>> {
+export async function enrichAndPersist(input: EnrichListingRequest): Promise<Result<EnrichListingResponse>> {
   try {
     // 1. Geocode + enrich via pipeline
     const enrichResult = await enrichListing(input.address);
@@ -64,7 +33,6 @@ export async function enrichAndPersist(input: EnrichInput): Promise<Result<Enric
       const enrichmentRow = await listingRepo.insertEnrichment(
         listing.id,
         enrichment,
-        enrichment.sourcesUsed,
         tx,
       );
 

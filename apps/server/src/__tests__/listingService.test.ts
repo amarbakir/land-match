@@ -147,9 +147,9 @@ describe('enrichAndPersist', () => {
 
     // Both repo calls receive the same tx object
     // insertListing(input, tx) — tx at index 1
-    // insertEnrichment(listingId, result, sourcesUsed, tx) — tx at index 3
+    // insertEnrichment(listingId, result, tx) — tx at index 2
     const listingTx = mockInsertListing.mock.calls[0][1];
-    const enrichmentTx = mockInsertEnrichment.mock.calls[0][3];
+    const enrichmentTx = mockInsertEnrichment.mock.calls[0][2];
     expect(listingTx).toBe('fake-tx');
     expect(enrichmentTx).toBe('fake-tx');
   });

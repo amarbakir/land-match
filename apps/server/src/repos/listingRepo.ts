@@ -43,7 +43,6 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
 export async function insertEnrichment(
   listingId: string,
   result: EnrichmentResult,
-  sourcesUsed: string[],
   tx?: Tx,
 ) {
   const id = generateId();
@@ -68,7 +67,7 @@ export async function insertEnrichment(
       heatRiskScore: result.climate?.heatRiskScore ?? null,
       droughtRiskScore: result.climate?.droughtRiskScore ?? null,
       enrichedAt: new Date(),
-      sourcesUsed,
+      sourcesUsed: result.sourcesUsed,
     })
     .returning();
 

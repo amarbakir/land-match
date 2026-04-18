@@ -104,9 +104,13 @@ export function featureFlag(name: string, defaultVal: boolean): boolean {
 
 /**
  * LLM configuration (for scoring summaries)
+ * Lazy — only evaluated when llmClient is actually called,
+ * so missing ANTHROPIC_API_KEY doesn't break startup or tests.
  */
 export const llm = {
-  anthropicApiKey: required('ANTHROPIC_API_KEY'),
+  get anthropicApiKey() {
+    return required('ANTHROPIC_API_KEY');
+  },
   model: optional('LLM_SUMMARY_MODEL', 'claude-haiku-4-5-20251001'),
 } as const;
 

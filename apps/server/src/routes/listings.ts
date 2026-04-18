@@ -12,13 +12,13 @@ listings.post('/enrich', async (c) => {
   const parsed = EnrichListingRequest.safeParse(body);
 
   if (!parsed.success) {
-    badRequest(parsed.error.issues.map((i) => i.message).join(', '));
+    return badRequest(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
   const result = await listingService.enrichAndPersist(parsed.data);
 
   if (!result.ok) {
-    throwFromResult(result, { GEOCODE_FAILED: 422 });
+    return throwFromResult(result, { GEOCODE_FAILED: 422 });
   }
 
   return okResponse(c, result.data, 201);
