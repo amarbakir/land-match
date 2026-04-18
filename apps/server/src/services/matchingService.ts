@@ -43,7 +43,12 @@ export async function matchListingAgainstProfiles(listingId: string): Promise<Re
     if (!data) return err('Listing not found');
     if (!data.enrichment) return err('Listing not enriched');
 
-    const profiles = await searchProfileRepo.findActive();
+    const [profiles, scoredProfileIds, alertedProfileIds] = await Promise.all([
+      searchProfileRepo.findActive(),
+      scoreRepo.findScoredProfileIds(listingId),
+      alertRepo.findAlertedProfileIds(listingId),
+    ]);
+
     const listingData = mapToListingData(data.listing);
     const enrichmentData = mapToEnrichmentData(data.enrichment);
 
@@ -51,8 +56,7 @@ export async function matchListingAgainstProfiles(listingId: string): Promise<Re
     let alertsCreated = 0;
 
     for (const profile of profiles) {
-      const existingScore = await scoreRepo.findByListingAndProfile(listingId, profile.id);
-      if (existingScore) continue;
+      if (scoredProfileIds.has(profile.id)) continue;
 
       const criteria = profile.criteria as SearchCriteria;
       const result = scoreListing(listingData, enrichmentData, criteria);
@@ -65,18 +69,15 @@ export async function matchListingAgainstProfiles(listingId: string): Promise<Re
       });
       scored++;
 
-      if (result.overallScore >= profile.alertThreshold) {
-        const existingAlert = await alertRepo.findByListingAndProfile(listingId, profile.id);
-        if (!existingAlert) {
-          await alertRepo.insert({
-            userId: profile.userId,
-            searchProfileId: profile.id,
-            listingId,
-            scoreId: scoreRow.id,
-            channel: 'email',
-          });
-          alertsCreated++;
-        }
+      if (result.overallScore >= profile.alertThreshold && !alertedProfileIds.has(profile.id)) {
+        await alertRepo.insert({
+          userId: profile.userId,
+          searchProfileId: profile.id,
+          listingId,
+          scoreId: scoreRow.id,
+          channel: 'email',
+        });
+        alertsCreated++;
       }
     }
 

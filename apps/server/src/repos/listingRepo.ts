@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { listings, enrichments } from '@landmatch/db';
 import type { EnrichmentResult } from '@landmatch/enrichment';
+import type { RawListing } from '@landmatch/feeds';
 
 import { db, type Tx } from '../db/client';
 import { generateId } from '../lib/id';
@@ -80,22 +81,7 @@ export async function findListingById(id: string, tx?: Tx) {
   });
 }
 
-export interface UpsertFeedListingInput {
-  externalId: string;
-  source: string;
-  url: string;
-  title: string;
-  description?: string;
-  price?: number;
-  acreage?: number;
-  address?: string;
-  city?: string;
-  county?: string;
-  state?: string;
-  rawData: Record<string, unknown>;
-}
-
-export async function upsertFromFeed(input: UpsertFeedListingInput, tx?: Tx) {
+export async function upsertFromFeed(input: RawListing, tx?: Tx) {
   const id = generateId();
   const now = new Date();
 
@@ -142,7 +128,9 @@ export async function findPendingEnrichment(limit: number, tx?: Tx) {
     .limit(limit);
 }
 
-export async function updateEnrichmentStatus(id: string, status: string, tx?: Tx) {
+export type EnrichmentStatus = 'pending' | 'enriched' | 'complete' | 'failed';
+
+export async function updateEnrichmentStatus(id: string, status: EnrichmentStatus, tx?: Tx) {
   await (tx ?? db)
     .update(listings)
     .set({ enrichmentStatus: status })
@@ -150,14 +138,14 @@ export async function updateEnrichmentStatus(id: string, status: string, tx?: Tx
 }
 
 export async function findListingWithEnrichment(id: string, tx?: Tx) {
-  const listing = await (tx ?? db).query.listings.findFirst({
-    where: eq(listings.id, id),
-  });
-  if (!listing) return null;
+  const rows = await (tx ?? db)
+    .select()
+    .from(listings)
+    .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
+    .where(eq(listings.id, id))
+    .limit(1);
 
-  const enrichment = await (tx ?? db).query.enrichments.findFirst({
-    where: eq(enrichments.listingId, id),
-  });
+  if (rows.length === 0) return null;
 
-  return { listing, enrichment: enrichment ?? null };
+  return { listing: rows[0].listings, enrichment: rows[0].enrichments };
 }

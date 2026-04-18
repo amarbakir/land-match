@@ -37,6 +37,14 @@ export async function findByListingAndProfile(listingId: string, profileId: stri
   });
 }
 
+export async function findScoredProfileIds(listingId: string, tx?: Tx): Promise<Set<string>> {
+  const rows = await (tx ?? db)
+    .select({ searchProfileId: scores.searchProfileId })
+    .from(scores)
+    .where(eq(scores.listingId, listingId));
+  return new Set(rows.map((r) => r.searchProfileId));
+}
+
 export async function findByProfileId(profileId: string, tx?: Tx) {
   return (tx ?? db)
     .select()

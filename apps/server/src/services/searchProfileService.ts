@@ -3,7 +3,16 @@ import type { CreateSearchProfile, UpdateSearchProfile, SearchProfileResponse } 
 
 import * as searchProfileRepo from '../repos/searchProfileRepo';
 
-function toResponse(row: NonNullable<Awaited<ReturnType<typeof searchProfileRepo.findById>>>): SearchProfileResponse {
+type ProfileRow = NonNullable<Awaited<ReturnType<typeof searchProfileRepo.findById>>>;
+
+async function findOwned(userId: string, id: string): Promise<Result<ProfileRow>> {
+  const row = await searchProfileRepo.findById(id);
+  if (!row) return err('NOT_FOUND');
+  if (row.userId !== userId) return err('FORBIDDEN');
+  return ok(row);
+}
+
+function toResponse(row: ProfileRow): SearchProfileResponse {
   return {
     id: row.id,
     userId: row.userId,
@@ -36,10 +45,9 @@ export async function create(userId: string, input: CreateSearchProfile): Promis
 
 export async function getById(userId: string, id: string): Promise<Result<SearchProfileResponse>> {
   try {
-    const row = await searchProfileRepo.findById(id);
-    if (!row) return err('NOT_FOUND');
-    if (row.userId !== userId) return err('FORBIDDEN');
-    return ok(toResponse(row));
+    const result = await findOwned(userId, id);
+    if (!result.ok) return result;
+    return ok(toResponse(result.data));
   } catch (error) {
     console.error('[searchProfileService.getById]', error);
     return err('INTERNAL_ERROR');
@@ -62,9 +70,8 @@ export async function update(
   input: UpdateSearchProfile,
 ): Promise<Result<SearchProfileResponse>> {
   try {
-    const existing = await searchProfileRepo.findById(id);
-    if (!existing) return err('NOT_FOUND');
-    if (existing.userId !== userId) return err('FORBIDDEN');
+    const owned = await findOwned(userId, id);
+    if (!owned.ok) return owned;
 
     const row = await searchProfileRepo.update(id, {
       ...(input.name !== undefined && { name: input.name }),
@@ -84,9 +91,8 @@ export async function update(
 
 export async function remove(userId: string, id: string): Promise<Result<void>> {
   try {
-    const existing = await searchProfileRepo.findById(id);
-    if (!existing) return err('NOT_FOUND');
-    if (existing.userId !== userId) return err('FORBIDDEN');
+    const owned = await findOwned(userId, id);
+    if (!owned.ok) return owned;
 
     await searchProfileRepo.deleteById(id);
     return ok(undefined);

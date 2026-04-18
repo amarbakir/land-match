@@ -84,14 +84,27 @@ export async function runPipeline(
 
   console.log(`[feedPipeline] Stage 2 complete: ${result.enriched} enriched, ${result.enrichFailed} failed`);
 
-  // Stage 3: Match
-  for (const listingId of enrichedListingIds) {
-    const matchResult = await matchListingAgainstProfiles(listingId);
-    if (matchResult.ok) {
-      result.matched += matchResult.data.scored;
-      result.alertsCreated += matchResult.data.alertsCreated;
-    } else {
-      result.errors.push(`[match] ${listingId}: ${matchResult.error}`);
+  // Stage 3: Match (with concurrency limit)
+  for (let i = 0; i < enrichedListingIds.length; i += concurrency) {
+    const batch = enrichedListingIds.slice(i, i + concurrency);
+
+    const matchResults = await Promise.allSettled(
+      batch.map((listingId) => matchListingAgainstProfiles(listingId)),
+    );
+
+    for (let j = 0; j < matchResults.length; j++) {
+      const settled = matchResults[j];
+      if (settled.status === 'rejected') {
+        result.errors.push(`[match] ${batch[j]}: ${settled.reason}`);
+        continue;
+      }
+      const matchResult = settled.value;
+      if (matchResult.ok) {
+        result.matched += matchResult.data.scored;
+        result.alertsCreated += matchResult.data.alertsCreated;
+      } else {
+        result.errors.push(`[match] ${batch[j]}: ${matchResult.error}`);
+      }
     }
   }
 

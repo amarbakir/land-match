@@ -96,7 +96,8 @@ describe('matchListingAgainstProfiles', () => {
       enrichment: ENRICHMENT,
     });
     mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
-    mockScoreRepo.findByListingAndProfile.mockResolvedValueOnce(undefined);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
     mockScoreRepo.insert.mockResolvedValueOnce({
       id: 'score-1',
       listingId: 'listing-1',
@@ -106,7 +107,6 @@ describe('matchListingAgainstProfiles', () => {
       llmSummary: null,
       scoredAt: new Date(),
     });
-    mockAlertRepo.findByListingAndProfile.mockResolvedValueOnce(undefined);
     mockAlertRepo.insert.mockResolvedValueOnce({} as any);
 
     const result = await matchListingAgainstProfiles('listing-1');
@@ -133,7 +133,8 @@ describe('matchListingAgainstProfiles', () => {
       enrichment: ENRICHMENT,
     });
     mockProfileRepo.findActive.mockResolvedValueOnce([highThresholdProfile]);
-    mockScoreRepo.findByListingAndProfile.mockResolvedValueOnce(undefined);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
     mockScoreRepo.insert.mockResolvedValueOnce({
       id: 'score-1',
       listingId: 'listing-1',
@@ -158,15 +159,8 @@ describe('matchListingAgainstProfiles', () => {
       enrichment: ENRICHMENT,
     });
     mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
-    mockScoreRepo.findByListingAndProfile.mockResolvedValueOnce({
-      id: 'existing-score',
-      listingId: 'listing-1',
-      searchProfileId: 'profile-1',
-      overallScore: 75,
-      componentScores: {},
-      llmSummary: null,
-      scoredAt: new Date(),
-    });
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
 
     const result = await matchListingAgainstProfiles('listing-1');
 

@@ -38,6 +38,14 @@ export async function findByListingAndProfile(listingId: string, profileId: stri
   });
 }
 
+export async function findAlertedProfileIds(listingId: string, tx?: Tx): Promise<Set<string>> {
+  const rows = await (tx ?? db)
+    .select({ searchProfileId: alerts.searchProfileId })
+    .from(alerts)
+    .where(eq(alerts.listingId, listingId));
+  return new Set(rows.map((r) => r.searchProfileId));
+}
+
 export async function findPendingByUser(userId: string, tx?: Tx) {
   return (tx ?? db).query.alerts.findMany({
     where: and(eq(alerts.userId, userId), eq(alerts.status, 'pending')),
