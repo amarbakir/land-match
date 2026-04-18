@@ -1,6 +1,6 @@
 export { climateAdapter } from './climate';
 export { floodAdapter } from './flood';
-export { geocodeAdapter } from './geocode';
+export { geocode, type GeocodeData } from './geocode';
 export { parcelAdapter } from './parcel';
 export { runEnrichmentPipeline } from './pipeline';
 export { soilAdapter } from './soil';
