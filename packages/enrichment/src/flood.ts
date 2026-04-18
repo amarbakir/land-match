@@ -2,7 +2,7 @@ import { err, ok } from '@landmatch/api';
 
 import type { EnrichmentAdapter, FloodData, LatLng, Result } from './types';
 
-const NFHL_URL = 'https://hazards.fema.gov/gis/nfhl/rest/services/public/NFHL/MapServer/28/query';
+const NFHL_URL = 'https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query';
 const TIMEOUT_MS = 10_000;
 
 const ZONE_DESCRIPTIONS: Record<string, string> = {

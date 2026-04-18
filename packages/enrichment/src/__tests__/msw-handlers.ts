@@ -6,7 +6,7 @@ export const MOCK_ADDRESS = '123 Mountain Rd, Gatlinburg, TN 37738';
 const CENSUS_URL = 'https://geocoding.geo.census.gov/geocoder/addresses/onelineaddress';
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const SDM_URL = 'https://sdmdataaccess.sc.egov.usda.gov/tabular/post.rest';
-const NFHL_URL = 'https://hazards.fema.gov/gis/nfhl/rest/services/public/NFHL/MapServer/28/query';
+const NFHL_URL = 'https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query';
 
 export const handlers = [
   // Census Geocoder — happy path
@@ -35,7 +35,7 @@ export const handlers = [
   }),
 
   // USDA Soil Data Access — happy path
-  // row: [comppct_r, nirrcapcl, drainagecl, texdesc]
+  // row: [comppct_r, nirrcapcl, drainagecl, texcl]
   // '2e' → parseInt → 2 → CAPABILITY_SUITABILITY[2]
   http.post(SDM_URL, () => {
     return HttpResponse.json({

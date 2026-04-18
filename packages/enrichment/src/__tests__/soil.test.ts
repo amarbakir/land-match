@@ -8,7 +8,7 @@ const VALID_SDM_RESPONSE = {
       85, // comppct_r
       '2e', // nirrcapcl — capability class 2
       'Well drained', // drainagecl
-      'Silt loam', // texdesc
+      'Silt loam', // texcl
     ],
   ],
 };

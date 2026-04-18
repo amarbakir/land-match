@@ -22,12 +22,14 @@ function buildSoilQuery(lat: number, lng: number): string {
       c.comppct_r,
       c.nirrcapcl,
       c.drainagecl,
-      ch.texdesc
+      cht.texcl
     FROM sacatalog AS sc
     INNER JOIN legend AS l ON sc.areasymbol = l.areasymbol
     INNER JOIN mapunit AS mu ON l.lkey = mu.lkey
     INNER JOIN component AS c ON mu.mukey = c.mukey
     LEFT JOIN chorizon AS ch ON c.cokey = ch.cokey
+    LEFT JOIN chtexturegrp AS chtg ON ch.chkey = chtg.chkey
+    LEFT JOIN chtexture AS cht ON chtg.chtgkey = cht.chtgkey
     WHERE mu.mukey IN (
       SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(${lng} ${lat})')
     )
