@@ -38,21 +38,9 @@ export interface ScoringResult {
   failedFilters: string[];
 }
 
-export interface SearchCriteria {
-  acreage?: { min?: number; max?: number };
-  price?: { min?: number; max?: number };
-  soilCapabilityClass?: { max: number };
-  floodZoneExclude?: string[];
-  geography?: {
-    type: 'radius' | 'counties' | 'driveTime';
-    center?: { lat: number; lng: number };
-    radiusMiles?: number;
-  };
-  zoning?: string[];
-  infrastructure?: string[];
-  climateRisk?: { maxFireRisk?: number; maxFloodRisk?: number };
-  weights?: Partial<ScoringWeights>;
-}
+import type { SearchCriteria } from '@landmatch/api';
+
+export type { SearchCriteria };
 
 export interface ListingData {
   price?: number;

@@ -9,6 +9,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@landmatch/api": "workspace:*",
     "@landmatch/enrichment": "workspace:*"
   },
   "devDependencies": {
