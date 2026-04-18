@@ -1,13 +1,21 @@
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView } from 'react-native';
 
-import { Input, Text, XStack, YStack } from 'tamagui';
+import { Input, InputProps, Text, XStack, YStack } from 'tamagui';
 
 import { useEnrichListing } from '@/src/api/hooks';
 import { colors } from '@/src/theme/colors';
+import { Badge } from '@/src/ui/primitives/Badge';
 import { Button } from '@/src/ui/primitives/Button';
 import { Card } from '@/src/ui/primitives/Card';
 import { Screen } from '@/src/ui/primitives/Screen';
+
+const inputStyles = {
+  backgroundColor: colors.background,
+  borderColor: colors.border,
+  color: colors.textPrimary,
+  placeholderTextColor: colors.textSecondary,
+} satisfies InputProps;
 
 const SOIL_CLASS_LABELS: Record<number, string> = {
   1: 'Prime farmland',
@@ -33,21 +41,6 @@ const FLOOD_ZONE_LABELS: Record<string, string> = {
 function toRomanNumeral(n: number): string {
   const numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
   return numerals[n - 1] ?? String(n);
-}
-
-function Badge({ text }: { text: string }) {
-  return (
-    <XStack
-      backgroundColor={colors.border}
-      paddingHorizontal="$2"
-      paddingVertical={3}
-      borderRadius={12}
-    >
-      <Text fontSize={11} fontWeight="600" color={colors.accent}>
-        {text}
-      </Text>
-    </XStack>
-  );
 }
 
 function NotAvailable() {
@@ -105,10 +98,7 @@ export default function ReportScreen() {
             placeholder="123 Mountain Rd, Gatlinburg, TN 37738"
             value={address}
             onChangeText={setAddress}
-            backgroundColor={colors.background}
-            borderColor={colors.border}
-            color={colors.textPrimary}
-            placeholderTextColor={colors.textSecondary}
+            {...inputStyles}
             marginBottom="$3"
           />
           <XStack gap="$2" marginBottom="$3">
@@ -118,10 +108,7 @@ export default function ReportScreen() {
               value={price}
               onChangeText={setPrice}
               keyboardType="numeric"
-              backgroundColor={colors.background}
-              borderColor={colors.border}
-              color={colors.textPrimary}
-              placeholderTextColor={colors.textSecondary}
+              {...inputStyles}
             />
             <Input
               flex={1}
@@ -129,10 +116,7 @@ export default function ReportScreen() {
               value={acreage}
               onChangeText={setAcreage}
               keyboardType="numeric"
-              backgroundColor={colors.background}
-              borderColor={colors.border}
-              color={colors.textPrimary}
-              placeholderTextColor={colors.textSecondary}
+              {...inputStyles}
             />
           </XStack>
           <Button

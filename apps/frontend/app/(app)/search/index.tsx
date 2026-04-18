@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Text, XStack, YStack } from 'tamagui';
 
 import { colors } from '@/src/theme/colors';
+import { Badge } from '@/src/ui/primitives/Badge';
 import { Button } from '@/src/ui/primitives/Button';
 import { Card } from '@/src/ui/primitives/Card';
 import { Screen } from '@/src/ui/primitives/Screen';
@@ -47,19 +48,6 @@ function ScoreCell({ label, score }: { label: string; score: number }) {
       <Text fontSize={11} color={colors.textSecondary}>{label}</Text>
       <Text fontSize={16} fontWeight="600" color={scoreColor(score)}>{score}</Text>
     </YStack>
-  );
-}
-
-function Badge({ text }: { text: string }) {
-  return (
-    <XStack
-      backgroundColor={colors.border}
-      paddingHorizontal="$2"
-      paddingVertical={3}
-      borderRadius={12}
-    >
-      <Text fontSize={11} fontWeight="600" color={colors.accent}>{text}</Text>
-    </XStack>
   );
 }
 

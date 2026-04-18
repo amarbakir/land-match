@@ -7,11 +7,18 @@ export async function apiPost<TReq, TRes>(path: string, body: TReq): Promise<TRe
     body: JSON.stringify(body),
   });
 
-  const json = await response.json();
-
-  if (!json.ok) {
-    throw new Error(json.error ?? 'Request failed');
+  if (!response.ok) {
+    const text = await response.text();
+    let message = `Request failed (${response.status})`;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.error) message = parsed.error;
+    } catch {
+      // non-JSON error body — use status-based message
+    }
+    throw new Error(message);
   }
 
+  const json = await response.json();
   return json.data as TRes;
 }
