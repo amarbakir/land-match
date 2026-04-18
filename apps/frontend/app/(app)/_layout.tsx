@@ -1,0 +1,24 @@
+import { Stack } from 'expo-router';
+
+import { colors } from '@/src/theme/colors';
+
+export default function AppLayout() {
+  return (
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: colors.background },
+        headerTintColor: colors.textPrimary,
+        headerTitleStyle: { color: colors.textPrimary },
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <Stack.Screen
+        name="search/index"
+        options={{
+          title: 'LandMatch',
+          headerTitleStyle: { color: colors.accent, fontWeight: '700' },
+        }}
+      />
+    </Stack>
+  );
+}
