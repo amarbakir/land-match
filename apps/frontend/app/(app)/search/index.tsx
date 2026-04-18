@@ -1,5 +1,6 @@
 import { ScrollView } from 'react-native';
 
+import { useRouter } from 'expo-router';
 import { Text, XStack, YStack } from 'tamagui';
 
 import { colors } from '@/src/theme/colors';
@@ -97,6 +98,8 @@ function ListingCard({ listing }: { listing: (typeof MOCK_LISTINGS)[number] }) {
 }
 
 export default function SearchScreen() {
+  const router = useRouter();
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
@@ -113,7 +116,12 @@ export default function SearchScreen() {
           <Text flex={1} color={colors.textSecondary} fontSize={14}>
             Search by county, state, or coordinates...
           </Text>
-          <Button buttonVariant="primary" size="$3" paddingHorizontal="$3">
+          <Button
+            buttonVariant="primary"
+            size="$3"
+            paddingHorizontal="$3"
+            onPress={() => router.push('/(app)/report')}
+          >
             Search
           </Button>
         </XStack>
