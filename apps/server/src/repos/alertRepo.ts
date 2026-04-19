@@ -1,5 +1,5 @@
 import { eq, and, inArray, desc } from 'drizzle-orm';
-import { alerts, users, searchProfiles, listings, scores } from '@landmatch/db';
+import { alerts, users, searchProfiles } from '@landmatch/db';
 
 import { db, type Tx } from '../db/client';
 import { generateId } from '../lib/id';

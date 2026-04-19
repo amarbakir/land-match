@@ -12,6 +12,8 @@ interface DeliveryResult {
   errors: string[];
 }
 
+type AlertFrequency = 'instant' | 'daily' | 'weekly';
+
 type PendingAlert = Awaited<ReturnType<typeof alertRepo.findPendingWithDetails>>[number];
 
 interface AlertGroup {
@@ -20,11 +22,11 @@ interface AlertGroup {
   userName: string | null;
   profileName: string;
   searchProfileId: string;
-  alertFrequency: string;
+  alertFrequency: AlertFrequency;
   alerts: PendingAlert[];
 }
 
-function isWindowElapsed(frequency: string, lastSentAt: Date | null): boolean {
+function isWindowElapsed(frequency: AlertFrequency, lastSentAt: Date | null): boolean {
   if (frequency === 'instant') return true;
   if (!lastSentAt) return true;
 
@@ -38,7 +40,7 @@ function isWindowElapsed(frequency: string, lastSentAt: Date | null): boolean {
   return true;
 }
 
-function buildSubject(alerts: AlertItem[], profileName: string, frequency: string): string {
+function buildSubject(alerts: AlertItem[], profileName: string, frequency: AlertFrequency): string {
   if (frequency === 'instant' && alerts.length === 1) {
     return `New match: ${alerts[0].listingTitle} — ${alerts[0].overallScore} score`;
   }
@@ -78,7 +80,7 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
           userName: alert.userName,
           profileName: alert.profileName,
           searchProfileId: alert.searchProfileId,
-          alertFrequency: alert.alertFrequency,
+          alertFrequency: alert.alertFrequency as AlertFrequency,
           alerts: [],
         });
       }
@@ -138,15 +140,14 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
           continue;
         }
 
-        const frequency = group.alertFrequency as 'instant' | 'daily' | 'weekly';
         const html = await renderAlertEmail({
           userName: group.userName,
           profileName: group.profileName,
           alerts: alertItems,
-          frequency,
+          frequency: group.alertFrequency,
         });
 
-        const subject = buildSubject(alertItems, group.profileName, frequency);
+        const subject = buildSubject(alertItems, group.profileName, group.alertFrequency);
 
         await sendEmail({
           to: group.userEmail,
