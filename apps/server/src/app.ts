@@ -6,6 +6,8 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { server } from './config';
 import { pool } from './db/client';
 import { generateRequestId } from './middleware/logging';
+import { requireAuth } from './middleware/auth';
+import authRouter from './routes/auth';
 import listingsRouter from './routes/listings';
 import searchProfilesRouter from './routes/searchProfiles';
 import type { Env } from './types/env';
@@ -52,7 +54,9 @@ export function createApp() {
   });
 
   // Mount API routes
+  app.route('/api/v1/auth', authRouter);
   app.route('/api/v1/listings', listingsRouter);
+  app.use('/api/v1/search-profiles/*', requireAuth);
   app.route('/api/v1/search-profiles', searchProfilesRouter);
 
   return app;

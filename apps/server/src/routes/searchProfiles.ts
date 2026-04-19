@@ -7,16 +7,8 @@ import type { Env } from '../types/env';
 
 const searchProfiles = new Hono<Env>();
 
-function getUserId(c: { req: { header: (name: string) => string | undefined } }): string {
-  const userId = c.req.header('x-user-id');
-  if (!userId) {
-    badRequest('x-user-id header is required');
-  }
-  return userId;
-}
-
 searchProfiles.post('/', async (c) => {
-  const userId = getUserId(c);
+  const userId = c.get('userId');
   const body = await c.req.json();
   const parsed = CreateSearchProfile.safeParse(body);
 
@@ -34,7 +26,7 @@ searchProfiles.post('/', async (c) => {
 });
 
 searchProfiles.get('/', async (c) => {
-  const userId = getUserId(c);
+  const userId = c.get('userId');
   const result = await searchProfileService.listByUser(userId);
 
   if (!result.ok) {
@@ -45,7 +37,7 @@ searchProfiles.get('/', async (c) => {
 });
 
 searchProfiles.get('/:id', async (c) => {
-  const userId = getUserId(c);
+  const userId = c.get('userId');
   const result = await searchProfileService.getById(userId, c.req.param('id'));
 
   if (!result.ok) {
@@ -56,7 +48,7 @@ searchProfiles.get('/:id', async (c) => {
 });
 
 searchProfiles.put('/:id', async (c) => {
-  const userId = getUserId(c);
+  const userId = c.get('userId');
   const body = await c.req.json();
   const parsed = UpdateSearchProfile.safeParse(body);
 
@@ -74,7 +66,7 @@ searchProfiles.put('/:id', async (c) => {
 });
 
 searchProfiles.delete('/:id', async (c) => {
-  const userId = getUserId(c);
+  const userId = c.get('userId');
   const result = await searchProfileService.remove(userId, c.req.param('id'));
 
   if (!result.ok) {
