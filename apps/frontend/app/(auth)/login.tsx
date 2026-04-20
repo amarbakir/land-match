@@ -1,5 +1,5 @@
 import { LoginRequest } from '@landmatch/api';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Input, Spinner, Text, YStack } from 'tamagui';
 
@@ -11,6 +11,7 @@ import { inputStyles } from '@/src/ui/primitives/inputStyles';
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(parsed.data);
+      router.replace('/(app)');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Login failed');
     } finally {

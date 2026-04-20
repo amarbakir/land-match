@@ -54,13 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(async (data: RegisterRequestType) => {
-    const result = await apiPost<RegisterRequestType, AuthTokenResponseType>(
+    await apiPost<RegisterRequestType, AuthTokenResponseType>(
       '/api/v1/auth/register',
       data,
       { noAuth: true },
     );
-    await setTokens(result.accessToken, result.refreshToken);
-    setIsAuthenticated(true);
   }, []);
 
   const value = useMemo<AuthState>(

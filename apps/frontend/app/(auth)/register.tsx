@@ -1,5 +1,5 @@
 import { RegisterRequest } from '@landmatch/api';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Input, Spinner, Text, YStack } from 'tamagui';
 
@@ -11,6 +11,7 @@ import { inputStyles } from '@/src/ui/primitives/inputStyles';
 
 export default function RegisterScreen() {
   const { register } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -30,6 +31,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register(parsed.data);
+      router.replace('/login');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Registration failed');
     } finally {
