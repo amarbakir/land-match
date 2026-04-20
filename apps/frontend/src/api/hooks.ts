@@ -86,10 +86,10 @@ export function useUpdateMatchStatus() {
         `/api/v1/scores/${scoreId}`,
         data,
       ),
-    onSuccess: () => {
+    onSuccess: (_data, { scoreId }) => {
       queryClient.invalidateQueries({ queryKey: ['profileMatches'] });
       queryClient.invalidateQueries({ queryKey: ['profileCounts'] });
-      queryClient.invalidateQueries({ queryKey: ['matchDetail'] });
+      queryClient.invalidateQueries({ queryKey: ['matchDetail', scoreId] });
     },
   });
 }

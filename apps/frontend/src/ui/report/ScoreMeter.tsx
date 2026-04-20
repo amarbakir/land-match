@@ -11,16 +11,8 @@ interface ScoreMeterProps {
   weight?: number;
 }
 
-function barGradient(score: number): string {
-  if (score >= 80) return colors.success;
-  if (score >= 60) return colors.accentSecondary;
-  if (score >= 40) return colors.accent;
-  return colors.danger;
-}
-
 export function ScoreMeter({ label, score, weight }: ScoreMeterProps) {
   const color = scoreColor(score);
-  const fillColor = barGradient(score);
 
   return (
     <XStack alignItems="center" gap={8}>
@@ -44,7 +36,7 @@ export function ScoreMeter({ label, score, weight }: ScoreMeterProps) {
           style={{
             width: `${Math.min(score, 100)}%`,
             height: '100%',
-            backgroundColor: fillColor,
+            backgroundColor: color,
             borderRadius: 3,
           }}
         />

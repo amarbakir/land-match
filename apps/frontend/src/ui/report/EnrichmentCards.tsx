@@ -6,11 +6,8 @@ import { Text, View, XStack, YStack } from 'tamagui';
 import { colors } from '@/src/theme/colors';
 import { DropletIcon, HomeIcon, SeedIcon, SunIcon } from '@/src/ui/dashboard/Icon';
 
+import { ROMAN } from './constants';
 import { SectionHeader } from './SectionHeader';
-
-const ROMAN: Record<number, string> = {
-  1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI', 7: 'VII', 8: 'VIII',
-};
 
 const SOIL_LABELS: Record<number, string> = {
   1: 'Excellent — few limitations',
@@ -115,6 +112,10 @@ function DataCard({
   );
 }
 
+function formatRisk(score: number | null): string | null {
+  return score != null ? `${score}/10` : null;
+}
+
 interface EnrichmentCardsProps {
   match: MatchDetail;
 }
@@ -129,9 +130,6 @@ export function EnrichmentCards({ match }: EnrichmentCardsProps) {
   const zoningDisplay = match.zoning
     ? match.zoning + (match.zoningDescription ? ` — ${match.zoningDescription}` : '')
     : null;
-
-  const formatRisk = (score: number | null) =>
-    score != null ? `${score}/10` : null;
 
   return (
     <YStack gap={14}>
