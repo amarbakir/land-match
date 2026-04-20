@@ -40,7 +40,7 @@ async function registerFlow(data: { email: string; password: string; name?: stri
 /**
  * Replicate what AuthContext.login does: call apiPost, store tokens.
  * This is the contract LoginScreen relies on —
- * login resolves with tokens stored so the screen can navigate to /(app)/search.
+ * login resolves with tokens stored so the screen can navigate to /(app).
  */
 async function loginFlow(data: { email: string; password: string }) {
   const result = await apiPost('/api/v1/auth/login', data, { noAuth: true });
