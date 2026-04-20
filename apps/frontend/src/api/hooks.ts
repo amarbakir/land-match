@@ -89,6 +89,7 @@ export function useUpdateMatchStatus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profileMatches'] });
       queryClient.invalidateQueries({ queryKey: ['profileCounts'] });
+      queryClient.invalidateQueries({ queryKey: ['matchDetail'] });
     },
   });
 }
