@@ -56,6 +56,8 @@ const MATCH_ROW = {
   zoning: 'agricultural',
 };
 
+const DEFAULT_FILTERS = { sort: 'score' as const, sortDir: 'desc' as const, limit: 20, offset: 0 };
+
 beforeEach(() => vi.resetAllMocks());
 
 describe('matchService', () => {
@@ -64,7 +66,7 @@ describe('matchService', () => {
       mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
       mockScoreRepo.findMatchesByProfile.mockResolvedValueOnce({ rows: [MATCH_ROW], total: 1 });
 
-      const result = await matchService.getMatches('user-1', 'profile-1', {});
+      const result = await matchService.getMatches('user-1', 'profile-1', DEFAULT_FILTERS);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -77,7 +79,7 @@ describe('matchService', () => {
     it('returns NOT_FOUND when profile does not exist', async () => {
       mockProfileRepo.findById.mockResolvedValueOnce(undefined);
 
-      const result = await matchService.getMatches('user-1', 'nonexistent', {});
+      const result = await matchService.getMatches('user-1', 'nonexistent', DEFAULT_FILTERS);
 
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe('NOT_FOUND');
@@ -87,7 +89,7 @@ describe('matchService', () => {
     it('returns FORBIDDEN when profile belongs to another user — prevents reading another user matches', async () => {
       mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW); // profile.userId = 'user-1'
 
-      const result = await matchService.getMatches('attacker', 'profile-1', {});
+      const result = await matchService.getMatches('attacker', 'profile-1', DEFAULT_FILTERS);
 
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe('FORBIDDEN');
@@ -104,7 +106,7 @@ describe('matchService', () => {
       mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
       mockScoreRepo.findMatchesByProfile.mockResolvedValueOnce({ rows, total: 3 });
 
-      const result = await matchService.getMatches('user-1', 'profile-1', {});
+      const result = await matchService.getMatches('user-1', 'profile-1', DEFAULT_FILTERS);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -124,7 +126,7 @@ describe('matchService', () => {
       mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
       mockScoreRepo.findMatchesByProfile.mockResolvedValueOnce({ rows, total: 4 });
 
-      const result = await matchService.getMatches('user-1', 'profile-1', {});
+      const result = await matchService.getMatches('user-1', 'profile-1', DEFAULT_FILTERS);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -145,7 +147,7 @@ describe('matchService', () => {
       mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
       mockScoreRepo.findMatchesByProfile.mockResolvedValueOnce({ rows: [unenrichedRow], total: 1 });
 
-      const result = await matchService.getMatches('user-1', 'profile-1', {});
+      const result = await matchService.getMatches('user-1', 'profile-1', DEFAULT_FILTERS);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -167,7 +169,7 @@ describe('matchService', () => {
       mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
       mockScoreRepo.findMatchesByProfile.mockResolvedValueOnce({ rows: [rowWithReadAt], total: 1 });
 
-      const result = await matchService.getMatches('user-1', 'profile-1', {});
+      const result = await matchService.getMatches('user-1', 'profile-1', DEFAULT_FILTERS);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -183,7 +185,7 @@ describe('matchService', () => {
     it('returns INTERNAL_ERROR when repo throws', async () => {
       mockProfileRepo.findById.mockRejectedValueOnce(new Error('connection refused'));
 
-      const result = await matchService.getMatches('user-1', 'profile-1', {});
+      const result = await matchService.getMatches('user-1', 'profile-1', DEFAULT_FILTERS);
 
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe('INTERNAL_ERROR');
