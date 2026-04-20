@@ -56,6 +56,22 @@ const MATCH_ROW = {
   zoning: 'agricultural',
 };
 
+const DETAIL_ROW = {
+  ...MATCH_ROW,
+  searchProfileId: 'profile-1',
+  // Enrichment detail fields
+  soilDrainageClass: 'Well drained',
+  soilTexture: 'Sandy loam',
+  floodZoneDescription: 'Minimal flood hazard',
+  zoningDescription: 'Agricultural district',
+  verifiedAcreage: 39.8,
+  fireRiskScore: 2,
+  floodRiskScore: 1,
+  heatRiskScore: 4,
+  droughtRiskScore: 3,
+  sourcesUsed: ['USDA Soil', 'FEMA NFHL'],
+};
+
 const DEFAULT_FILTERS = { sort: 'score' as const, sortDir: 'desc' as const, limit: 20, offset: 0 };
 
 beforeEach(() => vi.resetAllMocks());
@@ -267,6 +283,124 @@ describe('matchService', () => {
       mockScoreRepo.findById.mockRejectedValueOnce(new Error('DB timeout'));
 
       const result = await matchService.updateMatchStatus('user-1', 'score-1', { status: 'shortlisted' });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe('INTERNAL_ERROR');
+    });
+  });
+
+  describe('getMatchDetail', () => {
+    it('returns FORBIDDEN when score belongs to another user — prevents IDOR on enrichment data', async () => {
+      // This is the most critical test: without ownership verification,
+      // an attacker who guesses a scoreId can read private enrichment data
+      // (soil analysis, zoning, climate risk) for any user's properties.
+      mockScoreRepo.findMatchDetail.mockResolvedValueOnce(DETAIL_ROW);
+      mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW); // userId = 'user-1'
+
+      const result = await matchService.getMatchDetail('attacker', 'score-1');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe('FORBIDDEN');
+    });
+
+    it('returns NOT_FOUND when score does not exist — does not leak whether scoreId is valid', async () => {
+      mockScoreRepo.findMatchDetail.mockResolvedValueOnce(null);
+
+      const result = await matchService.getMatchDetail('user-1', 'nonexistent');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe('NOT_FOUND');
+      // Should not attempt profile lookup for a nonexistent score
+      expect(mockProfileRepo.findById).not.toHaveBeenCalled();
+    });
+
+    it('returns NOT_FOUND when profile was deleted after score was created', async () => {
+      // Edge case: score references a searchProfileId whose profile was deleted.
+      // Without this check, code would crash on profile.userId access.
+      mockScoreRepo.findMatchDetail.mockResolvedValueOnce(DETAIL_ROW);
+      mockProfileRepo.findById.mockResolvedValueOnce(undefined);
+
+      const result = await matchService.getMatchDetail('user-1', 'score-1');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe('NOT_FOUND');
+    });
+
+    it('includes all enrichment detail fields in successful response', async () => {
+      // Bug this catches: if toMatchDetail forgets a field or maps it wrong,
+      // the frontend renders "N/A" for data that actually exists in the DB.
+      mockScoreRepo.findMatchDetail.mockResolvedValueOnce(DETAIL_ROW);
+      mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
+
+      const result = await matchService.getMatchDetail('user-1', 'score-1');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        // Base MatchItem fields still present
+        expect(result.data.scoreId).toBe('score-1');
+        expect(result.data.overallScore).toBe(87);
+
+        // Detail-specific enrichment fields — these are the whole point of the endpoint
+        expect(result.data.soilDrainageClass).toBe('Well drained');
+        expect(result.data.soilTexture).toBe('Sandy loam');
+        expect(result.data.floodZoneDescription).toBe('Minimal flood hazard');
+        expect(result.data.zoningDescription).toBe('Agricultural district');
+        expect(result.data.verifiedAcreage).toBe(39.8);
+        expect(result.data.fireRiskScore).toBe(2);
+        expect(result.data.floodRiskScore).toBe(1);
+        expect(result.data.heatRiskScore).toBe(4);
+        expect(result.data.droughtRiskScore).toBe(3);
+        expect(result.data.sourcesUsed).toEqual(['USDA Soil', 'FEMA NFHL']);
+      }
+    });
+
+    it('maps null enrichment fields gracefully — prevents TypeError on unenriched listings', async () => {
+      // When a listing has no enrichment row, the LEFT JOIN returns nulls.
+      // If toMatchDetail doesn't coalesce these to null, the Zod schema
+      // validation will fail or the frontend will crash on .length/.toFixed().
+      const unenrichedRow = {
+        ...DETAIL_ROW,
+        soilClass: null,
+        floodZone: null,
+        zoning: null,
+        soilDrainageClass: null,
+        soilTexture: null,
+        floodZoneDescription: null,
+        zoningDescription: null,
+        verifiedAcreage: null,
+        fireRiskScore: null,
+        floodRiskScore: null,
+        heatRiskScore: null,
+        droughtRiskScore: null,
+        sourcesUsed: null,
+      };
+      mockScoreRepo.findMatchDetail.mockResolvedValueOnce(unenrichedRow);
+      mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
+
+      const result = await matchService.getMatchDetail('user-1', 'score-1');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.soilDrainageClass).toBeNull();
+        expect(result.data.soilTexture).toBeNull();
+        expect(result.data.floodZoneDescription).toBeNull();
+        expect(result.data.zoningDescription).toBeNull();
+        expect(result.data.verifiedAcreage).toBeNull();
+        expect(result.data.fireRiskScore).toBeNull();
+        expect(result.data.floodRiskScore).toBeNull();
+        expect(result.data.heatRiskScore).toBeNull();
+        expect(result.data.droughtRiskScore).toBeNull();
+        expect(result.data.sourcesUsed).toBeNull();
+        // Derived fields also null
+        expect(result.data.soilClassLabel).toBeNull();
+        expect(result.data.primeFarmland).toBeNull();
+      }
+    });
+
+    it('returns INTERNAL_ERROR when repo throws — does not leak stack traces', async () => {
+      mockScoreRepo.findMatchDetail.mockRejectedValueOnce(new Error('connection refused'));
+
+      const result = await matchService.getMatchDetail('user-1', 'score-1');
 
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe('INTERNAL_ERROR');
