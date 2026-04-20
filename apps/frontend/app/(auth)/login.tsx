@@ -1,4 +1,4 @@
-import { LoginRequest, type LoginRequestType } from '@landmatch/api';
+import { LoginRequest } from '@landmatch/api';
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Input, Spinner, Text, YStack } from 'tamagui';
@@ -7,6 +7,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { colors } from '@/src/theme/colors';
 import { Button } from '@/src/ui/primitives/Button';
 import { Screen } from '@/src/ui/primitives/Screen';
+import { inputStyles } from '@/src/ui/primitives/inputStyles';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -26,7 +27,7 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      await login(parsed.data as LoginRequestType);
+      await login(parsed.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Login failed');
     } finally {
@@ -50,20 +51,14 @@ export default function LoginScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          backgroundColor={colors.cardBackground}
-          color={colors.textPrimary}
-          borderColor={colors.border}
-          placeholderTextColor={colors.textSecondary}
+          {...inputStyles}
         />
         <Input
           placeholder="Password"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          backgroundColor={colors.cardBackground}
-          color={colors.textPrimary}
-          borderColor={colors.border}
-          placeholderTextColor={colors.textSecondary}
+          {...inputStyles}
         />
 
         {error && (

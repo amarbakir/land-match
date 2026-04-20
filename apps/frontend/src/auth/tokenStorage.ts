@@ -3,13 +3,15 @@ import { Platform } from 'react-native';
 const ACCESS_TOKEN_KEY = 'landmatch_access_token';
 const REFRESH_TOKEN_KEY = 'landmatch_refresh_token';
 
-interface Tokens {
+export interface Tokens {
   accessToken: string;
   refreshToken: string;
 }
 
-async function getSecureStore() {
-  return await import('expo-secure-store');
+let secureStorePromise: Promise<typeof import('expo-secure-store')> | null = null;
+function getSecureStore() {
+  if (!secureStorePromise) secureStorePromise = import('expo-secure-store');
+  return secureStorePromise;
 }
 
 export async function getTokens(): Promise<Tokens | null> {
@@ -21,8 +23,10 @@ export async function getTokens(): Promise<Tokens | null> {
   }
 
   const SecureStore = await getSecureStore();
-  const accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
-  const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  const [accessToken, refreshToken] = await Promise.all([
+    SecureStore.getItemAsync(ACCESS_TOKEN_KEY),
+    SecureStore.getItemAsync(REFRESH_TOKEN_KEY),
+  ]);
   if (!accessToken || !refreshToken) return null;
   return { accessToken, refreshToken };
 }
@@ -35,8 +39,10 @@ export async function setTokens(accessToken: string, refreshToken: string): Prom
   }
 
   const SecureStore = await getSecureStore();
-  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
-  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+  await Promise.all([
+    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken),
+    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken),
+  ]);
 }
 
 export async function clearTokens(): Promise<void> {
@@ -47,6 +53,8 @@ export async function clearTokens(): Promise<void> {
   }
 
   const SecureStore = await getSecureStore();
-  await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  await Promise.all([
+    SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
+    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+  ]);
 }

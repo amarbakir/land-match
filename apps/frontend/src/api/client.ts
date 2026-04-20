@@ -1,6 +1,6 @@
 import type { AuthTokenResponseType } from '@landmatch/api';
 
-import { clearTokens, getTokens, setTokens } from '../auth/tokenStorage';
+import { type Tokens, clearTokens, getTokens, setTokens } from '../auth/tokenStorage';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -10,16 +10,16 @@ export function setOnAuthFailure(callback: () => void) {
   onAuthFailure = callback;
 }
 
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<Tokens | null> | null = null;
 
-async function tryRefresh(): Promise<boolean> {
+async function tryRefresh(): Promise<Tokens | null> {
   // Deduplicate concurrent refresh attempts
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
     try {
       const tokens = await getTokens();
-      if (!tokens) return false;
+      if (!tokens) return null;
 
       const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
         method: 'POST',
@@ -27,14 +27,14 @@ async function tryRefresh(): Promise<boolean> {
         body: JSON.stringify({ refreshToken: tokens.refreshToken }),
       });
 
-      if (!response.ok) return false;
+      if (!response.ok) return null;
 
       const json = await response.json();
       const data = json.data as AuthTokenResponseType;
       await setTokens(data.accessToken, data.refreshToken);
-      return true;
+      return { accessToken: data.accessToken, refreshToken: data.refreshToken };
     } catch {
-      return false;
+      return null;
     } finally {
       refreshPromise = null;
     }
@@ -53,13 +53,10 @@ async function authFetch(path: string, init: RequestInit = {}): Promise<Response
   let response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 
   if (response.status === 401 && tokens) {
-    const refreshed = await tryRefresh();
-    if (refreshed) {
-      const newTokens = await getTokens();
-      if (newTokens) {
-        headers.set('Authorization', `Bearer ${newTokens.accessToken}`);
-        response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
-      }
+    const newTokens = await tryRefresh();
+    if (newTokens) {
+      headers.set('Authorization', `Bearer ${newTokens.accessToken}`);
+      response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
     } else {
       await clearTokens();
       onAuthFailure?.();

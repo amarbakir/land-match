@@ -1,4 +1,4 @@
-import { RegisterRequest, type RegisterRequestType } from '@landmatch/api';
+import { RegisterRequest } from '@landmatch/api';
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Input, Spinner, Text, YStack } from 'tamagui';
@@ -7,6 +7,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { colors } from '@/src/theme/colors';
 import { Button } from '@/src/ui/primitives/Button';
 import { Screen } from '@/src/ui/primitives/Screen';
+import { inputStyles } from '@/src/ui/primitives/inputStyles';
 
 export default function RegisterScreen() {
   const { register } = useAuth();
@@ -28,7 +29,7 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      await register(parsed.data as RegisterRequestType);
+      await register(parsed.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Registration failed');
     } finally {
@@ -50,10 +51,7 @@ export default function RegisterScreen() {
           placeholder="Name (optional)"
           value={name}
           onChangeText={setName}
-          backgroundColor={colors.cardBackground}
-          color={colors.textPrimary}
-          borderColor={colors.border}
-          placeholderTextColor={colors.textSecondary}
+          {...inputStyles}
         />
         <Input
           placeholder="Email"
@@ -61,20 +59,14 @@ export default function RegisterScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          backgroundColor={colors.cardBackground}
-          color={colors.textPrimary}
-          borderColor={colors.border}
-          placeholderTextColor={colors.textSecondary}
+          {...inputStyles}
         />
         <Input
           placeholder="Password (min 8 characters)"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          backgroundColor={colors.cardBackground}
-          color={colors.textPrimary}
-          borderColor={colors.border}
-          placeholderTextColor={colors.textSecondary}
+          {...inputStyles}
         />
 
         {error && (

@@ -37,6 +37,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAuthenticated(false);
       queryClient.clear();
     });
+
+    return () => {
+      setOnAuthFailure(() => {});
+    };
   }, [queryClient]);
 
   const login = useCallback(async (data: LoginRequestType) => {
