@@ -1,4 +1,4 @@
-import Svg, { Circle, Line, Path, Polygon, Polyline, Rect } from 'react-native-svg';
+import Svg, { Circle, G, Line, Path, Polygon, Polyline, Rect } from 'react-native-svg';
 
 interface IconProps {
   size?: number;
@@ -101,6 +101,79 @@ export function ExternalIcon({ size = 16, color = 'currentColor' }: IconProps) {
       <Path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
       <Polyline points="15 3 21 3 21 9" />
       <Line x1={10} y1={14} x2={21} y2={3} />
+    </Svg>
+  );
+}
+
+export function SeedIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" stroke={color} {...defaultProps}>
+      <Path d="M12 2c3 4 3 9 0 14-3-5-3-10 0-14z" />
+      <Path d="M4 14c4 0 8 4 8 8" />
+      <Path d="M20 14c-4 0-8 4-8 8" />
+    </Svg>
+  );
+}
+
+export function DropletIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" stroke={color} {...defaultProps}>
+      <Path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+    </Svg>
+  );
+}
+
+export function SunIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" stroke={color} {...defaultProps}>
+      <Circle cx={12} cy={12} r={4} />
+      <Line x1={12} y1={2} x2={12} y2={4} />
+      <Line x1={12} y1={20} x2={12} y2={22} />
+      <Line x1={4.93} y1={4.93} x2={6.34} y2={6.34} />
+      <Line x1={17.66} y1={17.66} x2={19.07} y2={19.07} />
+      <Line x1={2} y1={12} x2={4} y2={12} />
+      <Line x1={20} y1={12} x2={22} y2={12} />
+      <Line x1={4.93} y1={19.07} x2={6.34} y2={17.66} />
+      <Line x1={17.66} y1={6.34} x2={19.07} y2={4.93} />
+    </Svg>
+  );
+}
+
+export function HomeIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" stroke={color} {...defaultProps}>
+      <Path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1z" />
+    </Svg>
+  );
+}
+
+export function CheckIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" stroke={color} {...defaultProps}>
+      <Polyline points="20 6 9 17 4 12" />
+    </Svg>
+  );
+}
+
+export function NoteIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" stroke={color} {...defaultProps}>
+      <Path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <Polyline points="14 2 14 8 20 8" />
+      <Line x1={9} y1={13} x2={15} y2={13} />
+      <Line x1={9} y1={17} x2={13} y2={17} />
+    </Svg>
+  );
+}
+
+export function ShareIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" stroke={color} {...defaultProps}>
+      <Circle cx={18} cy={5} r={3} />
+      <Circle cx={6} cy={12} r={3} />
+      <Circle cx={18} cy={19} r={3} />
+      <Line x1={8.59} y1={13.51} x2={15.42} y2={17.49} />
+      <Line x1={15.41} y1={6.51} x2={8.59} y2={10.49} />
     </Svg>
   );
 }

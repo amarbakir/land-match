@@ -1,6 +1,7 @@
 import type {
   EnrichListingRequest,
   EnrichListingResponse,
+  MatchDetail,
   MatchItem,
   PaginatedMatches,
   ProfileCounts,
@@ -61,6 +62,14 @@ export function useProfileMatches(profileId: string | null, params: MatchQueryPa
     queryKey: ['profileMatches', profileId, params],
     queryFn: () => apiGet<PaginatedMatches>(path),
     enabled: !!profileId,
+  });
+}
+
+export function useMatchDetail(scoreId: string | null) {
+  return useQuery<MatchDetail, Error>({
+    queryKey: ['matchDetail', scoreId],
+    queryFn: () => apiGet<MatchDetail>(`/api/v1/scores/${scoreId}`),
+    enabled: !!scoreId,
   });
 }
 
