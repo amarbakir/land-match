@@ -50,6 +50,16 @@ describe('register', () => {
     expect(insertCall.passwordHash).toMatch(/^\$2[aby]\$/); // bcrypt prefix
   });
 
+  // Bug: if bcrypt or DB throws, service should degrade to INTERNAL_ERROR, not crash the request
+  it('returns INTERNAL_ERROR when insert throws', async () => {
+    mockUserRepo.findByEmail.mockResolvedValue(undefined);
+    mockUserRepo.insert.mockRejectedValue(new Error('DB connection lost'));
+
+    const result = await register('new@example.com', 'password123');
+
+    expect(result).toEqual({ ok: false, error: 'INTERNAL_ERROR' });
+  });
+
   it('rejects duplicate email without attempting insert', async () => {
     mockUserRepo.findByEmail.mockResolvedValue(STORED_USER);
 
@@ -121,6 +131,16 @@ describe('refresh', () => {
 
     expect(result).toEqual({ ok: false, error: 'INVALID_REFRESH_TOKEN' });
     expect(mockUserRepo.findById).not.toHaveBeenCalled();
+  });
+
+  // Bug: if DB throws during refresh, should not crash
+  it('returns INTERNAL_ERROR when findById throws', async () => {
+    mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
+    mockUserRepo.findById.mockRejectedValue(new Error('DB timeout'));
+
+    const result = await refresh('valid-token');
+
+    expect(result).toEqual({ ok: false, error: 'INTERNAL_ERROR' });
   });
 
   // Bug: user deleted between token issuance and refresh — stale token shouldn't work
