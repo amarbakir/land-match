@@ -10,6 +10,8 @@ import { requireAuth } from './middleware/auth';
 import authRouter from './routes/auth';
 import listingsRouter from './routes/listings';
 import searchProfilesRouter from './routes/searchProfiles';
+import matchesRouter from './routes/matches';
+import scoresRouter from './routes/scores';
 import type { Env } from './types/env';
 
 export function createApp() {
@@ -58,6 +60,9 @@ export function createApp() {
   app.route('/api/v1/listings', listingsRouter);
   app.use('/api/v1/search-profiles/*', requireAuth);
   app.route('/api/v1/search-profiles', searchProfilesRouter);
+  app.route('/api/v1/search-profiles', matchesRouter);
+  app.use('/api/v1/scores/*', requireAuth);
+  app.route('/api/v1/scores', scoresRouter);
 
   return app;
 }

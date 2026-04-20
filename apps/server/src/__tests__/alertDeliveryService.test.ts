@@ -68,6 +68,8 @@ const SCORE = {
   overallScore: 75,
   componentScores: { soil: 85, flood: 100, price: 80 },
   llmSummary: null,
+  status: 'inbox',
+  readAt: null,
   scoredAt: new Date(),
 };
 

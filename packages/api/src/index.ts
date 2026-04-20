@@ -17,3 +17,12 @@ export {
   SearchProfileResponse,
   UpdateSearchProfile,
 } from './searchProfiles';
+export {
+  MatchItem,
+  MatchFilters,
+  MatchStatus,
+  PaginatedMatches,
+  UpdateMatchStatus,
+  ProfileCounts,
+  ComponentScores,
+} from './matches';

@@ -83,6 +83,8 @@ export const scores = pgTable('scores', {
   overallScore: integer('overall_score').notNull(),
   componentScores: jsonb('component_scores').notNull(),
   llmSummary: text('llm_summary'),
+  status: text('status').notNull().default('inbox'),
+  readAt: timestamp('read_at', { withTimezone: true, mode: 'date' }),
   scoredAt: timestamp('scored_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 });
 

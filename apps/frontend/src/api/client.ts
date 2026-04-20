@@ -104,6 +104,30 @@ export async function apiPost<TReq, TRes>(
   return json.data as TRes;
 }
 
+export async function apiPatch<TReq, TRes>(
+  path: string,
+  body: TReq,
+  options?: RequestOptions,
+): Promise<TRes> {
+  const init: RequestInit = {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  };
+
+  const response = options?.noAuth
+    ? await fetch(`${API_BASE_URL}${path}`, init)
+    : await authFetch(path, init);
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(parseErrorResponse(text, response.status));
+  }
+
+  const json = await response.json();
+  return json.data as TRes;
+}
+
 export async function apiGet<TRes>(path: string, options?: RequestOptions): Promise<TRes> {
   const response = options?.noAuth
     ? await fetch(`${API_BASE_URL}${path}`)

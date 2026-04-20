@@ -105,6 +105,8 @@ describe('matchListingAgainstProfiles', () => {
       overallScore: 75,
       componentScores: {},
       llmSummary: null,
+      status: 'inbox',
+      readAt: null,
       scoredAt: new Date(),
     });
     mockAlertRepo.insert.mockResolvedValueOnce({} as any);
@@ -142,6 +144,8 @@ describe('matchListingAgainstProfiles', () => {
       overallScore: 40,
       componentScores: {},
       llmSummary: null,
+      status: 'inbox',
+      readAt: null,
       scoredAt: new Date(),
     });
 
