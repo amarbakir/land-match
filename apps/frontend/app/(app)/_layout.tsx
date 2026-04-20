@@ -9,6 +9,8 @@ import { colors } from '@/src/theme/colors';
 import { AppShell } from '@/src/ui/dashboard/AppShell';
 import type { WorkspaceView } from '@/src/ui/dashboard/types';
 
+import { ProfileEditorScreen } from '@/src/ui/profile/ProfileEditorScreen';
+
 import InboxScreen from './index';
 import ShortlistScreen from './shortlist';
 import DismissedScreen from './dismissed';
@@ -18,6 +20,22 @@ export default function AppLayout() {
   const { data: profiles } = useSearchProfiles();
   const [view, setView] = useState<WorkspaceView>('inbox');
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [editingProfileId, setEditingProfileId] = useState<string | undefined>(undefined);
+
+  const handleEditProfile = (profileId: string) => {
+    setEditingProfileId(profileId);
+    setView('profile');
+  };
+
+  const handleNewProfile = () => {
+    setEditingProfileId(undefined);
+    setView('new-profile');
+  };
+
+  const handleCloseEditor = () => {
+    setEditingProfileId(undefined);
+    setView('inbox');
+  };
 
   // Auto-select first profile once loaded
   useEffect(() => {
@@ -44,6 +62,8 @@ export default function AppLayout() {
       selectedProfileId={selectedProfileId}
       onChangeView={setView}
       onChangeProfile={setSelectedProfileId}
+      onEditProfile={handleEditProfile}
+      onNewProfile={handleNewProfile}
     >
       {view === 'inbox' && (
         <InboxScreen profileId={selectedProfileId} />
@@ -53,6 +73,12 @@ export default function AppLayout() {
       )}
       {view === 'dismissed' && (
         <DismissedScreen profileId={selectedProfileId} />
+      )}
+      {(view === 'profile' || view === 'new-profile') && (
+        <ProfileEditorScreen
+          profileId={editingProfileId}
+          onClose={handleCloseEditor}
+        />
       )}
     </AppShell>
   );

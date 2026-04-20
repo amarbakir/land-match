@@ -15,6 +15,8 @@ interface AppShellProps {
   selectedProfileId: string | null;
   onChangeView: (view: WorkspaceView) => void;
   onChangeProfile: (profileId: string) => void;
+  onEditProfile: (profileId: string) => void;
+  onNewProfile: () => void;
   children: React.ReactNode;
 }
 
@@ -23,6 +25,8 @@ export function AppShell({
   selectedProfileId,
   onChangeView,
   onChangeProfile,
+  onEditProfile,
+  onNewProfile,
   children,
 }: AppShellProps) {
   const { data: profiles = [] } = useSearchProfiles();
@@ -43,6 +47,8 @@ export function AppShell({
           onChangeProfile(id);
           onChangeView('inbox');
         }}
+        onEditProfile={onEditProfile}
+        onNewProfile={onNewProfile}
       />
       <YStack flex={1}>
         <Topbar

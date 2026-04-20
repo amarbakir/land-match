@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import type { ProfileCounts, SearchProfileResponse } from '@landmatch/api';
@@ -9,6 +10,7 @@ import { colors } from '@/src/theme/colors';
 import {
   ArchiveIcon,
   BellIcon,
+  EditIcon,
   InboxIcon,
   PlusIcon,
   SettingsIcon,
@@ -22,6 +24,8 @@ interface SidebarNavProps {
   profileCounts: ProfileCounts;
   onSelectView: (view: WorkspaceView) => void;
   onSelectProfile: (profileId: string) => void;
+  onEditProfile: (profileId: string) => void;
+  onNewProfile: () => void;
 }
 
 function NavItem({
@@ -73,12 +77,81 @@ function NavItem({
   );
 }
 
+function ProfileItem({
+  profile,
+  newCount,
+  onSelect,
+  onEdit,
+}: {
+  profile: SearchProfileResponse;
+  newCount: number;
+  onSelect: () => void;
+  onEdit: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <Pressable
+      onPress={onSelect}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+    >
+      <XStack
+        paddingVertical={7}
+        paddingHorizontal={16}
+        marginHorizontal={8}
+        marginVertical={1}
+        borderRadius={6}
+        alignItems="center"
+        gap={8}
+        backgroundColor={hovered ? '#131813' : 'transparent'}
+      >
+        <View
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: profile.isActive ? colors.success : colors.textFaint,
+          }}
+        />
+        <Text
+          flex={1}
+          fontSize={12.5}
+          color={colors.textSecondary}
+          numberOfLines={1}
+        >
+          {profile.name}
+        </Text>
+        {hovered ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            hitSlop={8}
+          >
+            <EditIcon size={12} color={colors.textFaint} />
+          </Pressable>
+        ) : (
+          newCount > 0 && (
+            <Text fontFamily="$mono" fontSize={10} color={colors.textFaint}>
+              +{newCount}
+            </Text>
+          )
+        )}
+      </XStack>
+    </Pressable>
+  );
+}
+
 export function SidebarNav({
   activeView,
   profiles,
   profileCounts,
   onSelectView,
   onSelectProfile,
+  onEditProfile,
+  onNewProfile,
 }: SidebarNavProps) {
   const countsMap = new Map(profileCounts.map((c) => [c.profileId, c]));
   const totalUnread = profileCounts.reduce((sum, c) => sum + c.unread, 0);
@@ -167,43 +240,17 @@ export function SidebarNav({
         const pc = countsMap.get(p.id);
         const newCount = pc?.unread ?? 0;
         return (
-          <Pressable key={p.id} onPress={() => onSelectProfile(p.id)}>
-            <XStack
-              paddingVertical={7}
-              paddingHorizontal={16}
-              marginHorizontal={8}
-              marginVertical={1}
-              borderRadius={6}
-              alignItems="center"
-              gap={8}
-            >
-              <View
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: p.isActive ? colors.success : colors.textFaint,
-                }}
-              />
-              <Text
-                flex={1}
-                fontSize={12.5}
-                color={colors.textSecondary}
-                numberOfLines={1}
-              >
-                {p.name}
-              </Text>
-              {newCount > 0 && (
-                <Text fontFamily="$mono" fontSize={10} color={colors.textFaint}>
-                  +{newCount}
-                </Text>
-              )}
-            </XStack>
-          </Pressable>
+          <ProfileItem
+            key={p.id}
+            profile={p}
+            newCount={newCount}
+            onSelect={() => onSelectProfile(p.id)}
+            onEdit={() => onEditProfile(p.id)}
+          />
         );
       })}
 
-      <Pressable>
+      <Pressable onPress={onNewProfile}>
         <XStack
           paddingVertical={7}
           paddingHorizontal={16}
