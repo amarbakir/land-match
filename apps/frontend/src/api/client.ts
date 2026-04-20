@@ -1,22 +1,120 @@
+import type { AuthTokenResponseType } from '@landmatch/api';
+
+import { clearTokens, getTokens, setTokens } from '../auth/tokenStorage';
+
 const API_BASE_URL = 'http://localhost:3000';
 
-export async function apiPost<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+let onAuthFailure: (() => void) | null = null;
+
+export function setOnAuthFailure(callback: () => void) {
+  onAuthFailure = callback;
+}
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  // Deduplicate concurrent refresh attempts
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const tokens = await getTokens();
+      if (!tokens) return false;
+
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+      });
+
+      if (!response.ok) return false;
+
+      const json = await response.json();
+      const data = json.data as AuthTokenResponseType;
+      await setTokens(data.accessToken, data.refreshToken);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const tokens = await getTokens();
+  const headers = new Headers(init.headers);
+  if (tokens) {
+    headers.set('Authorization', `Bearer ${tokens.accessToken}`);
+  }
+
+  let response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+
+  if (response.status === 401 && tokens) {
+    const refreshed = await tryRefresh();
+    if (refreshed) {
+      const newTokens = await getTokens();
+      if (newTokens) {
+        headers.set('Authorization', `Bearer ${newTokens.accessToken}`);
+        response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+      }
+    } else {
+      await clearTokens();
+      onAuthFailure?.();
+    }
+  }
+
+  return response;
+}
+
+function parseErrorResponse(text: string, status: number): string {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed.error) return parsed.error;
+  } catch {
+    // non-JSON error body
+  }
+  return `Request failed (${status})`;
+}
+
+interface RequestOptions {
+  noAuth?: boolean;
+}
+
+export async function apiPost<TReq, TRes>(
+  path: string,
+  body: TReq,
+  options?: RequestOptions,
+): Promise<TRes> {
+  const init: RequestInit = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  });
+  };
+
+  const response = options?.noAuth
+    ? await fetch(`${API_BASE_URL}${path}`, init)
+    : await authFetch(path, init);
 
   if (!response.ok) {
     const text = await response.text();
-    let message = `Request failed (${response.status})`;
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed.error) message = parsed.error;
-    } catch {
-      // non-JSON error body — use status-based message
-    }
-    throw new Error(message);
+    throw new Error(parseErrorResponse(text, response.status));
+  }
+
+  const json = await response.json();
+  return json.data as TRes;
+}
+
+export async function apiGet<TRes>(path: string, options?: RequestOptions): Promise<TRes> {
+  const response = options?.noAuth
+    ? await fetch(`${API_BASE_URL}${path}`)
+    : await authFetch(path);
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(parseErrorResponse(text, response.status));
   }
 
   const json = await response.json();
