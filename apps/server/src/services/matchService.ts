@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@landmatch/api';
-import type { MatchItem, PaginatedMatches, MatchFilters, ProfileCounts, UpdateMatchStatus } from '@landmatch/api';
+import type { MatchItem, MatchDetail, PaginatedMatches, MatchFilters, ProfileCounts, UpdateMatchStatus } from '@landmatch/api';
 
 import * as scoreRepo from '../repos/scoreRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
@@ -36,6 +36,41 @@ function toMatchItem(row: MatchRow): MatchItem {
     floodZone: row.floodZone ?? null,
     zoning: row.zoning ?? null,
   };
+}
+
+type DetailRow = NonNullable<Awaited<ReturnType<typeof scoreRepo.findMatchDetail>>>;
+
+function toMatchDetail(row: DetailRow): MatchDetail {
+  const base = toMatchItem(row);
+  return {
+    ...base,
+    soilDrainageClass: row.soilDrainageClass ?? null,
+    soilTexture: row.soilTexture ?? null,
+    floodZoneDescription: row.floodZoneDescription ?? null,
+    zoningDescription: row.zoningDescription ?? null,
+    verifiedAcreage: row.verifiedAcreage ?? null,
+    fireRiskScore: row.fireRiskScore ?? null,
+    floodRiskScore: row.floodRiskScore ?? null,
+    heatRiskScore: row.heatRiskScore ?? null,
+    droughtRiskScore: row.droughtRiskScore ?? null,
+    sourcesUsed: row.sourcesUsed ?? null,
+  };
+}
+
+export async function getMatchDetail(userId: string, scoreId: string): Promise<Result<MatchDetail>> {
+  try {
+    const row = await scoreRepo.findMatchDetail(scoreId);
+    if (!row) return err('NOT_FOUND');
+
+    const profile = await searchProfileRepo.findById(row.searchProfileId);
+    if (!profile) return err('NOT_FOUND');
+    if (profile.userId !== userId) return err('FORBIDDEN');
+
+    return ok(toMatchDetail(row));
+  } catch (error) {
+    console.error('[matchService.getMatchDetail]', error);
+    return err('INTERNAL_ERROR');
+  }
 }
 
 export async function getMatches(

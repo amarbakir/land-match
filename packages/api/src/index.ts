@@ -19,6 +19,7 @@ export {
 } from './searchProfiles';
 export {
   MatchItem,
+  MatchDetail,
   MatchFilters,
   MatchStatus,
   PaginatedMatches,

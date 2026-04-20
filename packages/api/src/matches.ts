@@ -39,6 +39,20 @@ export const MatchItem = z.object({
 });
 export type MatchItem = z.infer<typeof MatchItem>;
 
+export const MatchDetail = MatchItem.extend({
+  soilDrainageClass: z.string().nullable(),
+  soilTexture: z.string().nullable(),
+  floodZoneDescription: z.string().nullable(),
+  zoningDescription: z.string().nullable(),
+  verifiedAcreage: z.number().nullable(),
+  fireRiskScore: z.number().nullable(),
+  floodRiskScore: z.number().nullable(),
+  heatRiskScore: z.number().nullable(),
+  droughtRiskScore: z.number().nullable(),
+  sourcesUsed: z.array(z.string()).nullable(),
+});
+export type MatchDetail = z.infer<typeof MatchDetail>;
+
 export const MatchFilters = z.object({
   status: MatchStatus.optional(),
   minScore: z.coerce.number().min(0).max(100).optional(),

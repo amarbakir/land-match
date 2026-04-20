@@ -169,6 +169,49 @@ export async function getProfileCounts(profileIds: string[], tx?: Tx) {
   }));
 }
 
+export async function findMatchDetail(scoreId: string, tx?: Tx) {
+  const [row] = await (tx ?? db)
+    .select({
+      scoreId: scores.id,
+      listingId: scores.listingId,
+      searchProfileId: scores.searchProfileId,
+      overallScore: scores.overallScore,
+      componentScores: scores.componentScores,
+      llmSummary: scores.llmSummary,
+      status: scores.status,
+      readAt: scores.readAt,
+      scoredAt: scores.scoredAt,
+      title: listings.title,
+      address: listings.address,
+      price: listings.price,
+      acreage: listings.acreage,
+      source: listings.source,
+      url: listings.url,
+      lat: listings.latitude,
+      lng: listings.longitude,
+      soilClass: enrichments.soilCapabilityClass,
+      floodZone: enrichments.femaFloodZone,
+      zoning: enrichments.zoningCode,
+      soilDrainageClass: enrichments.soilDrainageClass,
+      soilTexture: enrichments.soilTexture,
+      floodZoneDescription: enrichments.floodZoneDescription,
+      zoningDescription: enrichments.zoningDescription,
+      verifiedAcreage: enrichments.verifiedAcreage,
+      fireRiskScore: enrichments.fireRiskScore,
+      floodRiskScore: enrichments.floodRiskScore,
+      heatRiskScore: enrichments.heatRiskScore,
+      droughtRiskScore: enrichments.droughtRiskScore,
+      sourcesUsed: enrichments.sourcesUsed,
+    })
+    .from(scores)
+    .innerJoin(listings, eq(scores.listingId, listings.id))
+    .leftJoin(enrichments, eq(listings.id, enrichments.listingId))
+    .where(eq(scores.id, scoreId))
+    .limit(1);
+
+  return row ?? null;
+}
+
 export async function findById(id: string, tx?: Tx) {
   return (tx ?? db).query.scores.findFirst({
     where: eq(scores.id, id),

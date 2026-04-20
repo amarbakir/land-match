@@ -7,6 +7,19 @@ import type { Env } from '../types/env';
 
 const scoresRouter = new Hono<Env>();
 
+// GET /scores/:id
+scoresRouter.get('/:id', async (c) => {
+  const userId = c.get('userId');
+  const scoreId = c.req.param('id');
+
+  const result = await matchService.getMatchDetail(userId, scoreId);
+  if (!result.ok) {
+    return throwFromResult(result, { NOT_FOUND: 404, FORBIDDEN: 403 });
+  }
+
+  return okResponse(c, result.data);
+});
+
 // PATCH /scores/:id
 scoresRouter.patch('/:id', async (c) => {
   const userId = c.get('userId');
