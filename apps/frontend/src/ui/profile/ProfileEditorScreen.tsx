@@ -39,7 +39,7 @@ export function ProfileEditorScreen({ profileId, onClose }: ProfileEditorScreenP
   const existingProfile = profileId ? profiles.find((p) => p.id === profileId) : undefined;
 
   const [form, setForm] = useState<FormState>(() =>
-    existingProfile ? profileToFormState(existingProfile) : { ...DEFAULT_FORM_STATE },
+    existingProfile ? profileToFormState(existingProfile) : structuredClone(DEFAULT_FORM_STATE),
   );
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,16 +72,25 @@ export function ProfileEditorScreen({ profileId, onClose }: ProfileEditorScreenP
     if (existingProfile) {
       updateMutation.mutate(
         { id: existingProfile.id, data: payload },
-        { onSuccess: onClose },
+        { onSuccess: onClose, onError: (err) => setError(err.message) },
       );
     } else {
-      createMutation.mutate(payload, { onSuccess: onClose });
+      createMutation.mutate(payload, {
+        onSuccess: onClose,
+        onError: (err) => setError(err.message),
+      });
     }
   };
 
   const handleDelete = () => {
     if (!existingProfile) return;
-    deleteMutation.mutate(existingProfile.id, { onSuccess: onClose });
+    deleteMutation.mutate(existingProfile.id, {
+      onSuccess: onClose,
+      onError: (err) => {
+        setShowDelete(false);
+        setError(err.message);
+      },
+    });
   };
 
   return (

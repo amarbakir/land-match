@@ -76,6 +76,7 @@ export default function AppLayout() {
       )}
       {(view === 'profile' || view === 'new-profile') && (
         <ProfileEditorScreen
+          key={editingProfileId ?? 'new'}
           profileId={editingProfileId}
           onClose={handleCloseEditor}
         />
