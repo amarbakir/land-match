@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>LandMatch Mock Feed</title>
+    <link>https://example.com/listings</link>
+    <description>Mock feed for testing the ingest pipeline</description>
+    <item>
+      <guid>mock-001</guid>
+      <title>40 Acres - Rural Homestead in Benton County, OR</title>
+      <link>https://example.com/listings/mock-001</link>
+      <description>Beautiful 40 acre parcel perfect for homesteading. Rolling hills, year-round creek. $125,000. Benton County, Oregon.</description>
+    </item>
+    <item>
+      <guid>mock-002</guid>
+      <title>160 Acres Ranch Land - Elko County, NV</title>
+      <link>https://example.com/listings/mock-002</link>
+      <description>Large 160 acre ranch property with well and fencing. Great for cattle or off-grid living. $89,000. Elko County, Nevada.</description>
+    </item>
+    <item>
+      <guid>mock-003</guid>
+      <title>10 Acres Wooded Retreat - Washington County, VT</title>
+      <link>https://example.com/listings/mock-003</link>
+      <description>Secluded 10 acre wooded lot with southern exposure. Road access, power at lot line. $45,000. Washington County, Vermont.</description>
+    </item>
+    <item>
+      <guid>mock-004</guid>
+      <title>80 Acres Farmland - Polk County, MO</title>
+      <link>https://example.com/listings/mock-004</link>
+      <description>Productive 80 acre farm with 60 acres tillable. Barn, pond, fenced pasture. $275,000. Polk County, Missouri.</description>
+    </item>
+    <item>
+      <guid>mock-005</guid>
+      <title>5 Acres Mountain View - Garfield County, CO</title>
+      <link>https://example.com/listings/mock-005</link>
+      <description>Stunning 5 acre mountain lot with panoramic views. Well permit approved. $15,000. Garfield County, Colorado.</description>
+    </item>
+    <item>
+      <guid>mock-006</guid>
+      <title>200 Acres Timber - Iron County, MI</title>
+      <link>https://example.com/listings/mock-006</link>
+      <description>200 acres of mature hardwood timber. Excellent hunting, two creeks. $500,000. Iron County, Michigan.</description>
+    </item>
+    <item>
+      <guid>mock-007</guid>
+      <title>25 Acres Off-Grid - Taos County, NM</title>
+      <link>https://example.com/listings/mock-007</link>
+      <description>25 acres in off-grid community. Solar-ready, shared well access. Adobe-friendly soil. $38,000. Taos County, New Mexico.</description>
+    </item>
+    <item>
+      <guid>mock-008</guid>
+      <title>120 Acres Mixed Use - Franklin County, TN</title>
+      <link>https://example.com/listings/mock-008</link>
+      <description>120 acres with creek frontage, mix of pasture and woods. Old farmhouse needs work. $185,000. Franklin County, Tennessee.</description>
+    </item>
+    <item>
+      <guid>mock-009</guid>
+      <title>15 Acres - Clearwater County, ID</title>
+      <link>https://example.com/listings/mock-009</link>
+      <description>15 acres with river access. No price listed yet — contact seller. Clearwater County, Idaho.</description>
+    </item>
+    <item>
+      <guid>mock-010</guid>
+      <title>50 Acres Prairie - Cloud County, KS</title>
+      <link>https://example.com/listings/mock-010</link>
+      <description>Flat 50 acres of native prairie. Great for small farm or homestead. $72,500. Cloud County, Kansas. Acreage unverified.</description>
+    </item>
+  </channel>
+</rss>

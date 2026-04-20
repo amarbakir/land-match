@@ -1,25 +1,12 @@
 import cron from 'node-cron';
-import { createLandWatchAdapter, createLandComAdapter, type FeedAdapter } from '@landmatch/feeds';
 
 import { feedPipeline, email } from '../config';
+import { buildAdapters } from '../services/feedPipelineService';
 import { runPipeline } from '../services/feedPipelineService';
 import { deliverPendingAlerts } from '../services/alertDeliveryService';
 
 let jobRunning = false;
 let deliveryJobRunning = false;
-
-function buildAdapters(): FeedAdapter[] {
-  const adapters: FeedAdapter[] = [];
-
-  if (feedPipeline.landwatchFeedUrl) {
-    adapters.push(createLandWatchAdapter({ feedUrl: feedPipeline.landwatchFeedUrl }));
-  }
-  if (feedPipeline.landComFeedUrl) {
-    adapters.push(createLandComAdapter({ feedUrl: feedPipeline.landComFeedUrl }));
-  }
-
-  return adapters;
-}
 
 export function startScheduler(): void {
   // Email delivery cron — always starts, no-ops if no pending alerts

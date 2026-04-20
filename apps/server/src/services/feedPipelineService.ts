@@ -1,11 +1,38 @@
-import { runFeedIngestion, type FeedAdapter } from '@landmatch/feeds';
+import {
+  runFeedIngestion,
+  createRssAdapter,
+  createLandWatchAdapter,
+  createLandComAdapter,
+  type FeedAdapter,
+} from '@landmatch/feeds';
 import { enrichListing } from '@landmatch/enrichment';
 
 import { feedPipeline } from '../config';
 import * as listingRepo from '../repos/listingRepo';
 import { matchListingAgainstProfiles } from './matchingService';
 
-interface PipelineResult {
+export interface BuildAdaptersOptions {
+  mockFeedUrl?: string;
+}
+
+export function buildAdapters(options: BuildAdaptersOptions = {}): FeedAdapter[] {
+  if (options.mockFeedUrl) {
+    return [createRssAdapter({ name: 'mock', feedUrl: options.mockFeedUrl })];
+  }
+
+  const adapters: FeedAdapter[] = [];
+
+  if (feedPipeline.landwatchFeedUrl) {
+    adapters.push(createLandWatchAdapter({ feedUrl: feedPipeline.landwatchFeedUrl }));
+  }
+  if (feedPipeline.landComFeedUrl) {
+    adapters.push(createLandComAdapter({ feedUrl: feedPipeline.landComFeedUrl }));
+  }
+
+  return adapters;
+}
+
+export interface PipelineResult {
   ingested: number;
   enriched: number;
   enrichFailed: number;

@@ -128,7 +128,7 @@ export const email = {
 } as const;
 
 export const feedPipeline = {
-  cronSchedule: optional('FEED_CRON_SCHEDULE', '*/30 * * * *'),
+  cronSchedule: optional('FEED_CRON_SCHEDULE', '0 * * * *'),
   enrichmentConcurrency: parseInt(optional('FEED_ENRICHMENT_CONCURRENCY', '5'), 10),
   enrichmentBatchSize: parseInt(optional('FEED_ENRICHMENT_BATCH_SIZE', '20'), 10),
   landwatchFeedUrl: optional('LANDWATCH_FEED_URL', ''),

@@ -10,7 +10,8 @@
     "test": "vitest --passWithNoTests",
     "test:run": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "seed:pipeline": "tsx scripts/seed-pipeline.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
