@@ -304,7 +304,7 @@ describe('matchService', () => {
     });
 
     it('returns NOT_FOUND when score does not exist — does not leak whether scoreId is valid', async () => {
-      mockScoreRepo.findMatchDetail.mockResolvedValueOnce(null);
+      mockScoreRepo.findMatchDetail.mockResolvedValueOnce(null as never);
 
       const result = await matchService.getMatchDetail('user-1', 'nonexistent');
 
