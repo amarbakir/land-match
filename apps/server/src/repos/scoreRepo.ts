@@ -154,6 +154,7 @@ export async function getProfileCounts(profileIds: string[], tx?: Tx) {
       total: countFn(),
       unread: sql<number>`count(*) filter (where ${scores.readAt} is null and ${scores.status} = 'inbox')`,
       shortlisted: sql<number>`count(*) filter (where ${scores.status} = 'shortlisted')`,
+      dismissed: sql<number>`count(*) filter (where ${scores.status} = 'dismissed')`,
     })
     .from(scores)
     .where(inArray(scores.searchProfileId, profileIds))
@@ -164,6 +165,7 @@ export async function getProfileCounts(profileIds: string[], tx?: Tx) {
     total: Number(r.total),
     unread: Number(r.unread),
     shortlisted: Number(r.shortlisted),
+    dismissed: Number(r.dismissed),
   }));
 }
 

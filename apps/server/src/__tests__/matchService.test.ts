@@ -276,7 +276,7 @@ describe('matchService', () => {
   describe('getProfileCounts', () => {
     it('returns counts for profiles that have scores', async () => {
       const profiles = [PROFILE_ROW];
-      const counts = [{ profileId: 'profile-1', total: 10, unread: 3, shortlisted: 2 }];
+      const counts = [{ profileId: 'profile-1', total: 10, unread: 3, shortlisted: 2, dismissed: 1 }];
       mockProfileRepo.findByUserId.mockResolvedValueOnce(profiles);
       mockScoreRepo.getProfileCounts.mockResolvedValueOnce(counts);
 
@@ -285,7 +285,7 @@ describe('matchService', () => {
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.data).toHaveLength(1);
-        expect(result.data[0]).toEqual({ profileId: 'profile-1', total: 10, unread: 3, shortlisted: 2 });
+        expect(result.data[0]).toEqual({ profileId: 'profile-1', total: 10, unread: 3, shortlisted: 2, dismissed: 1 });
       }
     });
 
@@ -295,7 +295,7 @@ describe('matchService', () => {
       mockProfileRepo.findByUserId.mockResolvedValueOnce([profileWithScores, profileWithoutScores]);
       // scoreRepo only returns rows for profiles that have at least one score
       mockScoreRepo.getProfileCounts.mockResolvedValueOnce([
-        { profileId: 'profile-1', total: 5, unread: 1, shortlisted: 0 },
+        { profileId: 'profile-1', total: 5, unread: 1, shortlisted: 0, dismissed: 0 },
         // profile-2 is absent — no scores exist for it
       ]);
 
@@ -305,7 +305,7 @@ describe('matchService', () => {
       if (result.ok) {
         expect(result.data).toHaveLength(2);
         const emptyProfile = result.data.find(c => c.profileId === 'profile-2');
-        expect(emptyProfile).toEqual({ profileId: 'profile-2', total: 0, unread: 0, shortlisted: 0 });
+        expect(emptyProfile).toEqual({ profileId: 'profile-2', total: 0, unread: 0, shortlisted: 0, dismissed: 0 });
       }
     });
 

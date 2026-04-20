@@ -112,6 +112,7 @@ export async function getProfileCounts(userId: string): Promise<Result<ProfileCo
       total: 0,
       unread: 0,
       shortlisted: 0,
+      dismissed: 0,
     });
 
     return ok(result);

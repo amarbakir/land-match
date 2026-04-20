@@ -68,6 +68,7 @@ export const ProfileCountItem = z.object({
   total: z.number(),
   unread: z.number(),
   shortlisted: z.number(),
+  dismissed: z.number(),
 });
 
 export const ProfileCounts = z.array(ProfileCountItem);
