@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { Stack } from 'expo-router';
 
+import { AuthProvider } from '@/src/auth/AuthContext';
 import config from '@/tamagui.config';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TamaguiProvider } from 'tamagui';
@@ -22,10 +23,13 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <TamaguiProvider config={config} defaultTheme="dark">
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(app)" />
-        </Stack>
+        <AuthProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(app)" />
+          </Stack>
+        </AuthProvider>
       </TamaguiProvider>
     </QueryClientProvider>
   );
