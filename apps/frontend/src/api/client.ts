@@ -80,16 +80,17 @@ interface RequestOptions {
   noAuth?: boolean;
 }
 
-export async function apiPost<TReq, TRes>(
+async function apiRequest<TRes>(
+  method: string,
   path: string,
-  body: TReq,
+  body?: unknown,
   options?: RequestOptions,
 ): Promise<TRes> {
-  const init: RequestInit = {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  };
+  const init: RequestInit = { method };
+  if (body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
 
   const response = options?.noAuth
     ? await fetch(`${API_BASE_URL}${path}`, init)
@@ -104,81 +105,22 @@ export async function apiPost<TReq, TRes>(
   return json.data as TRes;
 }
 
-export async function apiPatch<TReq, TRes>(
-  path: string,
-  body: TReq,
-  options?: RequestOptions,
-): Promise<TRes> {
-  const init: RequestInit = {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  };
-
-  const response = options?.noAuth
-    ? await fetch(`${API_BASE_URL}${path}`, init)
-    : await authFetch(path, init);
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(parseErrorResponse(text, response.status));
-  }
-
-  const json = await response.json();
-  return json.data as TRes;
+export function apiPost<TReq, TRes>(path: string, body: TReq, options?: RequestOptions) {
+  return apiRequest<TRes>('POST', path, body, options);
 }
 
-export async function apiPut<TReq, TRes>(
-  path: string,
-  body: TReq,
-  options?: RequestOptions,
-): Promise<TRes> {
-  const init: RequestInit = {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  };
-
-  const response = options?.noAuth
-    ? await fetch(`${API_BASE_URL}${path}`, init)
-    : await authFetch(path, init);
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(parseErrorResponse(text, response.status));
-  }
-
-  const json = await response.json();
-  return json.data as TRes;
+export function apiPatch<TReq, TRes>(path: string, body: TReq, options?: RequestOptions) {
+  return apiRequest<TRes>('PATCH', path, body, options);
 }
 
-export async function apiDelete<TRes>(
-  path: string,
-  options?: RequestOptions,
-): Promise<TRes> {
-  const response = options?.noAuth
-    ? await fetch(`${API_BASE_URL}${path}`, { method: 'DELETE' })
-    : await authFetch(path, { method: 'DELETE' });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(parseErrorResponse(text, response.status));
-  }
-
-  const json = await response.json();
-  return json.data as TRes;
+export function apiPut<TReq, TRes>(path: string, body: TReq, options?: RequestOptions) {
+  return apiRequest<TRes>('PUT', path, body, options);
 }
 
-export async function apiGet<TRes>(path: string, options?: RequestOptions): Promise<TRes> {
-  const response = options?.noAuth
-    ? await fetch(`${API_BASE_URL}${path}`)
-    : await authFetch(path);
+export function apiDelete<TRes>(path: string, options?: RequestOptions) {
+  return apiRequest<TRes>('DELETE', path, undefined, options);
+}
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(parseErrorResponse(text, response.status));
-  }
-
-  const json = await response.json();
-  return json.data as TRes;
+export function apiGet<TRes>(path: string, options?: RequestOptions) {
+  return apiRequest<TRes>('GET', path, undefined, options);
 }

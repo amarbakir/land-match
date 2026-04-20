@@ -104,7 +104,7 @@ function ProfileItem({
         borderRadius={6}
         alignItems="center"
         gap={8}
-        backgroundColor={hovered ? '#131813' : 'transparent'}
+        backgroundColor={hovered ? colors.hoverSubtle : 'transparent'}
       >
         <View
           style={{

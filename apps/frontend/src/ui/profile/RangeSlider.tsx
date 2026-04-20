@@ -27,9 +27,7 @@ export function RangeSlider({
   const handlePress = (e: { nativeEvent: { locationX: number } }, width: number) => {
     if (width <= 0) return;
     const raw = (e.nativeEvent.locationX / width) * (max - min) + min;
-    const stepped = Math.round(raw / step) * step;
-    const clamped = Math.max(min, Math.min(max, stepped));
-    onChange(clamped);
+    onChange(clamp(snapToStep(raw, step), min, max));
   };
 
   return (

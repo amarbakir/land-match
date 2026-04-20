@@ -4,6 +4,8 @@ import { Text, XStack } from 'tamagui';
 
 import { colors } from '@/src/theme/colors';
 
+import { clamp, snapToStep } from './RangeSlider';
+
 interface DualRangeSliderProps {
   min: number;
   max: number;
@@ -31,8 +33,7 @@ export function DualRangeSlider({
   const handlePress = (e: { nativeEvent: { locationX: number } }, width: number) => {
     if (width <= 0) return;
     const raw = (e.nativeEvent.locationX / width) * range + min;
-    const stepped = Math.round(raw / step) * step;
-    const clamped = Math.max(min, Math.min(max, stepped));
+    const clamped = clamp(snapToStep(raw, step), min, max);
 
     // Move whichever handle is closer
     const distToLow = Math.abs(clamped - value[0]);

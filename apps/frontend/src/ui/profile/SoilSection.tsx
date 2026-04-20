@@ -31,8 +31,8 @@ export function SoilSection({ maxClass, onChange }: SoilSectionProps) {
                 borderRadius={99}
                 borderWidth={1}
                 overflow="hidden"
-                backgroundColor={isSelected ? 'rgba(212,168,67,0.1)' : 'transparent'}
-                borderColor={isSelected ? 'rgba(212,168,67,0.3)' : colors.borderSoft}
+                backgroundColor={isSelected ? colors.accentBg : 'transparent'}
+                borderColor={isSelected ? colors.accentBorder : colors.borderSoft}
                 color={isSelected ? colors.accent : colors.textSecondary}
               >
                 Class {label}

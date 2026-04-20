@@ -161,9 +161,9 @@ export function ProfileEditorScreen({ profileId, onClose }: ProfileEditorScreenP
             onPress={handleSave}
             disabled={isSaving}
             style={{
-              backgroundColor: 'rgba(212,168,67,0.15)',
+              backgroundColor: colors.accentBgStrong,
               borderWidth: 1,
-              borderColor: 'rgba(212,168,67,0.3)',
+              borderColor: colors.accentBorder,
               borderRadius: 6,
               paddingVertical: 8,
               paddingHorizontal: 16,
@@ -190,7 +190,6 @@ export function ProfileEditorScreen({ profileId, onClose }: ProfileEditorScreenP
 
       {/* Sections */}
       <GeographySection
-        type={form.criteria.geography.type}
         center={form.criteria.geography.center}
         radiusMiles={form.criteria.geography.radiusMiles}
         onChangeRadius={(radiusMiles) =>

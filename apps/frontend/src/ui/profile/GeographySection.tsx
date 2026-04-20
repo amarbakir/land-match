@@ -1,4 +1,4 @@
-import { TextInput, View } from 'react-native';
+import { type StyleProp, TextInput, type TextStyle, View } from 'react-native';
 
 import { Text, XStack, YStack } from 'tamagui';
 
@@ -9,7 +9,6 @@ import { SectionCard } from './SectionCard';
 import { ToggleButtonRow } from './ToggleButtonRow';
 
 interface GeographySectionProps {
-  type: 'radius' | 'counties' | 'driveTime';
   center: { lat: number; lng: number };
   radiusMiles: number;
   onChangeRadius: (radius: number) => void;
@@ -21,6 +20,18 @@ const GEO_TYPE_OPTIONS = [
   { value: 'counties', label: 'counties' },
   { value: 'driveTime', label: 'drive time' },
 ];
+
+const coordInputStyle: StyleProp<TextStyle> = {
+  fontFamily: 'IBM Plex Mono',
+  fontSize: 12,
+  color: colors.textPrimary,
+  backgroundColor: colors.cardAlt,
+  borderWidth: 1,
+  borderColor: colors.borderSoft,
+  borderRadius: 6,
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+};
 
 export function GeographySection({
   center,
@@ -54,17 +65,7 @@ export function GeographySection({
               if (!isNaN(n)) onChangeCenter({ ...center, lat: n });
             }}
             keyboardType="numeric"
-            style={{
-              fontFamily: 'IBM Plex Mono',
-              fontSize: 12,
-              color: colors.textPrimary,
-              backgroundColor: colors.cardAlt,
-              borderWidth: 1,
-              borderColor: colors.borderSoft,
-              borderRadius: 6,
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-            }}
+            style={coordInputStyle}
           />
         </YStack>
         <YStack flex={1}>
@@ -78,17 +79,7 @@ export function GeographySection({
               if (!isNaN(n)) onChangeCenter({ ...center, lng: n });
             }}
             keyboardType="numeric"
-            style={{
-              fontFamily: 'IBM Plex Mono',
-              fontSize: 12,
-              color: colors.textPrimary,
-              backgroundColor: colors.cardAlt,
-              borderWidth: 1,
-              borderColor: colors.borderSoft,
-              borderRadius: 6,
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-            }}
+            style={coordInputStyle}
           />
         </YStack>
       </XStack>

@@ -58,9 +58,9 @@ export function DeleteProfileModal({
             <Pressable
               onPress={onConfirm}
               style={{
-                backgroundColor: 'rgba(220,38,38,0.15)',
+                backgroundColor: colors.dangerBgStrong,
                 borderWidth: 1,
-                borderColor: 'rgba(220,38,38,0.3)',
+                borderColor: colors.dangerBorder,
                 borderRadius: 6,
                 paddingVertical: 8,
                 paddingHorizontal: 16,

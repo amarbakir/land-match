@@ -24,12 +24,8 @@ export function ToggleButtonRow({
   variant = 'default',
   disabled = false,
 }: ToggleButtonRowProps) {
-  const activeBackground = variant === 'danger'
-    ? 'rgba(220,38,38,0.1)'
-    : 'rgba(212,168,67,0.1)';
-  const activeBorder = variant === 'danger'
-    ? 'rgba(220,38,38,0.3)'
-    : 'rgba(212,168,67,0.3)';
+  const activeBackground = variant === 'danger' ? colors.dangerBg : colors.accentBg;
+  const activeBorder = variant === 'danger' ? colors.dangerBorder : colors.accentBorder;
   const activeText = variant === 'danger' ? colors.danger : colors.accent;
 
   return (

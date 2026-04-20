@@ -15,6 +15,13 @@ export const colors = {
   success: '#7DB88A',
   danger: '#DC2626',
   warning: '#E5A15A',
+  accentBg: 'rgba(212,168,67,0.1)',
+  accentBgStrong: 'rgba(212,168,67,0.15)',
+  accentBorder: 'rgba(212,168,67,0.3)',
+  dangerBg: 'rgba(220,38,38,0.1)',
+  dangerBgStrong: 'rgba(220,38,38,0.15)',
+  dangerBorder: 'rgba(220,38,38,0.3)',
+  hoverSubtle: '#131813',
 } as const;
 
 export type Colors = typeof colors;
