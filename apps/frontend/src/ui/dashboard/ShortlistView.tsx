@@ -6,18 +6,13 @@ import { Text, XStack, YStack } from 'tamagui';
 import { colors } from '@/src/theme/colors';
 
 import { EmptyState } from './EmptyState';
+import { formatPrice } from './MatchRow';
 import { ScoreRing } from './ScoreRing';
 
 interface ShortlistViewProps {
   matches: MatchItem[];
   dismissed?: boolean;
   onOpenMatch: (match: MatchItem) => void;
-}
-
-function formatPrice(price: number | null): string {
-  if (price == null) return '—';
-  if (price >= 1_000_000) return `$${(price / 1_000_000).toFixed(1)}M`;
-  return `$${(price / 1000).toFixed(0)}K`;
 }
 
 export function ShortlistView({ matches, dismissed, onOpenMatch }: ShortlistViewProps) {

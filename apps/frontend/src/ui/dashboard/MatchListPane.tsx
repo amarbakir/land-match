@@ -33,7 +33,7 @@ export function criteriaSummary(profile: SearchProfileResponse): string {
   }
   if (c.price?.max) parts.push(`≤$${(c.price.max / 1000).toFixed(0)}K`);
   if (c.soilCapabilityClass?.max) {
-    const labels = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+    const labels = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
     parts.push(`Class ≤${labels[c.soilCapabilityClass.max - 1] ?? c.soilCapabilityClass.max}`);
   }
   return parts.join(' · ') || 'No criteria set';

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { MatchItem } from '@landmatch/api';
 import { Text, YStack } from 'tamagui';
@@ -37,20 +37,24 @@ export default function InboxScreen({ profileId }: InboxScreenProps) {
   const matches = data?.items ?? [];
   const total = data?.total ?? 0;
 
-  // Client-side filtering for unread
-  const filteredMatches = filter === 'unread'
-    ? matches.filter((m) => !m.readAt && m.status === 'inbox')
-    : matches;
+  const shortlistedIds = useMemo(
+    () => new Set(matches.filter((m) => m.status === 'shortlisted').map((m) => m.scoreId)),
+    [matches],
+  );
 
-  const shortlistedIds = new Set(matches.filter((m) => m.status === 'shortlisted').map((m) => m.scoreId));
+  // Client-side filtering for unread
+  const filteredMatches = useMemo(
+    () => filter === 'unread' ? matches.filter((m) => !m.readAt && m.status === 'inbox') : matches,
+    [matches, filter],
+  );
 
   const profileCount = profileCounts.find((c) => c.profileId === profileId);
-  const counts: Record<FilterKey, number> = {
+  const counts = useMemo<Record<FilterKey, number>>(() => ({
     all: profileCount?.total ?? 0,
     unread: profileCount?.unread ?? 0,
     strong: matches.filter((m) => m.overallScore >= 80).length,
     shortlist: profileCount?.shortlisted ?? 0,
-  };
+  }), [profileCount, matches]);
 
   const handleSelectMatch = useCallback(
     (match: MatchItem) => {

@@ -6,8 +6,7 @@ import { Text, XStack } from 'tamagui';
 import { colors } from '@/src/theme/colors';
 
 import { BellIcon, SearchIcon } from './Icon';
-
-type WorkspaceView = 'inbox' | 'shortlist' | 'dismissed';
+import type { WorkspaceView } from './types';
 
 interface TopbarProps {
   view: WorkspaceView;

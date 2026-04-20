@@ -7,12 +7,11 @@ import { useSearchProfiles } from '@/src/api/hooks';
 import { useAuth } from '@/src/auth/useAuth';
 import { colors } from '@/src/theme/colors';
 import { AppShell } from '@/src/ui/dashboard/AppShell';
+import type { WorkspaceView } from '@/src/ui/dashboard/types';
 
 import InboxScreen from './index';
 import ShortlistScreen from './shortlist';
 import DismissedScreen from './dismissed';
-
-type WorkspaceView = 'inbox' | 'shortlist' | 'dismissed';
 
 export default function AppLayout() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();

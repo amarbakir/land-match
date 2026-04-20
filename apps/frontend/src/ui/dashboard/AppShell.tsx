@@ -8,8 +8,7 @@ import { colors } from '@/src/theme/colors';
 
 import { SidebarNav } from './SidebarNav';
 import { Topbar } from './Topbar';
-
-type WorkspaceView = 'inbox' | 'shortlist' | 'dismissed';
+import type { WorkspaceView } from './types';
 
 interface AppShellProps {
   view: WorkspaceView;
@@ -32,7 +31,6 @@ export function AppShell({
   const selectedProfile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
 
   const totalUnread = profileCounts.reduce((sum, c) => sum + c.unread, 0);
-  const totalShortlisted = profileCounts.reduce((sum, c) => sum + c.shortlisted, 0);
 
   return (
     <XStack flex={1} backgroundColor={colors.background}>
@@ -40,9 +38,6 @@ export function AppShell({
         activeView={view}
         profiles={profiles}
         profileCounts={profileCounts}
-        totalUnread={totalUnread}
-        totalShortlisted={totalShortlisted}
-        totalDismissed={0}
         onSelectView={onChangeView}
         onSelectProfile={(id) => {
           onChangeProfile(id);

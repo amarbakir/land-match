@@ -4,35 +4,37 @@ import type { MatchItem, PaginatedMatches, MatchFilters, ProfileCounts, UpdateMa
 import * as scoreRepo from '../repos/scoreRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
 
+type MatchRow = Awaited<ReturnType<typeof scoreRepo.findMatchesByProfile>>['rows'][number];
+
 const SOIL_CLASS_LABELS: Record<number, string> = {
   1: 'Class I', 2: 'Class II', 3: 'Class III', 4: 'Class IV',
   5: 'Class V', 6: 'Class VI', 7: 'Class VII', 8: 'Class VIII',
 };
 
-function toMatchItem(row: Record<string, unknown>): MatchItem {
-  const soilClass = row.soilClass as number | null;
+function toMatchItem(row: MatchRow): MatchItem {
+  const soilClass = row.soilClass;
   return {
-    scoreId: row.scoreId as string,
-    listingId: row.listingId as string,
-    overallScore: row.overallScore as number,
+    scoreId: row.scoreId,
+    listingId: row.listingId,
+    overallScore: row.overallScore,
     componentScores: row.componentScores as MatchItem['componentScores'],
-    llmSummary: (row.llmSummary as string) ?? null,
+    llmSummary: row.llmSummary ?? null,
     status: row.status as MatchItem['status'],
-    readAt: row.readAt ? (row.readAt as Date).toISOString() : null,
-    scoredAt: (row.scoredAt as Date).toISOString(),
-    title: (row.title as string) ?? null,
-    address: row.address as string,
-    price: (row.price as number) ?? null,
-    acreage: (row.acreage as number) ?? null,
-    source: (row.source as string) ?? null,
-    url: (row.url as string) ?? null,
-    lat: (row.lat as number) ?? null,
-    lng: (row.lng as number) ?? null,
+    readAt: row.readAt ? row.readAt.toISOString() : null,
+    scoredAt: row.scoredAt.toISOString(),
+    title: row.title ?? null,
+    address: row.address!,
+    price: row.price ?? null,
+    acreage: row.acreage ?? null,
+    source: row.source ?? null,
+    url: row.url ?? null,
+    lat: row.lat ?? null,
+    lng: row.lng ?? null,
     soilClass,
     soilClassLabel: soilClass ? (SOIL_CLASS_LABELS[soilClass] ?? null) : null,
     primeFarmland: soilClass ? soilClass <= 2 : null,
-    floodZone: (row.floodZone as string) ?? null,
-    zoning: (row.zoning as string) ?? null,
+    floodZone: row.floodZone ?? null,
+    zoning: row.zoning ?? null,
   };
 }
 

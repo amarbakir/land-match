@@ -14,16 +14,12 @@ import {
   SettingsIcon,
   StarIcon,
 } from './Icon';
-
-type WorkspaceView = 'inbox' | 'shortlist' | 'dismissed';
+import type { WorkspaceView } from './types';
 
 interface SidebarNavProps {
   activeView: WorkspaceView;
   profiles: SearchProfileResponse[];
   profileCounts: ProfileCounts;
-  totalUnread: number;
-  totalShortlisted: number;
-  totalDismissed: number;
   onSelectView: (view: WorkspaceView) => void;
   onSelectProfile: (profileId: string) => void;
 }
@@ -81,13 +77,12 @@ export function SidebarNav({
   activeView,
   profiles,
   profileCounts,
-  totalUnread,
-  totalShortlisted,
-  totalDismissed,
   onSelectView,
   onSelectProfile,
 }: SidebarNavProps) {
   const countsMap = new Map(profileCounts.map((c) => [c.profileId, c]));
+  const totalUnread = profileCounts.reduce((sum, c) => sum + c.unread, 0);
+  const totalShortlisted = profileCounts.reduce((sum, c) => sum + c.shortlisted, 0);
 
   return (
     <YStack

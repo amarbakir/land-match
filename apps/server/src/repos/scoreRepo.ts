@@ -121,7 +121,6 @@ export async function findMatchesByProfile(profileId: string, opts: MatchQueryOp
     conn
       .select({ count: countFn() })
       .from(scores)
-      .innerJoin(listings, eq(scores.listingId, listings.id))
       .where(and(...conditions)),
   ]);
 
