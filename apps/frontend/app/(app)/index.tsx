@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 
 import type { MatchItem } from '@landmatch/api';
-import { Text, YStack } from 'tamagui';
 
 import {
   useProfileMatches,
@@ -9,10 +8,10 @@ import {
   useSearchProfiles,
   useUpdateMatchStatus,
 } from '@/src/api/hooks';
-import { colors } from '@/src/theme/colors';
 import { EmptyState } from '@/src/ui/dashboard/EmptyState';
 import { type FilterKey } from '@/src/ui/dashboard/FilterChips';
 import { MatchListPane } from '@/src/ui/dashboard/MatchListPane';
+import { Report } from '@/src/ui/report/Report';
 
 interface InboxScreenProps {
   profileId: string | null;
@@ -85,12 +84,11 @@ export default function InboxScreen({ profileId }: InboxScreenProps) {
         onFilterChange={setFilter}
       />
 
-      {/* Detail pane stub — replaced by dkw.4 */}
-      <YStack flex={1} justifyContent="center" alignItems="center" gap={10}>
-        <Text fontSize={13} color={colors.textFaint}>
-          {selectedScoreId ? 'Property report coming in dkw.4' : 'Select a match to view details'}
-        </Text>
-      </YStack>
+      {selectedScoreId ? (
+        <Report scoreId={selectedScoreId} />
+      ) : (
+        <EmptyState title="Select a match" subtitle="Choose a property from the list to view its full report." />
+      )}
     </>
   );
 }
