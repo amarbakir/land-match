@@ -1,13 +1,33 @@
-import { Redirect, Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
+
+import { Redirect } from 'expo-router';
 import { Spinner, YStack } from 'tamagui';
 
+import { useSearchProfiles } from '@/src/api/hooks';
 import { useAuth } from '@/src/auth/useAuth';
 import { colors } from '@/src/theme/colors';
+import { AppShell } from '@/src/ui/dashboard/AppShell';
+
+import InboxScreen from './index';
+import ShortlistScreen from './shortlist';
+import DismissedScreen from './dismissed';
+
+type WorkspaceView = 'inbox' | 'shortlist' | 'dismissed';
 
 export default function AppLayout() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { data: profiles } = useSearchProfiles();
+  const [view, setView] = useState<WorkspaceView>('inbox');
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
-  if (isLoading) {
+  // Auto-select first profile once loaded
+  useEffect(() => {
+    if (!selectedProfileId && profiles && profiles.length > 0) {
+      setSelectedProfileId(profiles[0].id);
+    }
+  }, [profiles, selectedProfileId]);
+
+  if (authLoading) {
     return (
       <YStack flex={1} justifyContent="center" alignItems="center" backgroundColor={colors.background}>
         <Spinner size="large" color={colors.accent} />
@@ -20,25 +40,21 @@ export default function AppLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.textPrimary,
-        headerTitleStyle: { color: colors.textPrimary },
-        contentStyle: { backgroundColor: colors.background },
-      }}
+    <AppShell
+      view={view}
+      selectedProfileId={selectedProfileId}
+      onChangeView={setView}
+      onChangeProfile={setSelectedProfileId}
     >
-      <Stack.Screen
-        name="search/index"
-        options={{
-          title: 'LandMatch',
-          headerTitleStyle: { color: colors.accent, fontWeight: '700' },
-        }}
-      />
-      <Stack.Screen
-        name="report/index"
-        options={{ title: 'Property Report' }}
-      />
-    </Stack>
+      {view === 'inbox' && (
+        <InboxScreen profileId={selectedProfileId} />
+      )}
+      {view === 'shortlist' && (
+        <ShortlistScreen profileId={selectedProfileId} />
+      )}
+      {view === 'dismissed' && (
+        <DismissedScreen profileId={selectedProfileId} />
+      )}
+    </AppShell>
   );
 }
