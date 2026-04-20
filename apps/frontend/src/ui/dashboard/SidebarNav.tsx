@@ -83,6 +83,7 @@ export function SidebarNav({
   const countsMap = new Map(profileCounts.map((c) => [c.profileId, c]));
   const totalUnread = profileCounts.reduce((sum, c) => sum + c.unread, 0);
   const totalShortlisted = profileCounts.reduce((sum, c) => sum + c.shortlisted, 0);
+  const totalDismissed = 0; // dismissed count not yet in API schema
 
   return (
     <YStack
