@@ -1,4 +1,5 @@
 import type {
+  CreateSearchProfile,
   EnrichListingRequest,
   EnrichListingResponse,
   MatchDetail,
@@ -7,10 +8,11 @@ import type {
   ProfileCounts,
   SearchProfileResponse,
   UpdateMatchStatus,
+  UpdateSearchProfile,
 } from '@landmatch/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { apiGet, apiPatch, apiPost } from './client';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client';
 
 export function useEnrichListing() {
   return useMutation<EnrichListingResponse, Error, EnrichListingRequest>({
@@ -70,6 +72,55 @@ export function useMatchDetail(scoreId: string | null) {
     queryKey: ['matchDetail', scoreId],
     queryFn: () => apiGet<MatchDetail>(`/api/v1/scores/${scoreId}`),
     enabled: !!scoreId,
+  });
+}
+
+export function useCreateSearchProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SearchProfileResponse, Error, CreateSearchProfile>({
+    mutationFn: (body) =>
+      apiPost<CreateSearchProfile, SearchProfileResponse>(
+        '/api/v1/search-profiles',
+        body,
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['searchProfiles'] });
+      queryClient.invalidateQueries({ queryKey: ['profileCounts'] });
+    },
+  });
+}
+
+export function useUpdateSearchProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    SearchProfileResponse,
+    Error,
+    { id: string; data: UpdateSearchProfile }
+  >({
+    mutationFn: ({ id, data }) =>
+      apiPut<UpdateSearchProfile, SearchProfileResponse>(
+        `/api/v1/search-profiles/${id}`,
+        data,
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['searchProfiles'] });
+      queryClient.invalidateQueries({ queryKey: ['profileCounts'] });
+    },
+  });
+}
+
+export function useDeleteSearchProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: (id) =>
+      apiDelete<void>(`/api/v1/search-profiles/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['searchProfiles'] });
+      queryClient.invalidateQueries({ queryKey: ['profileCounts'] });
+    },
   });
 }
 
