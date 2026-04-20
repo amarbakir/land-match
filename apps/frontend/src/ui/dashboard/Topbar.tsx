@@ -18,6 +18,8 @@ const VIEW_LABELS: Record<WorkspaceView, string> = {
   inbox: 'Matches',
   shortlist: 'Shortlist',
   dismissed: 'Dismissed',
+  profile: 'Edit profile',
+  'new-profile': 'New profile',
 };
 
 function formatCoord(profile: SearchProfileResponse | null): string | null {

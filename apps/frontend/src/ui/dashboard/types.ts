@@ -1,1 +1,1 @@
-export type WorkspaceView = 'inbox' | 'shortlist' | 'dismissed';
+export type WorkspaceView = 'inbox' | 'shortlist' | 'dismissed' | 'profile' | 'new-profile';
