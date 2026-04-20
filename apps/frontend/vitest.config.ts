@@ -12,6 +12,11 @@ export default defineConfig({
     alias: {
       '@landmatch/api': path.resolve(__dirname, '../../packages/api/src'),
       '@': path.resolve(__dirname),
+      // Stub native/UI dependencies so pure-logic tests can import component
+      // files without crashing on Flow types or missing native modules.
+      'react-native': path.resolve(__dirname, 'src/__mocks__/react-native.ts'),
+      'react-native-svg': path.resolve(__dirname, 'src/__mocks__/empty.ts'),
+      tamagui: path.resolve(__dirname, 'src/__mocks__/empty.ts'),
     },
   },
 });
