@@ -3,70 +3,18 @@ import { useState } from 'preact/hooks';
 import type { EnrichListingResponse } from '@landmatch/api';
 
 import { sendMessage } from '../../shared/messages';
+import {
+  getSoilLabel,
+  getFloodColor,
+  getFloodLabel,
+  computeSimplifiedScore,
+  getScoreColor,
+} from '../../shared/scoring';
 
 type ScoreCardProps =
   | { state: 'loading' }
   | { state: 'error'; error: string; onRetry: () => void }
   | { state: 'loaded'; data: EnrichListingResponse };
-
-const SOIL_LABELS: Record<number, string> = {
-  1: 'Class I — Few limitations',
-  2: 'Class II — Moderate limitations',
-  3: 'Class III — Severe limitations',
-  4: 'Class IV — Very severe limitations',
-  5: 'Class V — Unsuitable for cultivation',
-  6: 'Class VI — Severe limitations, pasture only',
-  7: 'Class VII — Very severe, woodland only',
-  8: 'Class VIII — Recreation/wildlife only',
-};
-
-function getSoilLabel(cls: number | null): string {
-  if (cls == null) return 'Unknown';
-  return SOIL_LABELS[cls] ?? `Class ${cls}`;
-}
-
-function getFloodColor(zone: string | null): string {
-  if (!zone) return '#6b7280';
-  const upper = zone.toUpperCase();
-  if (upper === 'X' || upper === 'C' || upper === 'B') return '#22c55e';
-  if (upper.startsWith('A') || upper.startsWith('V')) return '#ef4444';
-  return '#eab308';
-}
-
-function getFloodLabel(zone: string | null): string {
-  if (!zone) return 'Unknown';
-  const upper = zone.toUpperCase();
-  if (upper === 'X') return 'Minimal risk';
-  if (upper === 'A' || upper === 'AE') return 'High risk (100-yr floodplain)';
-  if (upper === 'V' || upper === 'VE') return 'High risk (coastal flood)';
-  return zone;
-}
-
-function computeSimplifiedScore(data: EnrichListingResponse['enrichment']): number | null {
-  const components: number[] = [];
-
-  // Soil component (0-100): lower capability class = better
-  if (data.soilCapabilityClass != null) {
-    components.push(Math.max(0, 100 - (data.soilCapabilityClass - 1) * 14));
-  }
-
-  // Flood component (0-100)
-  if (data.femaFloodZone) {
-    const upper = data.femaFloodZone.toUpperCase();
-    if (upper === 'X' || upper === 'C' || upper === 'B') components.push(95);
-    else if (upper.startsWith('A') || upper.startsWith('V')) components.push(20);
-    else components.push(50);
-  }
-
-  if (components.length === 0) return null;
-  return Math.round(components.reduce((a, b) => a + b, 0) / components.length);
-}
-
-function getScoreColor(score: number): string {
-  if (score >= 70) return '#22c55e';
-  if (score >= 40) return '#eab308';
-  return '#ef4444';
-}
 
 const styles = {
   card: `

@@ -197,4 +197,49 @@ describe('enrichAndPersist', () => {
       expect(result.error).toBe('INTERNAL_ERROR');
     }
   });
+
+  it('passes userId to insertListing when provided', async () => {
+    // Bug this catches: if the userId is not forwarded from the route handler,
+    // extension-submitted listings are never associated with the user, making
+    // the "saved listings" feature silently broken
+    mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+    await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-abc');
+
+    expect(mockInsertListing).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-abc' }),
+      'fake-tx',
+    );
+  });
+
+  it('passes source and externalId from input to repo', async () => {
+    // Bug this catches: if source is always 'manual', we can't distinguish
+    // extension-submitted listings from web app submissions
+    mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+    await enrichAndPersist({
+      address: '123 Rural Rd, MO',
+      source: 'landwatch',
+      externalId: 'lw-99887766',
+    });
+
+    expect(mockInsertListing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'landwatch',
+        externalId: 'lw-99887766',
+      }),
+      'fake-tx',
+    );
+  });
+
+  it('defaults userId to undefined when not provided', async () => {
+    // Bug this catches: if we accidentally set userId to empty string or "null"
+    // string instead of undefined, the FK constraint would fail
+    mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+    await enrichAndPersist({ address: '123 Rural Rd, MO' });
+
+    const input = mockInsertListing.mock.calls[0][0];
+    expect(input.userId).toBeUndefined();
+  });
 });
