@@ -6,6 +6,8 @@ export const EnrichListingRequest = z.object({
   acreage: z.number().positive().optional(),
   url: z.string().url().optional(),
   title: z.string().optional(),
+  source: z.string().optional(),
+  externalId: z.string().optional(),
 });
 
 export type EnrichListingRequest = z.infer<typeof EnrichListingRequest>;
@@ -34,3 +36,15 @@ export const EnrichListingResponse = z.object({
 });
 
 export type EnrichListingResponse = z.infer<typeof EnrichListingResponse>;
+
+export const ListingByUrlQuery = z.object({
+  url: z.string().url(),
+});
+
+export type ListingByUrlQuery = z.infer<typeof ListingByUrlQuery>;
+
+export const SaveListingResponse = z.object({
+  savedAt: z.string(),
+});
+
+export type SaveListingResponse = z.infer<typeof SaveListingResponse>;
