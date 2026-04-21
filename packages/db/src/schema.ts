@@ -43,11 +43,21 @@ export const listings = pgTable('listings', {
   longitude: real('longitude'),
   rawData: jsonb('raw_data'),
   enrichmentStatus: text('enrichment_status').notNull().default('pending'),
+  userId: text('user_id').references(() => users.id),
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   delistedAt: timestamp('delisted_at', { withTimezone: true, mode: 'date' }),
 }, (table) => [
   uniqueIndex('listings_external_id_source_idx').on(table.externalId, table.source),
+]);
+
+export const savedListings = pgTable('saved_listings', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  listingId: text('listing_id').notNull().references(() => listings.id),
+  savedAt: timestamp('saved_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('saved_listings_user_listing_idx').on(table.userId, table.listingId),
 ]);
 
 export const enrichments = pgTable('enrichments', {
