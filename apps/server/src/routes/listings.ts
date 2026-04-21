@@ -33,36 +33,13 @@ listings.get('/by-url', async (c) => {
     return badRequest(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
-  const result = await listingRepo.findByUrl(parsed.data.url);
+  const result = await listingService.getByUrl(parsed.data.url);
 
-  if (!result) {
-    return notFound('Listing not found for this URL');
+  if (!result.ok) {
+    return throwFromResult(result, { NOT_FOUND: 404 });
   }
 
-  return okResponse(c, {
-    listing: {
-      id: result.listing.id,
-      address: result.listing.address!,
-      latitude: result.listing.latitude!,
-      longitude: result.listing.longitude!,
-      price: result.listing.price,
-      acreage: result.listing.acreage,
-      enrichmentStatus: result.listing.enrichmentStatus,
-    },
-    enrichment: result.enrichment
-      ? {
-          soilCapabilityClass: result.enrichment.soilCapabilityClass,
-          soilDrainageClass: result.enrichment.soilDrainageClass,
-          soilTexture: result.enrichment.soilTexture,
-          femaFloodZone: result.enrichment.femaFloodZone,
-          zoningCode: result.enrichment.zoningCode,
-          fireRiskScore: result.enrichment.fireRiskScore,
-          floodRiskScore: result.enrichment.floodRiskScore,
-          sourcesUsed: result.enrichment.sourcesUsed ?? [],
-          errors: [],
-        }
-      : null,
-  });
+  return okResponse(c, result.data);
 });
 
 listings.post('/:id/save', async (c) => {
@@ -70,14 +47,15 @@ listings.post('/:id/save', async (c) => {
   if (!userId) return unauthorized('UNAUTHORIZED');
 
   const listingId = c.req.param('id');
-
-  const listing = await listingRepo.findListingById(listingId);
-  if (!listing) return notFound('Listing not found');
-
   const saved = await listingRepo.saveListing(userId, listingId);
 
+  if (!saved) {
+    // onConflictDoNothing returns nothing if already saved — that's fine
+    return okResponse(c, { savedAt: new Date().toISOString() }, 201);
+  }
+
   return okResponse(c, {
-    savedAt: saved?.savedAt?.toISOString() ?? new Date().toISOString(),
+    savedAt: saved.savedAt.toISOString(),
   }, 201);
 });
 

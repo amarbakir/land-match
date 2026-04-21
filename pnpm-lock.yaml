@@ -35,6 +35,9 @@ importers:
       '@landmatch/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@landmatch/scoring':
+        specifier: workspace:*
+        version: link:../../packages/scoring
       preact:
         specifier: ^10.25.4
         version: 10.29.1

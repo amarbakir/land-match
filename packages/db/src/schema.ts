@@ -1,4 +1,4 @@
-import { boolean, jsonb, pgTable, text, timestamp, integer, real, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, index, jsonb, pgTable, text, timestamp, integer, real, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -49,6 +49,7 @@ export const listings = pgTable('listings', {
   delistedAt: timestamp('delisted_at', { withTimezone: true, mode: 'date' }),
 }, (table) => [
   uniqueIndex('listings_external_id_source_idx').on(table.externalId, table.source),
+  index('listings_url_idx').on(table.url),
 ]);
 
 export const savedListings = pgTable('saved_listings', {

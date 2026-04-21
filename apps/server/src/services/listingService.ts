@@ -4,6 +4,38 @@ import { enrichListing } from '@landmatch/enrichment';
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 
+type ListingRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findListingById>>>;
+type EnrichmentRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findByUrl>>>['enrichment'];
+
+function toEnrichListingResponse(
+  listing: ListingRow,
+  enrichment: EnrichmentRow,
+  errors: Array<{ source: string; error: string }> = [],
+): EnrichListingResponse {
+  return {
+    listing: {
+      id: listing.id,
+      address: listing.address ?? '',
+      latitude: listing.latitude ?? 0,
+      longitude: listing.longitude ?? 0,
+      price: listing.price,
+      acreage: listing.acreage,
+      enrichmentStatus: listing.enrichmentStatus,
+    },
+    enrichment: {
+      soilCapabilityClass: enrichment?.soilCapabilityClass ?? null,
+      soilDrainageClass: enrichment?.soilDrainageClass ?? null,
+      soilTexture: enrichment?.soilTexture ?? null,
+      femaFloodZone: enrichment?.femaFloodZone ?? null,
+      zoningCode: enrichment?.zoningCode ?? null,
+      fireRiskScore: enrichment?.fireRiskScore ?? null,
+      floodRiskScore: enrichment?.floodRiskScore ?? null,
+      sourcesUsed: enrichment?.sourcesUsed ?? [],
+      errors,
+    },
+  };
+}
+
 export async function enrichAndPersist(
   input: EnrichListingRequest,
   userId?: string,
@@ -46,30 +78,15 @@ export async function enrichAndPersist(
     });
 
     // 3. Build response
-    return ok({
-      listing: {
-        id: persisted.listing.id,
-        address: persisted.listing.address!,
-        latitude: persisted.listing.latitude!,
-        longitude: persisted.listing.longitude!,
-        price: persisted.listing.price,
-        acreage: persisted.listing.acreage,
-        enrichmentStatus: persisted.listing.enrichmentStatus,
-      },
-      enrichment: {
-        soilCapabilityClass: persisted.enrichmentRow.soilCapabilityClass,
-        soilDrainageClass: persisted.enrichmentRow.soilDrainageClass,
-        soilTexture: persisted.enrichmentRow.soilTexture,
-        femaFloodZone: persisted.enrichmentRow.femaFloodZone,
-        zoningCode: persisted.enrichmentRow.zoningCode,
-        fireRiskScore: persisted.enrichmentRow.fireRiskScore,
-        floodRiskScore: persisted.enrichmentRow.floodRiskScore,
-        sourcesUsed: persisted.enrichmentRow.sourcesUsed ?? [],
-        errors: enrichment.errors,
-      },
-    });
+    return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, enrichment.errors));
   } catch (error) {
     console.error('[listingService.enrichAndPersist] Unexpected error:', error);
     return err('INTERNAL_ERROR');
   }
+}
+
+export async function getByUrl(url: string): Promise<Result<EnrichListingResponse>> {
+  const result = await listingRepo.findByUrl(url);
+  if (!result) return err('NOT_FOUND');
+  return ok(toEnrichListingResponse(result.listing, result.enrichment));
 }

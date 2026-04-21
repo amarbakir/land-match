@@ -1,0 +1,1 @@
+CREATE INDEX "listings_url_idx" ON "listings" USING btree ("url");

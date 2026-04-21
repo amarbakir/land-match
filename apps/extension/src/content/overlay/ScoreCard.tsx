@@ -125,6 +125,7 @@ export function ScoreCard(props: ScoreCardProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   if (props.state === 'loading') {
     return (
@@ -156,11 +157,16 @@ export function ScoreCard(props: ScoreCardProps) {
 
   async function handleSave() {
     setSaving(true);
+    setSaveError('');
     try {
-      await sendMessage({ type: 'SAVE_LISTING', payload: { listingId: data.listing.id } });
-      setSaved(true);
-    } catch {
-      // silently fail
+      const result = await sendMessage({ type: 'SAVE_LISTING', payload: { listingId: data.listing.id } });
+      if (result && typeof result === 'object' && 'error' in result && result.error) {
+        setSaveError(String(result.error));
+      } else {
+        setSaved(true);
+      }
+    } catch (err) {
+      setSaveError('Failed to save. Please sign in and try again.');
     } finally {
       setSaving(false);
     }
@@ -211,7 +217,7 @@ export function ScoreCard(props: ScoreCardProps) {
             </div>
           </div>
 
-          <div style="display:flex;gap:8px;margin-top:12px;">
+          <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
             <button
               style={styles.primaryButton}
               onClick={handleSave}
@@ -219,6 +225,7 @@ export function ScoreCard(props: ScoreCardProps) {
             >
               {saved ? 'Saved' : saving ? 'Saving...' : 'Save to Dashboard'}
             </button>
+            {saveError && <span style="color:#ef4444;font-size:12px;">{saveError}</span>}
           </div>
         </>
       )}

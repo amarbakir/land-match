@@ -26,15 +26,19 @@ export function showLoading() {
   render(h(ScoreCard, { state: 'loading' }), shadowRoot);
 }
 
+let retryCallback: (() => void) | null = null;
+
+export function setRetryCallback(cb: () => void) {
+  retryCallback = cb;
+}
+
 export function showError(error: string) {
   if (!shadowRoot) return;
   render(
     h(ScoreCard, {
       state: 'error',
       error,
-      onRetry: () => {
-        window.dispatchEvent(new CustomEvent('landmatch:retry'));
-      },
+      onRetry: () => retryCallback?.(),
     }),
     shadowRoot,
   );

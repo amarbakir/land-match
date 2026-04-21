@@ -29,6 +29,13 @@
       "when": 1776796838392,
       "tag": "0003_massive_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776798352685,
+      "tag": "0004_bumpy_valkyrie",
+      "breakpoints": true
     }
   ]
 }

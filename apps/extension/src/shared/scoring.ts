@@ -1,3 +1,7 @@
+// Import directly from components to avoid pulling in Node-only transitive deps
+// (scoring/index.ts re-exports mapEnrichment which imports @landmatch/enrichment)
+import { scoreSoil, scoreFlood } from '@landmatch/scoring/components';
+
 export const SOIL_LABELS: Record<number, string> = {
   1: 'Class I — Few limitations',
   2: 'Class II — Moderate limitations',
@@ -37,20 +41,15 @@ export interface EnrichmentScoreInput {
 }
 
 export function computeSimplifiedScore(data: EnrichmentScoreInput): number | null {
+  const hasSoil = data.soilCapabilityClass != null;
+  const hasFlood = !!data.femaFloodZone;
+
+  if (!hasSoil && !hasFlood) return null;
+
   const components: number[] = [];
+  if (hasSoil) components.push(scoreSoil(data.soilCapabilityClass ?? undefined));
+  if (hasFlood) components.push(scoreFlood(data.femaFloodZone ?? undefined, []));
 
-  if (data.soilCapabilityClass != null) {
-    components.push(Math.max(0, 100 - (data.soilCapabilityClass - 1) * 14));
-  }
-
-  if (data.femaFloodZone) {
-    const upper = data.femaFloodZone.toUpperCase();
-    if (upper === 'X' || upper === 'C' || upper === 'B') components.push(95);
-    else if (upper.startsWith('A') || upper.startsWith('V')) components.push(20);
-    else components.push(50);
-  }
-
-  if (components.length === 0) return null;
   return Math.round(components.reduce((a, b) => a + b, 0) / components.length);
 }
 

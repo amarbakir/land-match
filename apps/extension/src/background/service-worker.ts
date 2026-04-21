@@ -3,6 +3,7 @@ import type { EnrichListingResponse } from '@landmatch/api';
 import * as apiClient from '../shared/api-client';
 import { getAuth, setAuth, clearAuth } from '../shared/auth';
 import { getCached, setCached } from '../shared/cache';
+import { getScoreColor } from '../shared/scoring';
 import type { ExtensionMessage, EnrichmentResultMessage, LoginResultMessage, AuthStatusMessage, SaveListingResultMessage } from '../shared/messages';
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
@@ -45,23 +46,21 @@ async function handleEnrich(payload: {
     // Check if already enriched server-side by URL
     const existing = await apiClient.getListingByUrl(payload.url);
     if (existing.ok && existing.data) {
-      const data = existing.data as EnrichListingResponse;
-      await setCached(payload.address, data);
-      updateBadge(data);
-      return { type: 'ENRICHMENT_RESULT', payload: data };
+      await setCached(payload.address, existing.data);
+      updateBadge(existing.data);
+      return { type: 'ENRICHMENT_RESULT', payload: existing.data };
     }
 
     // Enrich via API
     const result = await apiClient.enrichListing(payload);
 
-    if (!result.ok) {
+    if (!result.ok || !result.data) {
       return { type: 'ENRICHMENT_RESULT', payload: null, error: result.error ?? 'Enrichment failed' };
     }
 
-    const data = result.data as EnrichListingResponse;
-    await setCached(payload.address, data);
-    updateBadge(data);
-    return { type: 'ENRICHMENT_RESULT', payload: data };
+    await setCached(payload.address, result.data);
+    updateBadge(result.data);
+    return { type: 'ENRICHMENT_RESULT', payload: result.data };
   } catch (error) {
     return { type: 'ENRICHMENT_RESULT', payload: null, error: String(error) };
   }
@@ -70,10 +69,10 @@ async function handleEnrich(payload: {
 async function handleSave(listingId: string): Promise<SaveListingResultMessage> {
   try {
     const result = await apiClient.saveListing(listingId);
-    if (!result.ok) {
+    if (!result.ok || !result.data) {
       return { type: 'SAVE_LISTING_RESULT', payload: null, error: result.error ?? 'Save failed' };
     }
-    return { type: 'SAVE_LISTING_RESULT', payload: result.data as { savedAt: string } };
+    return { type: 'SAVE_LISTING_RESULT', payload: result.data };
   } catch (error) {
     return { type: 'SAVE_LISTING_RESULT', payload: null, error: String(error) };
   }
@@ -116,7 +115,7 @@ function updateBadge(data: EnrichListingResponse) {
   const soil = data.enrichment.soilCapabilityClass;
   if (soil != null) {
     chrome.action.setBadgeText({ text: String(soil) });
-    const color = soil <= 3 ? '#22c55e' : soil <= 5 ? '#eab308' : '#ef4444';
-    chrome.action.setBadgeBackgroundColor({ color });
+    const score = soil <= 3 ? 80 : soil <= 5 ? 50 : 20;
+    chrome.action.setBadgeBackgroundColor({ color: getScoreColor(score) });
   }
 }

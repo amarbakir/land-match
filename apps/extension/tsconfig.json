@@ -15,9 +15,10 @@
     "noEmit": true,
     "types": ["vite/client", "chrome"],
     "paths": {
-      "@landmatch/api": ["../../packages/api/src"]
+      "@landmatch/api": ["../../packages/api/src"],
+      "@landmatch/scoring/*": ["../../packages/scoring/src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "../../packages/api/src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../../packages/api/src/**/*.ts", "../../packages/scoring/src/components.ts", "../../packages/scoring/src/types.ts"],
   "exclude": ["node_modules", "dist"]
 }

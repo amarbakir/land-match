@@ -14,58 +14,60 @@ describe('computeSimplifiedScore', () => {
     expect(computeSimplifiedScore({ soilCapabilityClass: null, femaFloodZone: null })).toBeNull();
   });
 
-  it('scores Class I soil + zone X as excellent (high 90s)', () => {
+  it('scores Class I soil + zone X as excellent (100)', () => {
+    // Uses canonical scores: scoreSoil(1) = 100, scoreFlood('X') = 100
     const score = computeSimplifiedScore({ soilCapabilityClass: 1, femaFloodZone: 'X' });
-    expect(score).toBeGreaterThanOrEqual(95);
+    expect(score).toBe(100);
   });
 
-  it('scores Class VIII soil + zone AE as poor (low 10-20s)', () => {
+  it('scores Class VIII soil + zone AE as poor', () => {
+    // scoreSoil(8) = 0, scoreFlood('AE') = 30 → avg = 15
     const score = computeSimplifiedScore({ soilCapabilityClass: 8, femaFloodZone: 'AE' });
-    expect(score).toBeLessThanOrEqual(12);
+    expect(score).toBe(15);
   });
 
   it('returns soil-only score when flood zone is null', () => {
     const score = computeSimplifiedScore({ soilCapabilityClass: 2, femaFloodZone: null });
     expect(score).not.toBeNull();
-    // Class II soil = 100 - (2-1)*14 = 86
-    expect(score).toBe(86);
+    // scoreSoil(2) = 85
+    expect(score).toBe(85);
   });
 
   it('returns flood-only score when soil is null', () => {
+    // scoreFlood('X') = 100
     const score = computeSimplifiedScore({ soilCapabilityClass: null, femaFloodZone: 'X' });
-    expect(score).toBe(95);
+    expect(score).toBe(100);
   });
 
   it('averages soil and flood components', () => {
-    // Class III soil = 100 - 2*14 = 72, zone X flood = 95
-    // Average = (72 + 95) / 2 = 83.5 → rounds to 84
+    // scoreSoil(3) = 65, scoreFlood('X') = 100
+    // Average = (65 + 100) / 2 = 82.5 → rounds to 83
     const score = computeSimplifiedScore({ soilCapabilityClass: 3, femaFloodZone: 'X' });
-    expect(score).toBe(84);
+    expect(score).toBe(83);
   });
 
-  it('floors soil score at 0 for extreme capability classes', () => {
-    // Class 8: 100 - 7*14 = 2. Already above 0 but test the formula works.
-    // If someone passes class 9 (shouldn't happen but defensive), score should be >= 0
+  it('floors soil score at 0 for unknown capability classes', () => {
+    // scoreSoil(9) is not in the lookup → returns 0
     const score = computeSimplifiedScore({ soilCapabilityClass: 9, femaFloodZone: null });
-    expect(score).toBeGreaterThanOrEqual(0);
+    expect(score).toBe(0);
   });
 
-  it('treats zone B and C as low flood risk (same as X)', () => {
-    // Bug this catches: if we only handle zone X, users in B/C zones
-    // get incorrectly flagged as high flood risk
+  it('scores zone B and C as moderate flood risk', () => {
+    // Canonical scoring: B=70, C=70 (lower than X=100 but not high risk)
     const scoreB = computeSimplifiedScore({ soilCapabilityClass: null, femaFloodZone: 'B' });
     const scoreC = computeSimplifiedScore({ soilCapabilityClass: null, femaFloodZone: 'C' });
-    const scoreX = computeSimplifiedScore({ soilCapabilityClass: null, femaFloodZone: 'X' });
-    expect(scoreB).toBe(scoreX);
-    expect(scoreC).toBe(scoreX);
+    expect(scoreB).toBe(70);
+    expect(scoreC).toBe(70);
   });
 
-  it('treats zone V (coastal flood) as high risk', () => {
+  it('treats zone VE (coastal flood) as highest risk', () => {
+    // scoreFlood('VE') = 0
     const score = computeSimplifiedScore({ soilCapabilityClass: null, femaFloodZone: 'VE' });
-    expect(score).toBe(20);
+    expect(score).toBe(0);
   });
 
   it('assigns unknown flood zones a moderate score', () => {
+    // scoreFlood('D') falls through to default = 50
     const score = computeSimplifiedScore({ soilCapabilityClass: null, femaFloodZone: 'D' });
     expect(score).toBe(50);
   });
