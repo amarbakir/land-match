@@ -1,5 +1,5 @@
 import { eq, inArray } from 'drizzle-orm';
-import { listings, enrichments } from '@landmatch/db';
+import { listings, enrichments, savedListings } from '@landmatch/db';
 import type { EnrichmentResult } from '@landmatch/enrichment';
 import type { RawListing } from '@landmatch/feeds';
 
@@ -14,6 +14,9 @@ export interface InsertListingInput {
   acreage?: number;
   url?: string;
   title?: string;
+  source?: string;
+  externalId?: string;
+  userId?: string;
 }
 
 export async function insertListing(input: InsertListingInput, tx?: Tx) {
@@ -24,7 +27,8 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
     .insert(listings)
     .values({
       id,
-      source: 'manual',
+      source: input.source ?? 'manual',
+      externalId: input.externalId ?? null,
       address: input.address,
       latitude: input.latitude,
       longitude: input.longitude,
@@ -32,10 +36,34 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
       acreage: input.acreage ?? null,
       url: input.url ?? null,
       title: input.title ?? null,
+      userId: input.userId ?? null,
       enrichmentStatus: 'enriched',
       firstSeenAt: now,
       lastSeenAt: now,
     })
+    .returning();
+
+  return row;
+}
+
+export async function findByUrl(url: string, tx?: Tx) {
+  const rows = await (tx ?? db)
+    .select()
+    .from(listings)
+    .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
+    .where(eq(listings.url, url))
+    .limit(1);
+
+  if (rows.length === 0) return null;
+  return { listing: rows[0].listings, enrichment: rows[0].enrichments };
+}
+
+export async function saveListing(userId: string, listingId: string, tx?: Tx) {
+  const id = generateId();
+  const [row] = await (tx ?? db)
+    .insert(savedListings)
+    .values({ id, userId, listingId })
+    .onConflictDoNothing()
     .returning();
 
   return row;

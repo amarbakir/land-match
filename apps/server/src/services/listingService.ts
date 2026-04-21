@@ -4,7 +4,10 @@ import { enrichListing } from '@landmatch/enrichment';
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 
-export async function enrichAndPersist(input: EnrichListingRequest): Promise<Result<EnrichListingResponse>> {
+export async function enrichAndPersist(
+  input: EnrichListingRequest,
+  userId?: string,
+): Promise<Result<EnrichListingResponse>> {
   try {
     // 1. Geocode + enrich via pipeline
     const enrichResult = await enrichListing(input.address);
@@ -26,6 +29,9 @@ export async function enrichAndPersist(input: EnrichListingRequest): Promise<Res
           acreage: input.acreage,
           url: input.url,
           title: input.title,
+          source: input.source,
+          externalId: input.externalId,
+          userId,
         },
         tx,
       );
