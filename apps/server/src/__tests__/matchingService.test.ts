@@ -40,6 +40,7 @@ const LISTING = {
   firstSeenAt: new Date(),
   lastSeenAt: new Date(),
   delistedAt: null,
+  userId: null,
 };
 
 const ENRICHMENT = {

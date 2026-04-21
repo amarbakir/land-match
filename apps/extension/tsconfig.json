@@ -13,12 +13,11 @@
     "resolveJsonModule": true,
     "declaration": false,
     "noEmit": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "types": ["vite/client", "chrome"],
     "paths": {
       "@landmatch/api": ["../../packages/api/src"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../../packages/api/src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
