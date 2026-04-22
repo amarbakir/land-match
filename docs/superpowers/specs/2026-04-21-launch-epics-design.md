@@ -12,11 +12,11 @@ RSS feed adapters (`packages/feeds/`) are dead code and will be cleaned up.
 
 ---
 
-## Epic 1: Profile Editor UI (P1 — Independent)
+## Epic 1: Profile Editor UI (P1 — COMPLETE)
 
 **Spec:** `docs/superpowers/specs/2026-04-20-profile-editor-design.md`
 
-Already fully designed. Frontend components wiring into existing backend CRUD (`POST/GET/PUT/DELETE /api/v1/search-profiles`).
+**Status:** Already fully implemented (bead land-match-dkw.5 closed). All 19 component files exist in `apps/frontend/src/ui/profile/`, API hooks wired, sidebar integration complete.
 
 **Scope:**
 - `ProfileEditorScreen` with section components (Geography, Acreage, Price, Soil, Flood, Zoning, Infra, Weights, Alerts)
