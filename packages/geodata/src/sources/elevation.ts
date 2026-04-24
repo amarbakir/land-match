@@ -19,11 +19,12 @@ export async function loadElevation(regionName: string): Promise<void> {
   if (!existsSync(outputPath)) {
     // Fetch via USGS 3DEP WCS endpoint
     console.log(`[elevation] Fetching 3DEP elevation for ${region.name} via WCS...`);
+    // WCS 2.0.1 — the v1.1.1 endpoint stopped returning raster bands (April 2026).
     const wcsUrl = 'https://elevation.nationalmap.gov/arcgis/services/3DEPElevation/ImageServer/WCSServer';
 
     runShell([
       'gdalwarp',
-      `"WCS:${wcsUrl}?service=WCS&version=1.1.1&request=GetCoverage&identifier=DEP3Elevation&format=GeoTIFF"`,
+      `"WCS:${wcsUrl}?version=2.0.1&coverage=DEP3Elevation"`,
       `"${outputPath}"`,
       `-te ${region.minLng} ${region.minLat} ${region.maxLng} ${region.maxLat}`,
       '-t_srs EPSG:4326',

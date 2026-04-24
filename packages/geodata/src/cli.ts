@@ -13,10 +13,10 @@ const LOADERS: Record<SourceName, (regionName: string) => Promise<void>> = {
   wetlands: loadWetlands,
 };
 
-function parseArg(args: string[], name: string): string | undefined {
-  for (const arg of args) {
-    if (arg === name) return args[args.indexOf(arg) + 1];
-    if (arg.startsWith(`${name}=`)) return arg.slice(name.length + 1);
+export function parseArg(args: string[], name: string): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === name) return args[i + 1];
+    if (args[i].startsWith(`${name}=`)) return args[i].slice(name.length + 1);
   }
   return undefined;
 }

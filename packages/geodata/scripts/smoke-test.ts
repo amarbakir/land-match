@@ -20,7 +20,146 @@ interface Check {
   run: (pool: Pool) => Promise<void>;
 }
 
-const checks: Check[] = [
+/** Query ST_Value for a raster table at the test coordinate. */
+async function rasterValueAt(
+  pool: Pool,
+  table: string,
+  lng: number,
+  lat: number,
+): Promise<number | null> {
+  const { rows } = await pool.query(
+    `SELECT ST_Value(rast, ST_SetSRID(ST_Point($1, $2), 4326)) AS val
+     FROM ${table}
+     WHERE ST_Intersects(rast, ST_SetSRID(ST_Point($1, $2), 4326))
+     LIMIT 1`,
+    [lng, lat],
+  );
+  return rows.length > 0 ? rows[0].val : null;
+}
+
+// ─── PRISM annual rasters ────────────────────────────────────────────
+
+const prismAnnualChecks: Check[] = [
+  {
+    name: 'prism_avg_min_temp: ST_Value returns plausible °F value',
+    async run(pool) {
+      // Bug this catches: unit conversion skipped (raw °C loaded),
+      // or raster not clipped to region (null for NE coordinate).
+      const val = await rasterValueAt(pool, 'prism_avg_min_temp', TEST_COORD.lng, TEST_COORD.lat);
+      assert(val !== null, 'ST_Value returned null — raster may not cover test coordinate');
+      assert(val > 10 && val < 70, `expected 10-70°F, got ${val}`);
+      console.log(`    (${val.toFixed(1)}°F)`);
+    },
+  },
+  {
+    name: 'prism_avg_max_temp: ST_Value returns plausible °F value, > min temp',
+    async run(pool) {
+      // Bug this catches: tmin/tmax files swapped, or both loaded from same source.
+      const minVal = await rasterValueAt(pool, 'prism_avg_min_temp', TEST_COORD.lng, TEST_COORD.lat);
+      const maxVal = await rasterValueAt(pool, 'prism_avg_max_temp', TEST_COORD.lng, TEST_COORD.lat);
+      assert(maxVal !== null, 'ST_Value returned null');
+      assert(minVal !== null, 'ST_Value returned null for min temp');
+      assert(maxVal > 10 && maxVal < 90, `expected 10-90°F, got ${maxVal}`);
+      assert(maxVal > minVal, `max temp (${maxVal}) should be > min temp (${minVal})`);
+      console.log(`    (${maxVal.toFixed(1)}°F, min was ${minVal.toFixed(1)}°F)`);
+    },
+  },
+  {
+    name: 'prism_annual_precip: ST_Value returns plausible inches value',
+    async run(pool) {
+      // Bug this catches: mm loaded instead of inches (Vermont gets ~1100mm
+      // = ~43 inches; raw mm would be outside the plausible inches range).
+      const val = await rasterValueAt(pool, 'prism_annual_precip', TEST_COORD.lng, TEST_COORD.lat);
+      assert(val !== null, 'ST_Value returned null');
+      assert(val > 20 && val < 80, `expected 20-80 inches, got ${val}`);
+      console.log(`    (${val.toFixed(1)} inches)`);
+    },
+  },
+];
+
+// ─── PRISM monthly tmin ──────────────────────────────────────────────
+
+const prismMonthlyChecks: Check[] = [
+  {
+    name: 'prism_tmin_month_01..12: all 12 tables have raster data at test coord',
+    async run(pool) {
+      // Bug this catches: missing monthly files skipped silently, or
+      // wrong table naming convention (e.g., _1 instead of _01).
+      const values: number[] = [];
+      for (let m = 1; m <= 12; m++) {
+        const table = `prism_tmin_month_${String(m).padStart(2, '0')}`;
+        const val = await rasterValueAt(pool, table, TEST_COORD.lng, TEST_COORD.lat);
+        assert(val !== null, `${table}: ST_Value returned null`);
+        values.push(val);
+      }
+      console.log(`    (Jan: ${values[0].toFixed(1)}°F … Jul: ${values[6].toFixed(1)}°F … Dec: ${values[11].toFixed(1)}°F)`);
+    },
+  },
+  {
+    name: 'prism monthly: January tmin < July tmin (seasonal sanity)',
+    async run(pool) {
+      // Bug this catches: months loaded in wrong order, or unit conversion
+      // applied inconsistently so seasonal pattern is inverted.
+      const jan = await rasterValueAt(pool, 'prism_tmin_month_01', TEST_COORD.lng, TEST_COORD.lat);
+      const jul = await rasterValueAt(pool, 'prism_tmin_month_07', TEST_COORD.lng, TEST_COORD.lat);
+      assert(jan !== null, 'null value for January');
+      assert(jul !== null, 'null value for July');
+      assert(jan < jul, `January (${jan}°F) should be colder than July (${jul}°F)`);
+    },
+  },
+];
+
+// ─── PRISM derived products ──────────────────────────────────────────
+
+const prismDerivedChecks: Check[] = [
+  {
+    name: 'prism_frost_free_days: value in [0, 365] range',
+    async run(pool) {
+      // Bug this catches: missing numpy.minimum(365,...) clamp producing
+      // values > 365, or missing numpy.maximum(0,...) producing negatives.
+      const val = await rasterValueAt(pool, 'prism_frost_free_days', TEST_COORD.lng, TEST_COORD.lat);
+      assert(val !== null, 'ST_Value returned null');
+      assert(val >= 0 && val <= 365, `expected 0-365, got ${val}`);
+      console.log(`    (${val.toFixed(0)} days)`);
+    },
+  },
+  {
+    name: 'prism_growing_season: value in [0, 365] and <= frost_free_days',
+    async run(pool) {
+      // Bug this catches: growing season threshold (40°F) is stricter than
+      // frost-free (32°F), so growing_season should always be <= frost_free_days.
+      // If inverted, the threshold logic is wrong.
+      const frost = await rasterValueAt(pool, 'prism_frost_free_days', TEST_COORD.lng, TEST_COORD.lat);
+      const growing = await rasterValueAt(pool, 'prism_growing_season', TEST_COORD.lng, TEST_COORD.lat);
+      assert(frost !== null, 'ST_Value returned null for frost-free days');
+      assert(growing !== null, 'ST_Value returned null');
+      assert(growing >= 0 && growing <= 365, `expected 0-365, got ${growing}`);
+      assert(growing <= frost, `growing season (${growing}) should be <= frost-free days (${frost})`);
+      console.log(`    (${growing.toFixed(0)} days, frost-free: ${frost.toFixed(0)} days)`);
+    },
+  },
+];
+
+// ─── Elevation ───────────────────────────────────────────────────────
+
+const elevationChecks: Check[] = [
+  {
+    name: 'usgs_3dep_elevation: ST_Value returns plausible meters for Vermont',
+    async run(pool) {
+      // Bug this catches: WCS fetch failed silently (empty raster), or
+      // raster not clipped to region. Jamaica VT is ~500m elevation;
+      // allow 100-1500m for the broader pixel.
+      const val = await rasterValueAt(pool, 'usgs_3dep_elevation', TEST_COORD.lng, TEST_COORD.lat);
+      assert(val !== null, 'ST_Value returned null — elevation raster may not cover test coordinate');
+      assert(val > 100 && val < 1500, `expected 100-1500m, got ${val}`);
+      console.log(`    (${val.toFixed(0)}m)`);
+    },
+  },
+];
+
+// ─── NWI Wetlands (existing checks) ─────────────────────────────────
+
+const wetlandsChecks: Check[] = [
   {
     name: 'nwi_wetlands: table has rows',
     async run(pool) {
@@ -67,7 +206,17 @@ const checks: Check[] = [
   },
 ];
 
-function assert(condition: unknown, message: string): void {
+// ─── Runner ──────────────────────────────────────────────────────────
+
+const checks: Check[] = [
+  ...prismAnnualChecks,
+  ...prismMonthlyChecks,
+  ...prismDerivedChecks,
+  ...elevationChecks,
+  ...wetlandsChecks,
+];
+
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
