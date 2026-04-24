@@ -53,7 +53,7 @@ export function buildMonthlyCalcCmd(opts: {
   for (let i = 0; i < monthlyPaths.length; i++) {
     const letter = String.fromCharCode(65 + i);
     inputs.push(`-${letter} "${monthlyPaths[i]}"`);
-    comparisons.push(`(${letter}>${threshold})`);
+    comparisons.push(`(${letter}>${threshold})*1`);
   }
 
   const calc = `numpy.minimum(365,numpy.maximum(0,numpy.round((${comparisons.join('+')})*${daysPerMonth})))`;

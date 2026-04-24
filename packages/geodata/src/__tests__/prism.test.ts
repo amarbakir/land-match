@@ -17,11 +17,11 @@ describe('buildMonthlyCalcCmd', () => {
 
     // Every month A-L should compare against 32
     for (const letter of 'ABCDEFGHIJKL') {
-      expect(cmd).toContain(`(${letter}>32)`);
+      expect(cmd).toContain(`(${letter}>32)*1`);
     }
     // Should NOT contain a different threshold
-    expect(cmd).not.toContain('>40)');
-    expect(cmd).not.toContain('>0)');
+    expect(cmd).not.toContain('>40)*1');
+    expect(cmd).not.toContain('>0)*1');
   });
 
   it('uses a different threshold for growing season', () => {
@@ -33,9 +33,9 @@ describe('buildMonthlyCalcCmd', () => {
     });
 
     for (const letter of 'ABCDEFGHIJKL') {
-      expect(cmd).toContain(`(${letter}>40)`);
+      expect(cmd).toContain(`(${letter}>40)*1`);
     }
-    expect(cmd).not.toContain('>32)');
+    expect(cmd).not.toContain('>32)*1');
   });
 
   it('maps 12 input files to letters A through L in order', () => {
@@ -100,12 +100,12 @@ describe('buildMonthlyCalcCmd', () => {
     // Should have A through F
     for (let i = 0; i < 6; i++) {
       const letter = String.fromCharCode(65 + i);
-      expect(cmd).toContain(`(${letter}>32)`);
+      expect(cmd).toContain(`(${letter}>32)*1`);
     }
     // Should NOT have G through L
     for (const letter of 'GHIJKL') {
       expect(cmd).not.toContain(`-${letter} `);
-      expect(cmd).not.toContain(`(${letter}>32)`);
+      expect(cmd).not.toContain(`(${letter}>32)*1`);
     }
   });
 
@@ -129,6 +129,24 @@ describe('buildMonthlyCalcCmd', () => {
     });
 
     expect(cmd).toContain('--outfile="/data/frost_free_days.tif"');
+  });
+
+  it('casts boolean comparisons to int to avoid numexpr logical-OR bug', () => {
+    // Bug this catches: gdal_calc.py uses numexpr when available, where
+    // (A>32)+(B>32) does logical OR (result: 0 or 1) instead of arithmetic
+    // addition (result: 0, 1, or 2). Multiplying by 1 forces int conversion.
+    const cmd = buildMonthlyCalcCmd({
+      monthlyPaths: MONTHS_12,
+      outFile: '/out/frost.tif',
+      threshold: 32,
+    });
+
+    // Every comparison must include "*1" to cast boolean to int
+    for (const letter of 'ABCDEFGHIJKL') {
+      expect(cmd).toContain(`(${letter}>32)*1`);
+    }
+    // Must NOT have bare boolean comparisons without *1
+    expect(cmd).not.toMatch(/\([A-L]>32\)\+/);
   });
 
   it('accepts a custom daysPerMonth override', () => {
