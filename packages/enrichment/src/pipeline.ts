@@ -9,15 +9,26 @@ interface RegisteredAdapter {
   adapter: EnrichmentAdapter<unknown>;
 }
 
-const registeredAdapters: RegisteredAdapter[] = [
+const defaultAdapters: RegisteredAdapter[] = [
   { key: 'soil', adapter: soilAdapter },
   { key: 'flood', adapter: floodAdapter },
   { key: 'parcel', adapter: parcelAdapter },
   { key: 'climate', adapter: climateAdapter },
 ];
 
+const additionalAdapters: RegisteredAdapter[] = [];
+
+export function registerAdapter(key: EnrichmentKey, adapter: EnrichmentAdapter<unknown>): void {
+  additionalAdapters.push({ key, adapter });
+}
+
+export function clearAdditionalAdapters(): void {
+  additionalAdapters.length = 0;
+}
+
 export async function runEnrichmentPipeline(coords: LatLng): Promise<EnrichmentResult> {
-  const available = registeredAdapters.filter((r) => r.adapter.isAvailable());
+  const allAdapters = [...defaultAdapters, ...additionalAdapters];
+  const available = allAdapters.filter((r) => r.adapter.isAvailable());
 
   const results = await Promise.allSettled(
     available.map((r) => r.adapter.enrich(coords).then((result) => ({ key: r.key, name: r.adapter.name, result }))),
@@ -61,6 +72,15 @@ function assignResult(enrichment: EnrichmentResult, key: EnrichmentKey, data: un
       break;
     case 'climate':
       enrichment.climate = data as EnrichmentResult['climate'];
+      break;
+    case 'climateNormals':
+      enrichment.climateNormals = data as EnrichmentResult['climateNormals'];
+      break;
+    case 'elevation':
+      enrichment.elevation = data as EnrichmentResult['elevation'];
+      break;
+    case 'wetlands':
+      enrichment.wetlands = data as EnrichmentResult['wetlands'];
       break;
   }
 }
