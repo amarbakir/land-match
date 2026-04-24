@@ -37,6 +37,30 @@ const MONTHLY_TMIN_FILES = Array.from({ length: 12 }, (_, i) => {
   };
 });
 
+export function buildMonthlyCalcCmd(opts: {
+  monthlyPaths: string[];
+  outFile: string;
+  threshold: number;
+  daysPerMonth?: number;
+}): string {
+  const { monthlyPaths, outFile, threshold, daysPerMonth = 30.4 } = opts;
+  if (monthlyPaths.length === 0) {
+    throw new Error('buildMonthlyCalcCmd requires at least one monthly path');
+  }
+
+  const inputs: string[] = [];
+  const comparisons: string[] = [];
+  for (let i = 0; i < monthlyPaths.length; i++) {
+    const letter = String.fromCharCode(65 + i);
+    inputs.push(`-${letter} "${monthlyPaths[i]}"`);
+    comparisons.push(`(${letter}>${threshold})`);
+  }
+
+  const calc = `numpy.minimum(365,numpy.maximum(0,numpy.round((${comparisons.join('+')})*${daysPerMonth})))`;
+
+  return `gdal_calc.py ${inputs.join(' ')} --outfile="${outFile}" --calc="${calc}" --NoDataValue=-9999 --overwrite --type=Float32`;
+}
+
 export async function loadPrism(regionName: string): Promise<void> {
   const region = REGIONS[regionName];
   if (!region) throw new Error(`Unknown region: ${regionName}`);
@@ -88,7 +112,7 @@ export async function loadPrism(regionName: string): Promise<void> {
 
   // Load monthly tmin and compute frost-free-days / growing-season
   console.log('[prism] Processing monthly tmin for frost-free-days...');
-  const monthlyTables: string[] = [];
+  const monthlyPaths: string[] = [];
 
   for (const monthly of MONTHLY_TMIN_FILES) {
     const zipPath = join(DATA_DIR, monthly.zipFile);
@@ -116,45 +140,22 @@ export async function loadPrism(regionName: string): Promise<void> {
     await pool.query(`DROP TABLE IF EXISTS ${tableName} CASCADE`);
     const rasterCmd = raster2pgsql(convertedPath, tableName);
     runShell(`${rasterCmd} | psql "${dbUrl}"`);
-    monthlyTables.push(tableName);
+    monthlyPaths.push(convertedPath);
   }
 
-  // TODO: Replace proxy formula with proper monthly computation.
-  // The accurate approach counts months where avg tmin > 32°F, scaled to days:
-  //   frostFreeExpr = monthlyTables.map(t => `CASE WHEN ST_Value(${t}.rast, pt.geom) > 32 THEN 1 ELSE 0 END`).join(' + ')
-  //   joinClauses = monthlyTables.map(t => `LEFT JOIN ${t} ON ST_Intersects(${t}.rast, pt.geom)`).join('\n')
-  // This requires cross-raster ST_MapAlgebra which is non-trivial to tile correctly.
-  // For now, use annual tmin as a proxy: frost_free_days ≈ (annual_tmin_F - 10) * 8
-  console.log('[prism] Computing frost-free-days from annual tmin (proxy)...');
-  await pool.query(`DROP TABLE IF EXISTS prism_frost_free_days CASCADE`);
-  await pool.query(`
-    CREATE TABLE prism_frost_free_days (
-      rid serial PRIMARY KEY,
-      rast raster
-    )
-  `);
-  // Copy structure from annual tmin raster and compute frost-free days inline
-  // For now, use the annual tmin as a proxy: frost_free_days ≈ (annual_tmin_F - 10) * 8
-  // This is a rough approximation; proper computation requires raster algebra across 12 months
-  await pool.query(`
-    INSERT INTO prism_frost_free_days (rid, rast)
-    SELECT rid, ST_MapAlgebra(rast, 1, NULL, 'GREATEST(0, LEAST(365, ROUND(([rast] - 10) * 8)))::float8')
-    FROM prism_avg_min_temp
-  `);
+  // Compute frost-free-days from monthly tmin (months where avg tmin > 32°F)
+  console.log('[prism] Computing frost-free-days from monthly tmin...');
+  const frostFreeOutput = join(DATA_DIR, 'frost_free_days.tif');
+  runShell(buildMonthlyCalcCmd({ monthlyPaths, outFile: frostFreeOutput, threshold: 32 }));
+  await pool.query('DROP TABLE IF EXISTS prism_frost_free_days CASCADE');
+  runShell(`${raster2pgsql(frostFreeOutput, 'prism_frost_free_days')} | psql "${dbUrl}"`);
 
-  // Growing season: similar proxy
-  await pool.query(`DROP TABLE IF EXISTS prism_growing_season CASCADE`);
-  await pool.query(`
-    CREATE TABLE prism_growing_season (
-      rid serial PRIMARY KEY,
-      rast raster
-    )
-  `);
-  await pool.query(`
-    INSERT INTO prism_growing_season (rid, rast)
-    SELECT rid, ST_MapAlgebra(rast, 1, NULL, 'GREATEST(0, LEAST(365, ROUND(([rast] - 15) * 7)))::float8')
-    FROM prism_avg_min_temp
-  `);
+  // Compute growing-season days from monthly tmin (months where avg tmin > 40°F)
+  console.log('[prism] Computing growing-season from monthly tmin...');
+  const growingSeasonOutput = join(DATA_DIR, 'growing_season.tif');
+  runShell(buildMonthlyCalcCmd({ monthlyPaths, outFile: growingSeasonOutput, threshold: 40 }));
+  await pool.query('DROP TABLE IF EXISTS prism_growing_season CASCADE');
+  runShell(`${raster2pgsql(growingSeasonOutput, 'prism_growing_season')} | psql "${dbUrl}"`);
 
   await pool.end();
   console.log('[prism] All PRISM variables loaded.');
