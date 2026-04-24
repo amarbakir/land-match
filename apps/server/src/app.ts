@@ -5,6 +5,10 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 import { server } from './config';
 import { pool } from './db/client';
+import { registerGeodataAdapters } from './lib/geodataAdapters';
+
+// Register PostGIS adapters if enabled (must happen before requests)
+registerGeodataAdapters();
 import { generateRequestId } from './middleware/logging';
 import { optionalAuth, requireAuth } from './middleware/auth';
 import adminRouter from './routes/admin';
