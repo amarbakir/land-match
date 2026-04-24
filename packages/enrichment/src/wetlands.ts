@@ -1,3 +1,4 @@
+import { err, ok } from '@landmatch/api';
 import type { Pool } from 'pg';
 import type { EnrichmentAdapter, LatLng, Result, WetlandsData } from './types';
 
@@ -37,26 +38,20 @@ export function createWetlandsAdapter(pool: Pool): EnrichmentAdapter<WetlandsDat
         const { rows } = await pool.query(sql, [coords.lng, coords.lat, BUFFER_FT]);
 
         if (rows.length === 0) {
-          return {
-            ok: true,
-            data: {
-              wetlandType: null,
-              wetlandDescription: null,
-              distanceFt: Infinity,
-            },
-          };
+          return ok({
+            wetlandType: null,
+            wetlandDescription: null,
+            distanceFt: Infinity,
+          });
         }
 
-        return {
-          ok: true,
-          data: {
-            wetlandType: rows[0].wetland_type,
-            wetlandDescription: rows[0].attribute,
-            distanceFt: Number(rows[0].distance_ft),
-          },
-        };
-      } catch (err) {
-        return { ok: false, error: `Wetlands query failed: ${err instanceof Error ? err.message : String(err)}` };
+        return ok({
+          wetlandType: rows[0].wetland_type,
+          wetlandDescription: rows[0].attribute,
+          distanceFt: Number(rows[0].distance_ft),
+        });
+      } catch (e) {
+        return err(`Wetlands query failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
   };

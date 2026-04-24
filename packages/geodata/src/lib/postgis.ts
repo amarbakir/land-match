@@ -1,13 +1,12 @@
 import { execSync } from 'node:child_process';
 import { Pool } from 'pg';
 
-export function getPool(): Pool {
-  const url = process.env.DIRECT_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/landmatch';
-  return new Pool({ connectionString: url });
-}
-
 export function getDbUrl(): string {
   return process.env.DIRECT_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/landmatch';
+}
+
+export function getPool(): Pool {
+  return new Pool({ connectionString: getDbUrl() });
 }
 
 export async function ensurePostGIS(pool: Pool): Promise<void> {

@@ -119,29 +119,10 @@ export async function loadPrism(regionName: string): Promise<void> {
     monthlyTables.push(tableName);
   }
 
-  // Create frost-free-days table: count months where avg tmin > 32°F
-  console.log('[prism] Computing frost-free-days from monthly tmin...');
-  const frostFreeExpr = monthlyTables
-    .map((t) => `CASE WHEN ST_Value(${t}.rast, pt.geom) > 32 THEN 1 ELSE 0 END`)
-    .join(' + ');
-
-  // Build the join clause
-  const joinClauses = monthlyTables
-    .map((t) => `LEFT JOIN ${t} ON ST_Intersects(${t}.rast, pt.geom)`)
-    .join('\n          ');
-
-  // Frost-free days: months with tmin > 32°F, scaled to days (months * 30.4)
-  await pool.query(`DROP TABLE IF EXISTS prism_frost_free_days CASCADE`);
-  await pool.query(`
-    CREATE TABLE prism_frost_free_days AS
-    SELECT ${monthlyTables[0]}.rid,
-           ST_MapAlgebra(${monthlyTables[0]}.rast, 1, NULL, 'ROUND(([rast] + 32) * 0)::float8') AS rast
-    FROM ${monthlyTables[0]}
-    LIMIT 0
-  `);
-
-  // Simpler approach: store the computed frost-free days as a view-like derived query
-  // The adapter already queries individual raster tables, so we create a helper view
+  // Derive frost-free-days from annual tmin as a proxy:
+  // frost_free_days ≈ (annual_tmin_F - 10) * 8
+  // Proper computation requires raster algebra across 12 monthly tmin layers.
+  console.log('[prism] Computing frost-free-days from annual tmin...');
   await pool.query(`DROP TABLE IF EXISTS prism_frost_free_days CASCADE`);
   await pool.query(`
     CREATE TABLE prism_frost_free_days (

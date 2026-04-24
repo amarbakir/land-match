@@ -1,3 +1,4 @@
+import { err, ok } from '@landmatch/api';
 import type { Pool } from 'pg';
 import type { ElevationData, EnrichmentAdapter, LatLng, Result } from './types';
 
@@ -41,18 +42,15 @@ export function createElevationAdapter(pool: Pool): EnrichmentAdapter<ElevationD
         const { rows } = await pool.query(sql, [coords.lng, coords.lat]);
 
         if (rows.length === 0 || rows[0].elevation_ft === null) {
-          return { ok: false, error: 'No elevation data found for this location' };
+          return err('No elevation data found for this location');
         }
 
-        return {
-          ok: true,
-          data: {
-            elevationFt: Number(rows[0].elevation_ft),
-            slopePct: Number(rows[0].slope_pct),
-          },
-        };
-      } catch (err) {
-        return { ok: false, error: `Elevation query failed: ${err instanceof Error ? err.message : String(err)}` };
+        return ok({
+          elevationFt: Number(rows[0].elevation_ft),
+          slopePct: Number(rows[0].slope_pct),
+        });
+      } catch (e) {
+        return err(`Elevation query failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
   };

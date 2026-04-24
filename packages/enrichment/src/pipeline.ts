@@ -19,7 +19,9 @@ const defaultAdapters: RegisteredAdapter[] = [
 const additionalAdapters: RegisteredAdapter[] = [];
 
 export function registerAdapter(key: EnrichmentKey, adapter: EnrichmentAdapter<unknown>): void {
-  additionalAdapters.push({ key, adapter });
+  if (!additionalAdapters.some((r) => r.key === key)) {
+    additionalAdapters.push({ key, adapter });
+  }
 }
 
 export function clearAdditionalAdapters(): void {
@@ -60,27 +62,6 @@ export async function runEnrichmentPipeline(coords: LatLng): Promise<EnrichmentR
 }
 
 function assignResult(enrichment: EnrichmentResult, key: EnrichmentKey, data: unknown): void {
-  switch (key) {
-    case 'soil':
-      enrichment.soil = data as EnrichmentResult['soil'];
-      break;
-    case 'flood':
-      enrichment.flood = data as EnrichmentResult['flood'];
-      break;
-    case 'parcel':
-      enrichment.parcel = data as EnrichmentResult['parcel'];
-      break;
-    case 'climate':
-      enrichment.climate = data as EnrichmentResult['climate'];
-      break;
-    case 'climateNormals':
-      enrichment.climateNormals = data as EnrichmentResult['climateNormals'];
-      break;
-    case 'elevation':
-      enrichment.elevation = data as EnrichmentResult['elevation'];
-      break;
-    case 'wetlands':
-      enrichment.wetlands = data as EnrichmentResult['wetlands'];
-      break;
-  }
+  // EnrichmentKey is derived from EnrichmentResult keys, so direct assignment is safe
+  (enrichment as unknown as Record<string, unknown>)[key] = data;
 }

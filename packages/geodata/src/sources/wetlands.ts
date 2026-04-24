@@ -5,13 +5,10 @@ import { getDbUrl, getPool, runShell } from '../lib/postgis';
 
 const DATA_DIR = join(import.meta.dirname, '../../data/wetlands');
 
-// NE states for the northeast region
-const NE_STATES = ['CT', 'DE', 'MA', 'MD', 'ME', 'NH', 'NJ', 'NY', 'PA', 'RI', 'VT', 'VA', 'WV'];
-
-function statesForRegion(regionName: string): string[] {
-  // Expand for other regions as needed
-  return regionName === 'northeast' ? NE_STATES : NE_STATES;
-}
+// Only northeast is supported currently; expand this map for other regions
+const STATES_BY_REGION: Record<string, string[]> = {
+  northeast: ['CT', 'DE', 'MA', 'MD', 'ME', 'NH', 'NJ', 'NY', 'PA', 'RI', 'VT', 'VA', 'WV'],
+};
 
 export async function loadWetlands(regionName: string): Promise<void> {
   const region = REGIONS[regionName];
@@ -21,7 +18,8 @@ export async function loadWetlands(regionName: string): Promise<void> {
 
   const pool = getPool();
   const dbUrl = getDbUrl();
-  const states = statesForRegion(regionName);
+  const states = STATES_BY_REGION[regionName];
+  if (!states) throw new Error(`No state list for region: ${regionName}`);
 
   // Drop existing table (we'll append state by state)
   await pool.query('DROP TABLE IF EXISTS nwi_wetlands CASCADE');

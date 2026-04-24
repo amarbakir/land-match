@@ -1,3 +1,4 @@
+import { err, ok } from '@landmatch/api';
 import type { Pool } from 'pg';
 import type { ClimateNormalsData, EnrichmentAdapter, LatLng, Result } from './types';
 
@@ -30,22 +31,19 @@ export function createClimateNormalsAdapter(pool: Pool): EnrichmentAdapter<Clima
         const { rows } = await pool.query(sql, [coords.lng, coords.lat]);
 
         if (rows.length === 0 || rows[0].frost_free_days === null) {
-          return { ok: false, error: 'No climate normals data found for this location' };
+          return err('No climate normals data found for this location');
         }
 
         const row = rows[0];
-        return {
-          ok: true,
-          data: {
-            frostFreeDays: Math.round(Number(row.frost_free_days)),
-            annualPrecipIn: Math.round(Number(row.annual_precip_in) * 10) / 10,
-            avgMinTempF: Math.round(Number(row.avg_min_temp_f) * 10) / 10,
-            avgMaxTempF: Math.round(Number(row.avg_max_temp_f) * 10) / 10,
-            growingSeasonDays: Math.round(Number(row.growing_season_days)),
-          },
-        };
-      } catch (err) {
-        return { ok: false, error: `Climate normals query failed: ${err instanceof Error ? err.message : String(err)}` };
+        return ok({
+          frostFreeDays: Math.round(Number(row.frost_free_days)),
+          annualPrecipIn: Math.round(Number(row.annual_precip_in) * 10) / 10,
+          avgMinTempF: Math.round(Number(row.avg_min_temp_f) * 10) / 10,
+          avgMaxTempF: Math.round(Number(row.avg_max_temp_f) * 10) / 10,
+          growingSeasonDays: Math.round(Number(row.growing_season_days)),
+        });
+      } catch (e) {
+        return err(`Climate normals query failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
   };
