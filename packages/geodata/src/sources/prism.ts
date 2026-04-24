@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { REGIONS } from '../types';
-import { getDbUrl, getPool, raster2pgsql, runShell } from '../lib/postgis';
+import { clipToRegion, getDbUrl, getPool, loadRaster, runShell } from '../lib/postgis';
 
 const DATA_DIR = join(import.meta.dirname, '../../data/prism');
 
@@ -86,9 +86,8 @@ export async function loadPrism(regionName: string): Promise<void> {
     const tifPath = join(extractDir, config.tifFile);
     const clippedPath = join(DATA_DIR, `${varName}_clipped.tif`);
 
-    // Clip to region bounding box
     console.log(`[prism] Clipping ${varName} to ${region.name}...`);
-    runShell(`gdalwarp -te ${region.minLng} ${region.minLat} ${region.maxLng} ${region.maxLat} -t_srs EPSG:4326 "${tifPath}" "${clippedPath}" -overwrite`);
+    clipToRegion(tifPath, clippedPath, region);
 
     // Convert units at load time
     const convertedPath = join(DATA_DIR, `${varName}_converted.tif`);
@@ -101,11 +100,8 @@ export async function loadPrism(regionName: string): Promise<void> {
     }
     const loadPath = existsSync(convertedPath) ? convertedPath : clippedPath;
 
-    // Load into PostGIS
     console.log(`[prism] Loading ${varName} into ${config.table}...`);
-    await pool.query(`DROP TABLE IF EXISTS ${config.table} CASCADE`);
-    const rasterCmd = raster2pgsql(loadPath, config.table);
-    runShell(`${rasterCmd} | psql "${dbUrl}"`);
+    await loadRaster(pool, dbUrl, loadPath, config.table);
 
     console.log(`[prism] ${varName} loaded.`);
   }
@@ -129,17 +125,14 @@ export async function loadPrism(regionName: string): Promise<void> {
     const tifPath = join(extractDir, monthly.tifFile);
     const clippedPath = join(DATA_DIR, `tmin_month${String(monthly.month).padStart(2, '0')}_clipped.tif`);
 
-    // Clip to region
-    runShell(`gdalwarp -te ${region.minLng} ${region.minLat} ${region.maxLng} ${region.maxLat} -t_srs EPSG:4326 "${tifPath}" "${clippedPath}" -overwrite`);
+    clipToRegion(tifPath, clippedPath, region);
 
     // Convert °C to °F
     const convertedPath = join(DATA_DIR, `tmin_month${String(monthly.month).padStart(2, '0')}_f.tif`);
     runShell(`gdal_calc.py -A "${clippedPath}" --outfile="${convertedPath}" --calc="A*1.8+32" --NoDataValue=-9999 --overwrite`);
 
     const tableName = `prism_tmin_month_${String(monthly.month).padStart(2, '0')}`;
-    await pool.query(`DROP TABLE IF EXISTS ${tableName} CASCADE`);
-    const rasterCmd = raster2pgsql(convertedPath, tableName);
-    runShell(`${rasterCmd} | psql "${dbUrl}"`);
+    await loadRaster(pool, dbUrl, convertedPath, tableName);
     monthlyPaths.push(convertedPath);
   }
 
@@ -147,15 +140,13 @@ export async function loadPrism(regionName: string): Promise<void> {
   console.log('[prism] Computing frost-free-days from monthly tmin...');
   const frostFreeOutput = join(DATA_DIR, 'frost_free_days.tif');
   runShell(buildMonthlyCalcCmd({ monthlyPaths, outFile: frostFreeOutput, threshold: 32 }));
-  await pool.query('DROP TABLE IF EXISTS prism_frost_free_days CASCADE');
-  runShell(`${raster2pgsql(frostFreeOutput, 'prism_frost_free_days')} | psql "${dbUrl}"`);
+  await loadRaster(pool, dbUrl, frostFreeOutput, 'prism_frost_free_days');
 
   // Compute growing-season days from monthly tmin (months where avg tmin > 40°F)
   console.log('[prism] Computing growing-season from monthly tmin...');
   const growingSeasonOutput = join(DATA_DIR, 'growing_season.tif');
   runShell(buildMonthlyCalcCmd({ monthlyPaths, outFile: growingSeasonOutput, threshold: 40 }));
-  await pool.query('DROP TABLE IF EXISTS prism_growing_season CASCADE');
-  runShell(`${raster2pgsql(growingSeasonOutput, 'prism_growing_season')} | psql "${dbUrl}"`);
+  await loadRaster(pool, dbUrl, growingSeasonOutput, 'prism_growing_season');
 
   await pool.end();
   console.log('[prism] All PRISM variables loaded.');

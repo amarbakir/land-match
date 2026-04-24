@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { REGIONS } from '../types';
-import { getDbUrl, getPool, raster2pgsql, runShell } from '../lib/postgis';
+import { getDbUrl, getPool, loadRaster, runShell } from '../lib/postgis';
 
 const DATA_DIR = join(import.meta.dirname, '../../data/elevation');
 
@@ -34,11 +34,8 @@ export async function loadElevation(regionName: string): Promise<void> {
     console.log('[elevation] Using cached elevation file.');
   }
 
-  // Load into PostGIS
   console.log('[elevation] Loading into PostGIS...');
-  await pool.query('DROP TABLE IF EXISTS usgs_3dep_elevation CASCADE');
-  const rasterCmd = raster2pgsql(outputPath, 'usgs_3dep_elevation');
-  runShell(`${rasterCmd} | psql "${dbUrl}"`);
+  await loadRaster(pool, dbUrl, outputPath, 'usgs_3dep_elevation');
 
   // Add raster constraints for spatial indexing
   try {
