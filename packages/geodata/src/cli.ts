@@ -13,13 +13,19 @@ const LOADERS: Record<SourceName, (regionName: string) => Promise<void>> = {
   wetlands: loadWetlands,
 };
 
-async function main() {
-  const args = process.argv.slice(2);
-  const regionIdx = args.indexOf('--region');
-  const sourceIdx = args.indexOf('--source');
+function parseArg(args: string[], name: string): string | undefined {
+  for (const arg of args) {
+    if (arg === name) return args[args.indexOf(arg) + 1];
+    if (arg.startsWith(`${name}=`)) return arg.slice(name.length + 1);
+  }
+  return undefined;
+}
 
-  const regionName = regionIdx >= 0 ? args[regionIdx + 1] : 'northeast';
-  const sourceName = sourceIdx >= 0 ? args[sourceIdx + 1] : undefined;
+async function main() {
+  const args = process.argv.slice(2).filter((a) => a !== '--');
+
+  const regionName = parseArg(args, '--region') ?? 'northeast';
+  const sourceName = parseArg(args, '--source');
 
   if (!REGIONS[regionName]) {
     console.error(`Unknown region: ${regionName}. Available: ${Object.keys(REGIONS).join(', ')}`);

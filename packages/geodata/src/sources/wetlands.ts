@@ -48,6 +48,12 @@ export async function loadWetlands(regionName: string): Promise<void> {
     // Load into PostGIS using ogr2ogr (append mode after first state)
     const appendFlag = i === 0 ? '-overwrite' : '-append';
 
+    // NWI geodatabases contain multiple layers; the wetlands polygons
+    // live in the "{STATE}_Wetlands" layer.
+    const layerName = `${state}_Wetlands`;
+
+    // -select is incompatible with -append in ogr2ogr, so use -sql for
+    // field selection which works in both overwrite and append modes.
     runShell([
       'ogr2ogr -f "PostgreSQL"',
       `"PG:${dbUrl}"`,
@@ -57,7 +63,7 @@ export async function loadWetlands(regionName: string): Promise<void> {
       '-lco GEOMETRY_NAME=geom',
       '-t_srs EPSG:4326',
       appendFlag,
-      '-select "WETLAND_TYPE,ATTRIBUTE"',
+      `-sql "SELECT WETLAND_TYPE, ATTRIBUTE FROM ${layerName}"`,
     ].join(' '));
   }
 

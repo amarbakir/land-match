@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "load": "tsx src/cli.ts",
+    "smoke-test": "tsx scripts/smoke-test.ts",
     "lint": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run"
