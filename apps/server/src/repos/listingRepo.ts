@@ -95,6 +95,19 @@ export async function insertEnrichment(
       floodRiskScore: result.climate?.floodRiskScore ?? null,
       heatRiskScore: result.climate?.heatRiskScore ?? null,
       droughtRiskScore: result.climate?.droughtRiskScore ?? null,
+      // Climate normals (PRISM)
+      frostFreeDays: result.climateNormals?.frostFreeDays ?? null,
+      annualPrecipIn: result.climateNormals?.annualPrecipIn ?? null,
+      avgMinTempF: result.climateNormals?.avgMinTempF ?? null,
+      avgMaxTempF: result.climateNormals?.avgMaxTempF ?? null,
+      growingSeasonDays: result.climateNormals?.growingSeasonDays ?? null,
+      // Elevation (3DEP)
+      elevationFt: result.elevation?.elevationFt ?? null,
+      slopePct: result.elevation?.slopePct ?? null,
+      // Wetlands (NWI)
+      wetlandType: result.wetlands?.wetlandType ?? null,
+      wetlandDescription: result.wetlands?.wetlandDescription ?? null,
+      wetlandWithinBufferFt: result.wetlands?.distanceFt === Infinity ? null : (result.wetlands?.distanceFt ?? null),
       enrichedAt: new Date(),
       sourcesUsed: result.sourcesUsed,
     })
