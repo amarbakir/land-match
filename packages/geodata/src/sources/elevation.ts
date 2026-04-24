@@ -7,11 +7,11 @@ const DATA_DIR = join(import.meta.dirname, '../../data/elevation');
 
 // USGS 3DEP ArcGIS Image Server REST API.
 // WCS endpoint (v1.1.1 and v2.0.1) stopped returning valid raster data (April 2026).
-const REST_URL = 'https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage';
+export const ELEVATION_REST_URL = 'https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage';
 
 // Server caps at 8000x8000 and times out on large regions, so we tile.
-const TILE_DEG = 2; // degrees per tile (2x2 degree tiles work reliably)
-const TILE_PX = 2000; // pixels per tile side (~0.001 deg/px ≈ 100m)
+export const TILE_DEG = 2; // degrees per tile (2x2 degree tiles work reliably)
+export const TILE_PX = 2000; // pixels per tile side (~0.001 deg/px ≈ 100m)
 
 export async function loadElevation(regionName: string): Promise<void> {
   const region = REGIONS[regionName];
@@ -39,7 +39,7 @@ export async function loadElevation(regionName: string): Promise<void> {
         console.log(`[elevation]   tile ${bbox}...`);
         runShell([
           'gdalwarp',
-          `"/vsicurl/${REST_URL}?bbox=${bbox}&bboxSR=4326&imageSR=4326&size=${TILE_PX},${TILE_PX}&format=tiff&f=image"`,
+          `"/vsicurl/${ELEVATION_REST_URL}?bbox=${bbox}&bboxSR=4326&imageSR=4326&size=${TILE_PX},${TILE_PX}&format=tiff&f=image"`,
           `"${tilePath}"`,
           '-overwrite',
         ].join(' '));

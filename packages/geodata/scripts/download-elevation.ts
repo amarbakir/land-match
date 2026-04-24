@@ -11,21 +11,13 @@
  */
 
 import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
-import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { REGIONS } from '../src/types';
 import { parseArg } from '../src/cli';
+import { ELEVATION_REST_URL, TILE_DEG, TILE_PX } from '../src/sources/elevation';
+import { runShell } from '../src/lib/postgis';
 
 const DATA_DIR = join(import.meta.dirname, '../data/elevation');
-const REST_URL = 'https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage';
-
-const TILE_DEG = 2;
-const TILE_PX = 2000;
-
-function run(cmd: string): void {
-  console.log(`  $ ${cmd}`);
-  execSync(cmd, { stdio: 'inherit' });
-}
 
 async function main() {
   const args = process.argv.slice(2).filter((a) => a !== '--');
@@ -61,10 +53,16 @@ async function main() {
       const bbox = `${lng},${lat},${tileMaxLng},${tileMaxLat}`;
       const tilePath = join(DATA_DIR, `tile_${lng}_${lat}.tif`);
 
+      if (existsSync(tilePath)) {
+        console.log(`[elevation] tile ${tileNum}/${totalTiles}: skip (exists)`);
+        tilePaths.push(tilePath);
+        continue;
+      }
+
       console.log(`[elevation] tile ${tileNum}/${totalTiles}: ${bbox}`);
-      run([
+      runShell([
         'gdalwarp',
-        `"/vsicurl/${REST_URL}?bbox=${bbox}&bboxSR=4326&imageSR=4326&size=${TILE_PX},${TILE_PX}&format=tiff&f=image"`,
+        `"/vsicurl/${ELEVATION_REST_URL}?bbox=${bbox}&bboxSR=4326&imageSR=4326&size=${TILE_PX},${TILE_PX}&format=tiff&f=image"`,
         `"${tilePath}"`,
         '-overwrite',
       ].join(' '));
@@ -74,7 +72,7 @@ async function main() {
 
   console.log(`[elevation] Mosaicking ${tilePaths.length} tiles...`);
   const tileList = tilePaths.map((p) => `"${p}"`).join(' ');
-  run(`gdal_merge.py -o "${outputPath}" -of GTiff ${tileList}`);
+  runShell(`gdal_merge.py -o "${outputPath}" -of GTiff ${tileList}`);
 
   for (const p of tilePaths) unlinkSync(p);
 

@@ -12,8 +12,8 @@
  */
 
 import { existsSync, mkdirSync } from 'node:fs';
-import { execSync } from 'node:child_process';
 import { join } from 'node:path';
+import { curlDownload } from '../src/lib/download';
 
 const DATA_DIR = join(import.meta.dirname, '../data/prism');
 const BASE_URL = 'https://data.prism.oregonstate.edu/normals/us/4km';
@@ -28,11 +28,6 @@ const MONTHLY_TMIN_FILES = Array.from({ length: 12 }, (_, i) => {
   const month = String(i + 1).padStart(2, '0');
   return { file: `prism_tmin_us_25m_2020${month}_avg_30y.zip`, month };
 });
-
-function download(url: string, dest: string): void {
-  console.log(`  downloading ${url}`);
-  execSync(`curl -fSL -o "${dest}" "${url}"`, { stdio: ['pipe', 'pipe', 'inherit'] });
-}
 
 async function main() {
   mkdirSync(DATA_DIR, { recursive: true });
@@ -49,7 +44,7 @@ async function main() {
       skipped++;
       continue;
     }
-    download(`${BASE_URL}/${variable}/monthly/${file}`, dest);
+    curlDownload(`${BASE_URL}/${variable}/monthly/${file}`, dest);
     downloaded++;
   }
 
@@ -62,7 +57,7 @@ async function main() {
       skipped++;
       continue;
     }
-    download(`${BASE_URL}/tmin/monthly/${file}`, dest);
+    curlDownload(`${BASE_URL}/tmin/monthly/${file}`, dest);
     downloaded++;
   }
 

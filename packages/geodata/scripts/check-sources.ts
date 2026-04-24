@@ -5,6 +5,8 @@
  * Usage: pnpm --filter @landmatch/geodata check-sources
  */
 
+import { STATES_BY_REGION } from '../src/sources/wetlands';
+
 const PRISM_BASE = 'https://data.prism.oregonstate.edu/normals/us/4km';
 const NWI_BASE = 'https://documentst.ecosphere.fws.gov/wetlands/data/State-Downloads';
 const ELEVATION_REST = 'https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer';
@@ -29,9 +31,7 @@ const PRISM_MONTHLY: Endpoint[] = Array.from({ length: 12 }, (_, i) => {
   };
 });
 
-const NE_STATES = ['CT', 'DE', 'MA', 'MD', 'ME', 'NH', 'NJ', 'NY', 'PA', 'RI', 'VT', 'VA', 'WV'];
-
-const NWI: Endpoint[] = NE_STATES.map((state) => ({
+const NWI: Endpoint[] = (STATES_BY_REGION.northeast ?? []).map((state) => ({
   name: `NWI ${state}`,
   url: `${NWI_BASE}/${state}_geodatabase_wetlands.zip`,
 }));

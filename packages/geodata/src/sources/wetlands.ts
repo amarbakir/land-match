@@ -6,7 +6,7 @@ import { getDbUrl, getPool, runShell } from '../lib/postgis';
 const DATA_DIR = join(import.meta.dirname, '../../data/wetlands');
 
 // Only northeast is supported currently; expand this map for other regions
-const STATES_BY_REGION: Record<string, string[]> = {
+export const STATES_BY_REGION: Record<string, string[]> = {
   northeast: ['CT', 'DE', 'MA', 'MD', 'ME', 'NH', 'NJ', 'NY', 'PA', 'RI', 'VT', 'VA', 'WV'],
 };
 

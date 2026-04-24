@@ -10,21 +10,13 @@
  */
 
 import { existsSync, mkdirSync } from 'node:fs';
-import { execSync } from 'node:child_process';
 import { join } from 'node:path';
+import { curlDownload } from '../src/lib/download';
 import { parseArg } from '../src/cli';
+import { STATES_BY_REGION } from '../src/sources/wetlands';
 
 const DATA_DIR = join(import.meta.dirname, '../data/wetlands');
 const BASE_URL = 'https://documentst.ecosphere.fws.gov/wetlands/data/State-Downloads';
-
-const STATES_BY_REGION: Record<string, string[]> = {
-  northeast: ['CT', 'DE', 'MA', 'MD', 'ME', 'NH', 'NJ', 'NY', 'PA', 'RI', 'VT', 'VA', 'WV'],
-};
-
-function download(url: string, dest: string): void {
-  console.log(`  downloading ${url}`);
-  execSync(`curl -fSL -o "${dest}" "${url}"`, { stdio: ['pipe', 'pipe', 'inherit'] });
-}
 
 async function main() {
   const args = process.argv.slice(2).filter((a) => a !== '--');
@@ -50,7 +42,7 @@ async function main() {
       skipped++;
       continue;
     }
-    download(`${BASE_URL}/${file}`, dest);
+    curlDownload(`${BASE_URL}/${file}`, dest);
     downloaded++;
   }
 
