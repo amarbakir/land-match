@@ -1,4 +1,7 @@
 export { climateAdapter } from './climate';
+export { createClimateNormalsAdapter } from './climateNormals';
+export { createElevationAdapter } from './elevation';
+export { createWetlandsAdapter } from './wetlands';
 export { enrichListing, type EnrichedListing } from './enrichListing';
 export { floodAdapter } from './flood';
 export { geocode, type GeocodeData } from './geocode';

@@ -4,7 +4,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@landmatch/api": "workspace:*"
+    "@landmatch/api": "workspace:*",
+    "pg": "^8.20.0"
   },
   "scripts": {
     "lint": "tsc --noEmit && eslint src/",
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/pg": "^8.20.0",
     "msw": "^2.13.4",
     "typescript": "~5.9.3",
     "vitest": "^4.0.16"

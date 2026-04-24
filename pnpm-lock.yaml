@@ -259,10 +259,16 @@ importers:
       '@landmatch/api':
         specifier: workspace:*
         version: link:../api
+      pg:
+        specifier: ^8.20.0
+        version: 8.20.0
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
       msw:
         specifier: ^2.13.4
         version: 2.13.4(@types/node@20.19.39)(typescript@5.9.3)
@@ -11000,7 +11006,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.4(@types/node@20.19.39)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2)(msw@2.13.4(@types/node@20.19.39)(typescript@5.9.3))(vite@6.4.2(@types/node@20.19.39)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+      vitest: 4.1.4(@types/node@20.19.39)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2)(msw@2.13.4(@types/node@20.19.39)(typescript@5.9.3))(vite@8.0.8(@types/node@20.19.39)(esbuild@0.27.7)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   '@vitest/expect@4.1.4':
     dependencies:
