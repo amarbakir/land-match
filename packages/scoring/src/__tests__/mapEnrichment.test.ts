@@ -36,15 +36,6 @@ describe('mapEnrichmentResult', () => {
       zoningCode: 'AG-1',
       fireRiskScore: 15,
       floodRiskScore: 22,
-      frostFreeDays: undefined,
-      annualPrecipIn: undefined,
-      avgMinTempF: undefined,
-      avgMaxTempF: undefined,
-      growingSeasonDays: undefined,
-      elevationFt: undefined,
-      slopePct: undefined,
-      wetlandType: undefined,
-      wetlandDistanceFt: undefined,
     });
   });
 
