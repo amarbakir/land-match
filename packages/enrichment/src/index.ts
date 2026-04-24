@@ -5,4 +5,4 @@ export { geocode, type GeocodeData } from './geocode';
 export { parcelAdapter } from './parcel';
 export { runEnrichmentPipeline } from './pipeline';
 export { soilAdapter } from './soil';
-export type { ClimateData, EnrichmentAdapter, EnrichmentKey, EnrichmentResult, FloodData, LatLng, ParcelData, Result, SoilData } from './types';
+export type { ClimateData, ClimateNormalsData, ElevationData, EnrichmentAdapter, EnrichmentKey, EnrichmentResult, FloodData, LatLng, ParcelData, Result, SoilData, WetlandsData } from './types';

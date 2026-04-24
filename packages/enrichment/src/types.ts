@@ -20,6 +20,9 @@ export interface EnrichmentResult {
   flood?: FloodData;
   parcel?: ParcelData;
   climate?: ClimateData;
+  climateNormals?: ClimateNormalsData;
+  elevation?: ElevationData;
+  wetlands?: WetlandsData;
   sourcesUsed: string[];
   errors: Array<{ source: string; error: string }>;
 }
@@ -48,4 +51,23 @@ export interface ClimateData {
   floodRiskScore: number;
   heatRiskScore: number;
   droughtRiskScore: number;
+}
+
+export interface ClimateNormalsData {
+  frostFreeDays: number;
+  annualPrecipIn: number;
+  avgMinTempF: number;
+  avgMaxTempF: number;
+  growingSeasonDays: number;
+}
+
+export interface ElevationData {
+  elevationFt: number;
+  slopePct: number;
+}
+
+export interface WetlandsData {
+  wetlandType: string | null;
+  wetlandDescription: string | null;
+  distanceFt: number;
 }
