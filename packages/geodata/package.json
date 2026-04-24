@@ -1,0 +1,20 @@
+{
+  "name": "@landmatch/geodata",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "load": "tsx src/cli.ts",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.15.4",
+    "tsx": "^4.19.4",
+    "typescript": "~5.9.3"
+  }
+}
