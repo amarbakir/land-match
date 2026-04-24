@@ -36,6 +36,15 @@ describe('mapEnrichmentResult', () => {
       zoningCode: 'AG-1',
       fireRiskScore: 15,
       floodRiskScore: 22,
+      frostFreeDays: undefined,
+      annualPrecipIn: undefined,
+      avgMinTempF: undefined,
+      avgMaxTempF: undefined,
+      growingSeasonDays: undefined,
+      elevationFt: undefined,
+      slopePct: undefined,
+      wetlandType: undefined,
+      wetlandDistanceFt: undefined,
     });
   });
 
@@ -76,6 +85,44 @@ describe('mapEnrichmentResult', () => {
     expect(mapped.zoningCode).toBeUndefined();
     expect(mapped.fireRiskScore).toBeUndefined();
     expect(mapped.floodRiskScore).toBeUndefined();
+  });
+
+  it('maps climate normals, elevation, and wetlands data', () => {
+    const result: EnrichmentResult = {
+      soil: { capabilityClass: 2, drainageClass: 'Well drained', texture: 'Silt loam', suitabilityRatings: {} },
+      flood: { zone: 'X', description: 'Minimal risk' },
+      climateNormals: { frostFreeDays: 158, annualPrecipIn: 42.3, avgMinTempF: 28.1, avgMaxTempF: 72.5, growingSeasonDays: 165 },
+      elevation: { elevationFt: 1200, slopePct: 8.2 },
+      wetlands: { wetlandType: null, wetlandDescription: null, distanceFt: Infinity },
+      sourcesUsed: ['usda-soil', 'fema-nfhl', 'prism-climate-normals', 'usgs-3dep-elevation', 'usfws-nwi-wetlands'],
+      errors: [],
+    };
+
+    const mapped = mapEnrichmentResult(result);
+
+    expect(mapped.frostFreeDays).toBe(158);
+    expect(mapped.annualPrecipIn).toBe(42.3);
+    expect(mapped.avgMinTempF).toBe(28.1);
+    expect(mapped.avgMaxTempF).toBe(72.5);
+    expect(mapped.growingSeasonDays).toBe(165);
+    expect(mapped.elevationFt).toBe(1200);
+    expect(mapped.slopePct).toBe(8.2);
+    expect(mapped.wetlandType).toBeNull();
+    expect(mapped.wetlandDistanceFt).toBe(Infinity);
+  });
+
+  it('handles missing new enrichment sources gracefully', () => {
+    const result: EnrichmentResult = {
+      soil: { capabilityClass: 2, drainageClass: 'Well drained', texture: 'Silt loam', suitabilityRatings: {} },
+      sourcesUsed: ['usda-soil'],
+      errors: [],
+    };
+
+    const mapped = mapEnrichmentResult(result);
+
+    expect(mapped.frostFreeDays).toBeUndefined();
+    expect(mapped.elevationFt).toBeUndefined();
+    expect(mapped.wetlandType).toBeUndefined();
   });
 
   // infrastructure is not mapped from any adapter yet — verify it stays absent

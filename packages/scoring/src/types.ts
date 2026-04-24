@@ -56,4 +56,16 @@ export interface EnrichmentData {
   infrastructure?: string[];
   fireRiskScore?: number;
   floodRiskScore?: number;
+  // Climate normals (PRISM)
+  frostFreeDays?: number;
+  annualPrecipIn?: number;
+  avgMinTempF?: number;
+  avgMaxTempF?: number;
+  growingSeasonDays?: number;
+  // Elevation (3DEP)
+  elevationFt?: number;
+  slopePct?: number;
+  // Wetlands (NWI)
+  wetlandType?: string | null;
+  wetlandDistanceFt?: number;
 }

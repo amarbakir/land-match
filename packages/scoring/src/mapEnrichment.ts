@@ -8,5 +8,17 @@ export function mapEnrichmentResult(result: EnrichmentResult): EnrichmentData {
     zoningCode: result.parcel?.zoningCode,
     fireRiskScore: result.climate?.fireRiskScore,
     floodRiskScore: result.climate?.floodRiskScore,
+    // Climate normals
+    frostFreeDays: result.climateNormals?.frostFreeDays,
+    annualPrecipIn: result.climateNormals?.annualPrecipIn,
+    avgMinTempF: result.climateNormals?.avgMinTempF,
+    avgMaxTempF: result.climateNormals?.avgMaxTempF,
+    growingSeasonDays: result.climateNormals?.growingSeasonDays,
+    // Elevation
+    elevationFt: result.elevation?.elevationFt,
+    slopePct: result.elevation?.slopePct,
+    // Wetlands
+    wetlandType: result.wetlands?.wetlandType,
+    wetlandDistanceFt: result.wetlands?.distanceFt,
   };
 }
