@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "download:prism": "tsx scripts/download-prism.ts",
+    "download:wetlands": "tsx scripts/download-wetlands.ts",
+    "download:elevation": "tsx scripts/download-elevation.ts",
+    "check-sources": "tsx scripts/check-sources.ts",
     "load": "tsx src/cli.ts",
     "smoke-test": "tsx scripts/smoke-test.ts",
     "lint": "tsc --noEmit",
