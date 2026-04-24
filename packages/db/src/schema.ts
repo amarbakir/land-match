@@ -82,6 +82,19 @@ export const enrichments = pgTable('enrichments', {
   floodRiskScore: integer('flood_risk_score'),
   heatRiskScore: integer('heat_risk_score'),
   droughtRiskScore: integer('drought_risk_score'),
+  // Climate normals (PRISM)
+  frostFreeDays: integer('frost_free_days'),
+  annualPrecipIn: real('annual_precip_in'),
+  avgMinTempF: real('avg_min_temp_f'),
+  avgMaxTempF: real('avg_max_temp_f'),
+  growingSeasonDays: integer('growing_season_days'),
+  // Elevation (3DEP)
+  elevationFt: real('elevation_ft'),
+  slopePct: real('slope_pct'),
+  // Wetlands (NWI)
+  wetlandType: text('wetland_type'),
+  wetlandDescription: text('wetland_description'),
+  wetlandWithinBufferFt: integer('wetland_within_buffer_ft'),
   // Meta
   enrichedAt: timestamp('enriched_at', { withTimezone: true, mode: 'date' }),
   sourcesUsed: text('sources_used').array(),

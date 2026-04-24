@@ -117,6 +117,7 @@ export const llm = {
 export const features = {
   enableParcelData: featureFlag('ENABLE_PARCEL_DATA', false),
   enableClimateRisk: featureFlag('ENABLE_CLIMATE_RISK', false),
+  enableGeodataEnrichment: featureFlag('ENABLE_GEODATA_ENRICHMENT', false),
 } as const;
 
 export const email = {
