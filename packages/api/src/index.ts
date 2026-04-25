@@ -27,3 +27,8 @@ export {
   ProfileCounts,
   ComponentScores,
 } from './matches';
+export {
+  AlertChannel,
+  NotificationPrefs,
+  getAlertChannel,
+} from './notifications';

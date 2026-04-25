@@ -4,6 +4,7 @@ import * as listingRepo from '../repos/listingRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
 import * as scoreRepo from '../repos/scoreRepo';
 import * as alertRepo from '../repos/alertRepo';
+import * as userRepo from '../repos/userRepo';
 import * as scoring from '@landmatch/scoring';
 import { matchListingAgainstProfiles } from '../services/matchingService';
 
@@ -11,12 +12,14 @@ vi.mock('../repos/listingRepo');
 vi.mock('../repos/searchProfileRepo');
 vi.mock('../repos/scoreRepo');
 vi.mock('../repos/alertRepo');
+vi.mock('../repos/userRepo');
 vi.mock('@landmatch/scoring');
 
 const mockListingRepo = vi.mocked(listingRepo);
 const mockProfileRepo = vi.mocked(searchProfileRepo);
 const mockScoreRepo = vi.mocked(scoreRepo);
 const mockAlertRepo = vi.mocked(alertRepo);
+const mockUserRepo = vi.mocked(userRepo);
 const mockScoring = vi.mocked(scoring);
 
 const LISTING = {
@@ -74,6 +77,19 @@ const ENRICHMENT = {
   sourcesUsed: ['usda', 'fema'],
 };
 
+const USER = {
+  id: 'user-1',
+  email: 'test@example.com',
+  name: null,
+  phone: null,
+  authProvider: 'email',
+  passwordHash: 'hash',
+  subscriptionTier: 'free',
+  notificationPrefs: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
 const PROFILE = {
   id: 'profile-1',
   userId: 'user-1',
@@ -120,6 +136,7 @@ describe('matchListingAgainstProfiles', () => {
       readAt: null,
       scoredAt: new Date(),
     });
+    mockUserRepo.findById.mockResolvedValueOnce(USER);
     mockAlertRepo.insert.mockResolvedValueOnce({} as any);
 
     const result = await matchListingAgainstProfiles('listing-1');
@@ -128,8 +145,9 @@ describe('matchListingAgainstProfiles', () => {
     if (!result.ok) return;
     expect(result.data.scored).toBe(1);
     expect(result.data.alertsCreated).toBe(1);
-    expect(mockScoreRepo.insert).toHaveBeenCalledOnce();
-    expect(mockAlertRepo.insert).toHaveBeenCalledOnce();
+    expect(mockAlertRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'email' }),
+    );
   });
 
   it('skips alert creation when score is below threshold', async () => {
@@ -183,6 +201,47 @@ describe('matchListingAgainstProfiles', () => {
     if (!result.ok) return;
     expect(result.data.scored).toBe(0);
     expect(mockScoreRepo.insert).not.toHaveBeenCalled();
+  });
+
+  it('uses channel from user notification prefs instead of hardcoded email', async () => {
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 75,
+      componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+      hardFilterFailed: false,
+      failedFilters: [],
+    });
+
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+    mockScoreRepo.insert.mockResolvedValueOnce({
+      id: 'score-1',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 75,
+      componentScores: {},
+      llmSummary: null,
+      status: 'inbox',
+      readAt: null,
+      scoredAt: new Date(),
+    });
+    mockUserRepo.findById.mockResolvedValueOnce({
+      ...USER,
+      notificationPrefs: { alertChannel: 'sms' },
+    });
+    mockAlertRepo.insert.mockResolvedValueOnce({} as any);
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(mockAlertRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'sms' }),
+    );
   });
 
   it('returns error when listing not found', async () => {

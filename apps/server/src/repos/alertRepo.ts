@@ -1,5 +1,6 @@
 import { eq, and, inArray, desc } from 'drizzle-orm';
 import { alerts, users, searchProfiles } from '@landmatch/db';
+import type { AlertChannel } from '@landmatch/api';
 
 import { db, type Tx } from '../db/client';
 import { generateId } from '../lib/id';
@@ -9,7 +10,7 @@ export interface InsertAlertInput {
   searchProfileId: string;
   listingId: string;
   scoreId: string;
-  channel: string;
+  channel: AlertChannel;
 }
 
 export async function insert(input: InsertAlertInput, tx?: Tx) {
