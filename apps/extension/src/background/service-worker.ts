@@ -3,7 +3,7 @@ import type { EnrichListingResponse } from '@landmatch/api';
 import * as apiClient from '../shared/api-client';
 import { getAuth, setAuth, clearAuth } from '../shared/auth';
 import { getCached, setCached } from '../shared/cache';
-import { getScoreColor } from '../shared/scoring';
+import { getOverallScore, getScoreColor } from '../shared/scoring';
 import type { ExtensionMessage, EnrichmentResultMessage, LoginResultMessage, AuthStatusMessage, SaveListingResultMessage } from '../shared/messages';
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
@@ -112,10 +112,9 @@ async function handleGetAuthStatus(): Promise<AuthStatusMessage> {
 }
 
 function updateBadge(data: EnrichListingResponse) {
-  const soil = data.enrichment.soilCapabilityClass;
-  if (soil != null) {
-    chrome.action.setBadgeText({ text: String(soil) });
-    const score = soil <= 3 ? 80 : soil <= 5 ? 50 : 20;
+  const score = getOverallScore(data);
+  if (score != null) {
+    chrome.action.setBadgeText({ text: String(score) });
     chrome.action.setBadgeBackgroundColor({ color: getScoreColor(score) });
   }
 }

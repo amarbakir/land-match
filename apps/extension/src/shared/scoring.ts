@@ -58,3 +58,28 @@ export function getScoreColor(score: number): string {
   if (score >= 40) return '#eab308';
   return '#ef4444';
 }
+
+export function getOverallScore(data: { homesteadScore?: number | null; enrichment: EnrichmentScoreInput }): number | null {
+  if (data.homesteadScore != null) return Math.round(data.homesteadScore);
+  return computeSimplifiedScore(data.enrichment);
+}
+
+export const HOMESTEAD_COMPONENT_LABELS: Record<string, string> = {
+  gardenViability: 'Garden Viability',
+  growingSeason: 'Growing Season',
+  waterAvailability: 'Water Availability',
+  floodSafety: 'Flood Safety',
+  septicFeasibility: 'Septic Feasibility',
+  buildingSuitability: 'Building Suitability',
+  firewoodPotential: 'Firewood Potential',
+};
+
+export const HOMESTEAD_DISPLAY_ORDER = [
+  'gardenViability',
+  'growingSeason',
+  'waterAvailability',
+  'floodSafety',
+  'septicFeasibility',
+  'buildingSuitability',
+  'firewoodPotential',
+];

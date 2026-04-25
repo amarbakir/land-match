@@ -7,8 +7,10 @@ import {
   getSoilLabel,
   getFloodColor,
   getFloodLabel,
-  computeSimplifiedScore,
+  getOverallScore,
   getScoreColor,
+  HOMESTEAD_COMPONENT_LABELS,
+  HOMESTEAD_DISPLAY_ORDER,
 } from '../../shared/scoring';
 
 type ScoreCardProps =
@@ -117,6 +119,43 @@ const styles = {
     border-radius: 50%;
     background: ${color};
   `,
+  barRow: `
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  `,
+  barLabel: `
+    font-size: 12px;
+    color: #6b7280;
+    width: 120px;
+    flex-shrink: 0;
+  `,
+  barTrack: `
+    flex: 1;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+  `,
+  barFill: (color: string, pct: number) => `
+    height: 100%;
+    width: ${pct}%;
+    background: ${color};
+    border-radius: 4px;
+  `,
+  barScore: `
+    font-size: 12px;
+    font-weight: 600;
+    width: 28px;
+    text-align: right;
+    flex-shrink: 0;
+  `,
+  barDetail: `
+    font-size: 11px;
+    color: #9ca3af;
+    margin: -4px 0 8px 128px;
+  `,
 };
 
 const keyframes = `@keyframes lm-spin { to { transform: rotate(360deg); } }`;
@@ -153,7 +192,8 @@ export function ScoreCard(props: ScoreCardProps) {
 
   const { data } = props;
   const { enrichment } = data;
-  const score = computeSimplifiedScore(enrichment);
+  const score = getOverallScore(data);
+  const hasHomestead = data.homesteadComponents != null;
 
   async function handleSave() {
     setSaving(true);
@@ -189,33 +229,57 @@ export function ScoreCard(props: ScoreCardProps) {
 
       {!collapsed && (
         <>
-          <div style={styles.row}>
-            <div style={styles.col}>
-              <div style={styles.label}>Soil</div>
-              <div style={styles.value}>
-                {getSoilLabel(enrichment.soilCapabilityClass)}
-              </div>
+          {hasHomestead ? (
+            <div style="margin-bottom: 8px;">
+              {HOMESTEAD_DISPLAY_ORDER.map((key) => {
+                const comp = data.homesteadComponents![key];
+                if (!comp) return null;
+                const color = getScoreColor(comp.score);
+                return (
+                  <div key={key}>
+                    <div style={styles.barRow}>
+                      <div style={styles.barLabel}>{HOMESTEAD_COMPONENT_LABELS[key] ?? key}</div>
+                      <div style={styles.barTrack}>
+                        <div style={styles.barFill(color, comp.score)} />
+                      </div>
+                      <div style={`${styles.barScore};color:${color}`}>{comp.score}</div>
+                    </div>
+                    <div style={styles.barDetail} title={comp.label}>{comp.label}</div>
+                  </div>
+                );
+              })}
             </div>
-            <div style={styles.col}>
-              <div style={styles.label}>Flood Zone</div>
-              <div style={`${styles.value};color:${getFloodColor(enrichment.femaFloodZone)}`}>
-                {enrichment.femaFloodZone ?? 'Unknown'}
-                {' — '}
-                {getFloodLabel(enrichment.femaFloodZone)}
+          ) : (
+            <>
+              <div style={styles.row}>
+                <div style={styles.col}>
+                  <div style={styles.label}>Soil</div>
+                  <div style={styles.value}>
+                    {getSoilLabel(enrichment.soilCapabilityClass)}
+                  </div>
+                </div>
+                <div style={styles.col}>
+                  <div style={styles.label}>Flood Zone</div>
+                  <div style={`${styles.value};color:${getFloodColor(enrichment.femaFloodZone)}`}>
+                    {enrichment.femaFloodZone ?? 'Unknown'}
+                    {' — '}
+                    {getFloodLabel(enrichment.femaFloodZone)}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div style={styles.row}>
-            <div style={styles.col}>
-              <div style={styles.label}>Drainage</div>
-              <div style={styles.value}>{enrichment.soilDrainageClass ?? 'Unknown'}</div>
-            </div>
-            <div style={styles.col}>
-              <div style={styles.label}>Soil Texture</div>
-              <div style={styles.value}>{enrichment.soilTexture ?? 'Unknown'}</div>
-            </div>
-          </div>
+              <div style={styles.row}>
+                <div style={styles.col}>
+                  <div style={styles.label}>Drainage</div>
+                  <div style={styles.value}>{enrichment.soilDrainageClass ?? 'Unknown'}</div>
+                </div>
+                <div style={styles.col}>
+                  <div style={styles.label}>Soil Texture</div>
+                  <div style={styles.value}>{enrichment.soilTexture ?? 'Unknown'}</div>
+                </div>
+              </div>
+            </>
+          )}
 
           <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
             <button
