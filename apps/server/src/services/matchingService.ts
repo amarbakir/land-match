@@ -1,6 +1,6 @@
 import { err, ok, getAlertChannel, type Result } from '@landmatch/api';
-import { mapEnrichmentRow, scoreListing } from '@landmatch/scoring';
-import type { ListingData, SearchCriteria } from '@landmatch/scoring';
+import { mapEnrichmentRow, mapListingRow, scoreListing } from '@landmatch/scoring';
+import type { SearchCriteria } from '@landmatch/scoring';
 
 import * as listingRepo from '../repos/listingRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
@@ -11,15 +11,6 @@ import * as userRepo from '../repos/userRepo';
 interface MatchResult {
   scored: number;
   alertsCreated: number;
-}
-
-function mapToListingData(listing: { price: number | null; acreage: number | null; latitude: number | null; longitude: number | null }): ListingData {
-  return {
-    price: listing.price ?? undefined,
-    acreage: listing.acreage ?? undefined,
-    latitude: listing.latitude ?? undefined,
-    longitude: listing.longitude ?? undefined,
-  };
 }
 
 export async function matchListingAgainstProfiles(listingId: string): Promise<Result<MatchResult>> {
@@ -34,7 +25,7 @@ export async function matchListingAgainstProfiles(listingId: string): Promise<Re
       alertRepo.findAlertedProfileIds(listingId),
     ]);
 
-    const listingData = mapToListingData(data.listing);
+    const listingData = mapListingRow(data.listing);
     const enrichmentData = mapEnrichmentRow(data.enrichment);
 
     let scored = 0;

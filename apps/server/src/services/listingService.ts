@@ -1,25 +1,16 @@
 import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResponse } from '@landmatch/api';
 import { enrichListing } from '@landmatch/enrichment';
-import { homesteadScore, mapEnrichmentRow, type ListingData } from '@landmatch/scoring';
+import { homesteadScore, mapEnrichmentRow, mapListingRow } from '@landmatch/scoring';
 
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 
-type ListingRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findListingById>>>;
+type DbListingRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findListingById>>>;
 type DbEnrichmentRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findByUrl>>>['enrichment'];
 
-function toListingData(listing: ListingRow): ListingData {
-  return {
-    price: listing.price ?? undefined,
-    acreage: listing.acreage ?? undefined,
-    latitude: listing.latitude ?? undefined,
-    longitude: listing.longitude ?? undefined,
-  };
-}
-
-function computeHomestead(listing: ListingRow, enrichment: DbEnrichmentRow) {
+function computeHomestead(listing: DbListingRow, enrichment: DbEnrichmentRow) {
   try {
-    const result = homesteadScore(toListingData(listing), mapEnrichmentRow(enrichment), {});
+    const result = homesteadScore(mapListingRow(listing), mapEnrichmentRow(enrichment), {});
     const components: Record<string, { score: number; label: string }> = {};
     for (const [key, value] of Object.entries(result.homestead)) {
       components[key] = { score: value.score, label: value.label };
@@ -31,7 +22,7 @@ function computeHomestead(listing: ListingRow, enrichment: DbEnrichmentRow) {
 }
 
 function toEnrichListingResponse(
-  listing: ListingRow,
+  listing: DbListingRow,
   enrichment: DbEnrichmentRow,
   errors: Array<{ source: string; error: string }> = [],
 ): EnrichListingResponse {

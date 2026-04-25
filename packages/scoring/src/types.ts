@@ -49,6 +49,14 @@ export interface ListingData {
   longitude?: number;
 }
 
+/** Structural type for a DB listing row's scoring-relevant columns. */
+export interface ListingRow {
+  price: number | null;
+  acreage: number | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 export interface EnrichmentData {
   soilCapabilityClass?: number;
   soilDrainageClass?: string;
