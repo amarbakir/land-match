@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EnrichmentResult } from '@landmatch/enrichment';
-import { mapEnrichmentResult } from '../mapEnrichment';
+import { mapEnrichmentResult, mapEnrichmentRow } from '../mapEnrichment';
+import type { EnrichmentRow } from '../types';
 
 describe('mapEnrichmentResult', () => {
   it('maps all adapter fields to flat EnrichmentData', () => {
@@ -136,6 +137,125 @@ describe('mapEnrichmentResult', () => {
     };
 
     const mapped = mapEnrichmentResult(result);
+    expect(mapped.infrastructure).toBeUndefined();
+  });
+});
+
+function fullRow(): EnrichmentRow {
+  return {
+    soilCapabilityClass: 3,
+    soilDrainageClass: 'well drained',
+    soilTexture: 'loam',
+    femaFloodZone: 'X',
+    zoningCode: 'AG-1',
+    fireRiskScore: 15,
+    floodRiskScore: 22,
+    frostFreeDays: 158,
+    annualPrecipIn: 42.3,
+    avgMinTempF: 28.1,
+    avgMaxTempF: 72.5,
+    growingSeasonDays: 165,
+    elevationFt: 1200,
+    slopePct: 8.2,
+    wetlandType: null,
+    wetlandWithinBufferFt: 500,
+  };
+}
+
+describe('mapEnrichmentRow', () => {
+  it('maps all fields and renames femaFloodZone/wetlandWithinBufferFt', () => {
+    const row = fullRow();
+    const mapped = mapEnrichmentRow(row);
+
+    expect(mapped).toEqual({
+      soilCapabilityClass: 3,
+      soilDrainageClass: 'well drained',
+      soilTexture: 'loam',
+      floodZone: 'X',
+      zoningCode: 'AG-1',
+      fireRiskScore: 15,
+      floodRiskScore: 22,
+      frostFreeDays: 158,
+      annualPrecipIn: 42.3,
+      avgMinTempF: 28.1,
+      avgMaxTempF: 72.5,
+      growingSeasonDays: 165,
+      elevationFt: 1200,
+      slopePct: 8.2,
+      wetlandType: null,
+      wetlandDistanceFt: 500,
+    });
+  });
+
+  it('converts null fields to undefined', () => {
+    const row: EnrichmentRow = {
+      ...fullRow(),
+      soilDrainageClass: null,
+      soilTexture: null,
+      femaFloodZone: null,
+      frostFreeDays: null,
+    };
+
+    const mapped = mapEnrichmentRow(row);
+
+    expect(mapped.soilDrainageClass).toBeUndefined();
+    expect(mapped.soilTexture).toBeUndefined();
+    expect(mapped.floodZone).toBeUndefined();
+    expect(mapped.frostFreeDays).toBeUndefined();
+    // non-null fields still mapped
+    expect(mapped.soilCapabilityClass).toBe(3);
+    expect(mapped.zoningCode).toBe('AG-1');
+  });
+
+  it('returns empty object for null input', () => {
+    expect(mapEnrichmentRow(null)).toEqual({});
+  });
+
+  it('returns empty object for undefined input', () => {
+    expect(mapEnrichmentRow(undefined)).toEqual({});
+  });
+
+  it('preserves null for wetlandType (checked, no wetland)', () => {
+    const row = fullRow(); // wetlandType is null
+    const mapped = mapEnrichmentRow(row);
+
+    // null means "checked, no wetland" — distinct from undefined ("not checked")
+    expect(mapped.wetlandType).toBeNull();
+    expect('wetlandType' in mapped).toBe(true);
+  });
+
+  it('does not coerce zero to undefined', () => {
+    const row: EnrichmentRow = {
+      ...fullRow(),
+      fireRiskScore: 0,
+      floodRiskScore: 0,
+      slopePct: 0,
+      soilCapabilityClass: 0,
+    };
+
+    const mapped = mapEnrichmentRow(row);
+
+    expect(mapped.fireRiskScore).toBe(0);
+    expect(mapped.floodRiskScore).toBe(0);
+    expect(mapped.slopePct).toBe(0);
+    expect(mapped.soilCapabilityClass).toBe(0);
+  });
+
+  it('does not coerce empty string to undefined', () => {
+    const row: EnrichmentRow = {
+      ...fullRow(),
+      femaFloodZone: '',
+      zoningCode: '',
+    };
+
+    const mapped = mapEnrichmentRow(row);
+
+    expect(mapped.floodZone).toBe('');
+    expect(mapped.zoningCode).toBe('');
+  });
+
+  it('does not include infrastructure (no DB column)', () => {
+    const mapped = mapEnrichmentRow(fullRow());
     expect(mapped.infrastructure).toBeUndefined();
   });
 });

@@ -71,3 +71,23 @@ export interface EnrichmentData {
   wetlandType?: string | null;
   wetlandDistanceFt?: number;
 }
+
+/** Structural type for a DB enrichment row's scoring-relevant columns. */
+export interface EnrichmentRow {
+  soilCapabilityClass: number | null;
+  soilDrainageClass: string | null;
+  soilTexture: string | null;
+  femaFloodZone: string | null;
+  zoningCode: string | null;
+  fireRiskScore: number | null;
+  floodRiskScore: number | null;
+  frostFreeDays: number | null;
+  annualPrecipIn: number | null;
+  avgMinTempF: number | null;
+  avgMaxTempF: number | null;
+  growingSeasonDays: number | null;
+  elevationFt: number | null;
+  slopePct: number | null;
+  wetlandType: string | null;
+  wetlandWithinBufferFt: number | null;
+}

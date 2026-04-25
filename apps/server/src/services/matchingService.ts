@@ -1,6 +1,6 @@
 import { err, ok, getAlertChannel, type Result } from '@landmatch/api';
-import { scoreListing } from '@landmatch/scoring';
-import type { EnrichmentData, ListingData, SearchCriteria } from '@landmatch/scoring';
+import { mapEnrichmentRow, scoreListing } from '@landmatch/scoring';
+import type { ListingData, SearchCriteria } from '@landmatch/scoring';
 
 import * as listingRepo from '../repos/listingRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
@@ -22,22 +22,6 @@ function mapToListingData(listing: { price: number | null; acreage: number | nul
   };
 }
 
-function mapToEnrichmentData(enrichment: {
-  soilCapabilityClass: number | null;
-  femaFloodZone: string | null;
-  zoningCode: string | null;
-  fireRiskScore: number | null;
-  floodRiskScore: number | null;
-}): EnrichmentData {
-  return {
-    soilCapabilityClass: enrichment.soilCapabilityClass ?? undefined,
-    floodZone: enrichment.femaFloodZone ?? undefined,
-    zoningCode: enrichment.zoningCode ?? undefined,
-    fireRiskScore: enrichment.fireRiskScore ?? undefined,
-    floodRiskScore: enrichment.floodRiskScore ?? undefined,
-  };
-}
-
 export async function matchListingAgainstProfiles(listingId: string): Promise<Result<MatchResult>> {
   try {
     const data = await listingRepo.findListingWithEnrichment(listingId);
@@ -51,7 +35,7 @@ export async function matchListingAgainstProfiles(listingId: string): Promise<Re
     ]);
 
     const listingData = mapToListingData(data.listing);
-    const enrichmentData = mapToEnrichmentData(data.enrichment);
+    const enrichmentData = mapEnrichmentRow(data.enrichment);
 
     let scored = 0;
     let alertsCreated = 0;

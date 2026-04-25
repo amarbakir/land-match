@@ -1,6 +1,6 @@
 import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResponse } from '@landmatch/api';
 import { enrichListing } from '@landmatch/enrichment';
-import { homesteadScore, type EnrichmentData, type ListingData } from '@landmatch/scoring';
+import { homesteadScore, mapEnrichmentRow, type ListingData } from '@landmatch/scoring';
 
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
@@ -17,31 +17,9 @@ function toListingData(listing: ListingRow): ListingData {
   };
 }
 
-function toScoringEnrichment(row: EnrichmentRow): EnrichmentData {
-  if (!row) return {};
-  return {
-    soilCapabilityClass: row.soilCapabilityClass ?? undefined,
-    soilDrainageClass: row.soilDrainageClass ?? undefined,
-    soilTexture: row.soilTexture ?? undefined,
-    floodZone: row.femaFloodZone ?? undefined,
-    zoningCode: row.zoningCode ?? undefined,
-    fireRiskScore: row.fireRiskScore ?? undefined,
-    floodRiskScore: row.floodRiskScore ?? undefined,
-    frostFreeDays: row.frostFreeDays ?? undefined,
-    annualPrecipIn: row.annualPrecipIn ?? undefined,
-    avgMinTempF: row.avgMinTempF ?? undefined,
-    avgMaxTempF: row.avgMaxTempF ?? undefined,
-    growingSeasonDays: row.growingSeasonDays ?? undefined,
-    elevationFt: row.elevationFt ?? undefined,
-    slopePct: row.slopePct ?? undefined,
-    wetlandType: row.wetlandType,
-    wetlandDistanceFt: row.wetlandWithinBufferFt ?? undefined,
-  };
-}
-
 function computeHomestead(listing: ListingRow, enrichment: EnrichmentRow) {
   try {
-    const result = homesteadScore(toListingData(listing), toScoringEnrichment(enrichment), {});
+    const result = homesteadScore(toListingData(listing), mapEnrichmentRow(enrichment), {});
     const components: Record<string, { score: number; label: string }> = {};
     for (const [key, value] of Object.entries(result.homestead)) {
       components[key] = { score: value.score, label: value.label };
