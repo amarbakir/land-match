@@ -252,4 +252,100 @@ describe('enrichAndPersist', () => {
     const input = mockInsertListing.mock.calls[0][0];
     expect(input.userId).toBeUndefined();
   });
+
+  describe('homestead scoring in response', () => {
+    it('includes homesteadScore and homesteadComponents in response', async () => {
+      // Bug this catches: if the response doesn't include homestead fields,
+      // the extension overlay shows the old simplified score instead of the
+      // full homestead breakdown
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data).toHaveProperty('homesteadScore');
+        expect(result.data).toHaveProperty('homesteadComponents');
+        expect(typeof result.data.homesteadScore).toBe('number');
+        expect(result.data.homesteadScore).toBeGreaterThanOrEqual(0);
+        expect(result.data.homesteadScore).toBeLessThanOrEqual(100);
+      }
+    });
+
+    it('returns all 7 homestead component scores', async () => {
+      // Bug this catches: if a component is missing from the response,
+      // the ScoreCard renders a gap in the bar list
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const expected = [
+          'gardenViability', 'growingSeason', 'waterAvailability',
+          'floodSafety', 'septicFeasibility', 'buildingSuitability', 'firewoodPotential',
+        ];
+        const keys = Object.keys(result.data.homesteadComponents!);
+        expect(keys.sort()).toEqual(expected.sort());
+
+        // Each component must have score and label
+        for (const key of expected) {
+          const comp = result.data.homesteadComponents![key];
+          expect(comp).toHaveProperty('score');
+          expect(comp).toHaveProperty('label');
+          expect(typeof comp.score).toBe('number');
+          expect(typeof comp.label).toBe('string');
+          expect(comp.label.length).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    it('maps DB column names correctly to scoring types', async () => {
+      // Bug this catches: femaFloodZone→floodZone and wetlandWithinBufferFt→wetlandDistanceFt
+      // name mismatches would silently pass undefined, giving wrong scores
+      const enrichedRow = {
+        ...enrichmentRow,
+        femaFloodZone: 'AE',
+        frostFreeDays: 180,
+        annualPrecipIn: 45,
+        elevationFt: 1200,
+        slopePct: 5,
+        wetlandType: 'PFO1A',
+        wetlandWithinBufferFt: 500,
+        soilDrainageClass: 'well drained',
+        soilTexture: 'loam',
+      };
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+      mockInsertEnrichment.mockResolvedValue(enrichedRow);
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        // floodSafety should reflect AE zone (high risk → low score)
+        const floodSafety = result.data.homesteadComponents!.floodSafety;
+        expect(floodSafety.score).toBeLessThan(50);
+
+        // gardenViability should reflect good soil (class 3, loam, well drained)
+        const garden = result.data.homesteadComponents!.gardenViability;
+        expect(garden.score).toBeGreaterThan(0);
+      }
+    });
+
+    it('does not crash when enrichment row is null', async () => {
+      // Bug this catches: if toScoringEnrichment doesn't guard against null,
+      // it throws TypeError when trying to read properties of null
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+      mockInsertEnrichment.mockResolvedValue(null as any);
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        // Should degrade gracefully with baseline scores, not crash
+        expect(typeof result.data.homesteadScore).toBe('number');
+        expect(result.data.homesteadComponents).not.toBeNull();
+      }
+    });
+  });
 });
