@@ -6,7 +6,8 @@ import { scoreFloodSafety } from '../homestead/floodSafety';
 import { scoreSepticFeasibility } from '../homestead/septicFeasibility';
 import { scoreBuildingSuitability } from '../homestead/buildingSuitability';
 import { scoreFirewoodPotential } from '../homestead/firewoodPotential';
-import type { EnrichmentData } from '../types';
+import { homesteadScore } from '../homestead/scorer';
+import type { EnrichmentData, ListingData, SearchCriteria } from '../types';
 
 describe('scoreGardenViability', () => {
   it('scores excellent garden soil (Class I, well-drained, loam)', () => {
@@ -264,5 +265,98 @@ describe('scoreFirewoodPotential', () => {
   it('returns neutral when data is missing', () => {
     const result = scoreFirewoodPotential({}, {});
     expect(result.score).toBe(50);
+  });
+});
+
+describe('homesteadScore orchestrator', () => {
+  const listing: ListingData = { price: 150000, acreage: 20, latitude: 43.1, longitude: -72.78 };
+
+  const enrichment: EnrichmentData = {
+    soilCapabilityClass: 2,
+    soilDrainageClass: 'Well drained',
+    soilTexture: 'Silt loam',
+    floodZone: 'X',
+    frostFreeDays: 158,
+    annualPrecipIn: 42,
+    avgMinTempF: 28,
+    avgMaxTempF: 72,
+    growingSeasonDays: 165,
+    elevationFt: 1200,
+    slopePct: 5,
+    wetlandType: null,
+    wetlandDistanceFt: Infinity,
+  };
+
+  const criteria: SearchCriteria = {
+    acreage: { min: 5, max: 50 },
+    price: { max: 200000 },
+    geography: { type: 'radius', center: { lat: 43.0, lng: -72.8 }, radiusMiles: 50 },
+  };
+
+  it('returns base scoring result from generic scorer', () => {
+    const result = homesteadScore(listing, enrichment, criteria);
+    expect(result.base.overallScore).toBeGreaterThan(0);
+    expect(result.base.componentScores).toBeDefined();
+    expect(result.base.hardFilterFailed).toBe(false);
+  });
+
+  it('returns all 7 homestead component scores', () => {
+    const result = homesteadScore(listing, enrichment, criteria);
+    const components = result.homestead;
+    expect(components.gardenViability.score).toBeGreaterThan(0);
+    expect(components.growingSeason.score).toBeGreaterThan(0);
+    expect(components.waterAvailability.score).toBeGreaterThan(0);
+    expect(components.floodSafety.score).toBeGreaterThan(0);
+    expect(components.septicFeasibility.score).toBeGreaterThan(0);
+    expect(components.buildingSuitability.score).toBeGreaterThan(0);
+    expect(components.firewoodPotential.score).toBeGreaterThan(0);
+  });
+
+  it('returns composite homestead score in 0-100 range', () => {
+    const result = homesteadScore(listing, enrichment, criteria);
+    expect(result.homesteadScore).toBeGreaterThanOrEqual(0);
+    expect(result.homesteadScore).toBeLessThanOrEqual(100);
+  });
+
+  it('every component includes a non-empty label', () => {
+    const result = homesteadScore(listing, enrichment, criteria);
+    for (const component of Object.values(result.homestead)) {
+      expect(typeof component.label).toBe('string');
+      expect(component.label.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('custom weights shift the composite score', () => {
+    // Use mixed-quality enrichment so components diverge
+    const mixedEnrichment: EnrichmentData = {
+      soilCapabilityClass: 1,
+      soilDrainageClass: 'Well drained',
+      soilTexture: 'Silt loam',
+      floodZone: 'AE', // poor flood safety
+      frostFreeDays: 80, // short growing season
+      annualPrecipIn: 42,
+      avgMinTempF: 5,
+      avgMaxTempF: 65,
+      elevationFt: 150,
+      slopePct: 3,
+      wetlandType: null,
+      wetlandDistanceFt: Infinity,
+    };
+    const defaultResult = homesteadScore(listing, mixedEnrichment, criteria);
+    const gardenHeavy = homesteadScore(listing, mixedEnrichment, criteria, {
+      gardenViability: 10,
+      floodSafety: 0.1,
+    });
+    // Garden is excellent but flood is poor — heavy garden weight should raise score
+    expect(gardenHeavy.homesteadScore).toBeGreaterThan(defaultResult.homesteadScore);
+  });
+
+  it('returns zero homestead score when base hard filter fails', () => {
+    const strictCriteria: SearchCriteria = {
+      floodZoneExclude: ['X'], // This listing is in Zone X — hard reject
+    };
+    const result = homesteadScore(listing, enrichment, strictCriteria);
+    expect(result.base.hardFilterFailed).toBe(true);
+    expect(result.homesteadScore).toBe(0);
   });
 });
