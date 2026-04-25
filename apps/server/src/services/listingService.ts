@@ -6,7 +6,7 @@ import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 
 type ListingRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findListingById>>>;
-type EnrichmentRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findByUrl>>>['enrichment'];
+type DbEnrichmentRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findByUrl>>>['enrichment'];
 
 function toListingData(listing: ListingRow): ListingData {
   return {
@@ -17,7 +17,7 @@ function toListingData(listing: ListingRow): ListingData {
   };
 }
 
-function computeHomestead(listing: ListingRow, enrichment: EnrichmentRow) {
+function computeHomestead(listing: ListingRow, enrichment: DbEnrichmentRow) {
   try {
     const result = homesteadScore(toListingData(listing), mapEnrichmentRow(enrichment), {});
     const components: Record<string, { score: number; label: string }> = {};
@@ -32,7 +32,7 @@ function computeHomestead(listing: ListingRow, enrichment: EnrichmentRow) {
 
 function toEnrichListingResponse(
   listing: ListingRow,
-  enrichment: EnrichmentRow,
+  enrichment: DbEnrichmentRow,
   errors: Array<{ source: string; error: string }> = [],
 ): EnrichListingResponse {
   const hs = computeHomestead(listing, enrichment);
