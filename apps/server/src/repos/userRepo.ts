@@ -40,3 +40,17 @@ export async function findById(id: string, tx?: Tx) {
     where: eq(users.id, id),
   });
 }
+
+export async function updateNotificationPrefs(
+  userId: string,
+  prefs: Record<string, unknown>,
+  tx?: Tx,
+) {
+  const [row] = await (tx ?? db)
+    .update(users)
+    .set({ notificationPrefs: prefs, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning();
+
+  return row ?? null;
+}

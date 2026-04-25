@@ -14,6 +14,7 @@ import listingsRouter from './routes/listings';
 import searchProfilesRouter from './routes/searchProfiles';
 import matchesRouter from './routes/matches';
 import scoresRouter from './routes/scores';
+import usersRouter from './routes/users';
 import type { Env } from './types/env';
 
 export function createApp() {
@@ -70,6 +71,8 @@ export function createApp() {
   app.route('/api/v1/search-profiles', matchesRouter);
   app.use('/api/v1/scores/*', requireAuth);
   app.route('/api/v1/scores', scoresRouter);
+  app.use('/api/v1/users/*', requireAuth);
+  app.route('/api/v1/users', usersRouter);
 
   return app;
 }
