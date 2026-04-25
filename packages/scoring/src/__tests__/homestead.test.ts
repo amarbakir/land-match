@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { scoreGardenViability } from '../homestead/gardenViability';
 import { scoreGrowingSeason } from '../homestead/growingSeason';
+import { scoreWaterAvailability } from '../homestead/waterAvailability';
 import type { EnrichmentData } from '../types';
 
 describe('scoreGardenViability', () => {
@@ -96,5 +97,57 @@ describe('scoreGrowingSeason', () => {
   it('clamps at boundaries (60 frost-free days = floor)', () => {
     const result = scoreGrowingSeason({ frostFreeDays: 60, avgMinTempF: -10 });
     expect(result.score).toBe(0);
+  });
+});
+
+describe('scoreWaterAvailability', () => {
+  it('scores high precip with good drainage as excellent', () => {
+    const result = scoreWaterAvailability({
+      annualPrecipIn: 48,
+      soilDrainageClass: 'Well drained',
+      wetlandType: null,
+    });
+    expect(result.score).toBeGreaterThanOrEqual(80);
+    expect(result.label).toContain('excellent');
+  });
+
+  it('scores low precip as poor', () => {
+    const result = scoreWaterAvailability({
+      annualPrecipIn: 15,
+      soilDrainageClass: 'Well drained',
+      wetlandType: null,
+    });
+    expect(result.score).toBeLessThanOrEqual(40);
+  });
+
+  it('gives bonus for nearby wetland (water source)', () => {
+    const withWetland = scoreWaterAvailability({
+      annualPrecipIn: 35,
+      wetlandType: 'PFO1A',
+      wetlandDistanceFt: 200,
+    });
+    const without = scoreWaterAvailability({
+      annualPrecipIn: 35,
+      wetlandType: null,
+    });
+    expect(withWetland.score).toBeGreaterThan(without.score);
+  });
+
+  it('returns neutral when data is missing', () => {
+    const result = scoreWaterAvailability({});
+    expect(result.score).toBe(50);
+    expect(result.label).toContain('Unknown');
+  });
+
+  it('penalizes excessively drained soil (water drains too fast)', () => {
+    const excessive = scoreWaterAvailability({
+      annualPrecipIn: 40,
+      soilDrainageClass: 'Excessively drained',
+    });
+    const moderate = scoreWaterAvailability({
+      annualPrecipIn: 40,
+      soilDrainageClass: 'Moderately well drained',
+    });
+    expect(moderate.score).toBeGreaterThan(excessive.score);
   });
 });
