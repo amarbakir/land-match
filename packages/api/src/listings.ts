@@ -12,6 +12,13 @@ export const EnrichListingRequest = z.object({
 
 export type EnrichListingRequest = z.infer<typeof EnrichListingRequest>;
 
+export const HomesteadComponent = z.object({
+  score: z.number(),
+  label: z.string(),
+});
+
+export type HomesteadComponent = z.infer<typeof HomesteadComponent>;
+
 export const EnrichListingResponse = z.object({
   listing: z.object({
     id: z.string(),
@@ -33,6 +40,8 @@ export const EnrichListingResponse = z.object({
     sourcesUsed: z.array(z.string()),
     errors: z.array(z.object({ source: z.string(), error: z.string() })),
   }),
+  homesteadScore: z.number().nullable(),
+  homesteadComponents: z.record(z.string(), HomesteadComponent).nullable(),
 });
 
 export type EnrichListingResponse = z.infer<typeof EnrichListingResponse>;
