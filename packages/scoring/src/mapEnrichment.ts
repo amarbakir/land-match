@@ -4,6 +4,8 @@ import type { EnrichmentData } from './types';
 export function mapEnrichmentResult(result: EnrichmentResult): EnrichmentData {
   return {
     soilCapabilityClass: result.soil?.capabilityClass,
+    soilDrainageClass: result.soil?.drainageClass,
+    soilTexture: result.soil?.texture,
     floodZone: result.flood?.zone,
     zoningCode: result.parcel?.zoningCode,
     fireRiskScore: result.climate?.fireRiskScore,

@@ -32,6 +32,8 @@ describe('mapEnrichmentResult', () => {
 
     expect(mapped).toEqual({
       soilCapabilityClass: 3,
+      soilDrainageClass: 'well drained',
+      soilTexture: 'loam',
       floodZone: 'X',
       zoningCode: 'AG-1',
       fireRiskScore: 15,
@@ -54,6 +56,8 @@ describe('mapEnrichmentResult', () => {
     const mapped = mapEnrichmentResult(result);
 
     expect(mapped.soilCapabilityClass).toBe(2);
+    expect(mapped.soilDrainageClass).toBe('moderately well drained');
+    expect(mapped.soilTexture).toBe('clay loam');
     expect(mapped.floodZone).toBeUndefined();
     expect(mapped.zoningCode).toBeUndefined();
     expect(mapped.fireRiskScore).toBeUndefined();
@@ -72,6 +76,8 @@ describe('mapEnrichmentResult', () => {
     const mapped = mapEnrichmentResult(result);
 
     expect(mapped.soilCapabilityClass).toBeUndefined();
+    expect(mapped.soilDrainageClass).toBeUndefined();
+    expect(mapped.soilTexture).toBeUndefined();
     expect(mapped.floodZone).toBeUndefined();
     expect(mapped.zoningCode).toBeUndefined();
     expect(mapped.fireRiskScore).toBeUndefined();

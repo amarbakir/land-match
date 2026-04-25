@@ -51,6 +51,8 @@ export interface ListingData {
 
 export interface EnrichmentData {
   soilCapabilityClass?: number;
+  soilDrainageClass?: string;
+  soilTexture?: string;
   floodZone?: string;
   zoningCode?: string;
   infrastructure?: string[];
