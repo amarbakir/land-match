@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit && eslint src/",
     "test": "vitest",
     "test:run": "vitest run",
-    "smoke-test": "tsx scripts/smoke-test.ts"
+    "smoke-test": "tsx scripts/smoke-test.ts",
+    "smoke-test:postgis": "tsx scripts/smoke-test-postgis.ts"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
