@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { requireAuth, optionalAuth } from '../middleware/auth';
@@ -10,7 +11,7 @@ vi.mock('../lib/jwt');
 const mockJwt = vi.mocked(jwt);
 
 /** Build a tiny app with the given middleware and a route that echoes userId. */
-function buildApp(middleware: Parameters<Hono<Env>['use']>[0]) {
+function buildApp(middleware: MiddlewareHandler<Env>) {
   const app = new Hono<Env>();
   app.use('/*', middleware);
   app.get('/protected', (c) => c.json({ userId: c.get('userId') ?? null }));
@@ -28,7 +29,7 @@ describe('requireAuth', () => {
     const res = await app.request('/protected');
 
     expect(res.status).toBe(401);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body).toEqual({ ok: false, code: 'UNAUTHORIZED', error: expect.any(String) });
   });
 
@@ -71,7 +72,7 @@ describe('requireAuth', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.userId).toBe('user-42');
   });
 });
@@ -87,7 +88,7 @@ describe('optionalAuth', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.userId).toBe('user-7');
   });
 
@@ -96,7 +97,7 @@ describe('optionalAuth', () => {
     const res = await app.request('/protected');
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.userId).toBeNull();
   });
 
@@ -109,7 +110,7 @@ describe('optionalAuth', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.userId).toBeNull();
     expect(mockJwt.verifyToken).toHaveBeenCalled();
   });
@@ -121,7 +122,7 @@ describe('optionalAuth', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.userId).toBeNull();
     expect(mockJwt.verifyToken).not.toHaveBeenCalled();
   });
