@@ -250,6 +250,7 @@ export function ScoreCard(props: ScoreCardProps) {
               })}
             </div>
           ) : (
+            /* Fallback for cached responses from before homestead scoring, or scoring failures */
             <>
               <div style={styles.row}>
                 <div style={styles.col}>

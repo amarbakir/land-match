@@ -1,6 +1,7 @@
 // Import directly from components to avoid pulling in Node-only transitive deps
 // (scoring/index.ts re-exports mapEnrichment which imports @landmatch/enrichment)
 import { scoreSoil, scoreFlood } from '@landmatch/scoring/components';
+import type { HomesteadScores } from '@landmatch/scoring';
 
 export const SOIL_LABELS: Record<number, string> = {
   1: 'Class I — Few limitations',
@@ -64,7 +65,7 @@ export function getOverallScore(data: { homesteadScore?: number | null; enrichme
   return computeSimplifiedScore(data.enrichment);
 }
 
-export const HOMESTEAD_COMPONENT_LABELS: Record<string, string> = {
+export const HOMESTEAD_COMPONENT_LABELS: Record<keyof HomesteadScores, string> = {
   gardenViability: 'Garden Viability',
   growingSeason: 'Growing Season',
   waterAvailability: 'Water Availability',
@@ -74,7 +75,7 @@ export const HOMESTEAD_COMPONENT_LABELS: Record<string, string> = {
   firewoodPotential: 'Firewood Potential',
 };
 
-export const HOMESTEAD_DISPLAY_ORDER = [
+export const HOMESTEAD_DISPLAY_ORDER: Array<keyof HomesteadScores> = [
   'gardenViability',
   'growingSeason',
   'waterAvailability',
