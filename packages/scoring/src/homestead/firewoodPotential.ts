@@ -10,7 +10,7 @@ export function scoreFirewoodPotential(enrichment: EnrichmentData, listing: List
     return { score: 50, label: 'Unknown — no climate data for firewood assessment' };
   }
 
-  // Precip: 30+ inches supports hardwood. 50+ excellent.
+  // Linear scale: 15in = 0, 50in = 100 (hardwood needs 30+ for sustainable growth)
   const precipScore = Math.max(0, Math.min(100, Math.round(((precip - 15) / 35) * 100)));
 
   // Temperature: moderate temps (60-80F max avg) ideal for hardwood

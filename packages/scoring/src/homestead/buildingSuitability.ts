@@ -1,6 +1,8 @@
 import type { EnrichmentData } from '../types';
 import type { HomesteadComponentScore } from './types';
 
+const HIGH_RISK_FLOOD_ZONES = new Set(['A', 'AE', 'AH', 'AO', 'V', 'VE']);
+
 export function scoreBuildingSuitability(enrichment: EnrichmentData): HomesteadComponentScore {
   const slope = enrichment.slopePct;
   const elevation = enrichment.elevationFt;
@@ -22,7 +24,7 @@ export function scoreBuildingSuitability(enrichment: EnrichmentData): HomesteadC
   // Flood zone penalty
   let floodPenalty = 0;
   if (floodZone) {
-    if (['A', 'AE', 'AH', 'AO', 'V', 'VE'].includes(floodZone)) floodPenalty = -40;
+    if (HIGH_RISK_FLOOD_ZONES.has(floodZone)) floodPenalty = -40;
     else if (floodZone === 'D') floodPenalty = -15;
   }
 

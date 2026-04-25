@@ -36,7 +36,7 @@ export function homesteadScore(
     firewoodPotential: scoreFirewoodPotential(enrichment, listing),
   };
 
-  const weights = { ...DEFAULT_HOMESTEAD_WEIGHTS, ...weightOverrides };
+  const weights = weightOverrides ? { ...DEFAULT_HOMESTEAD_WEIGHTS, ...weightOverrides } : DEFAULT_HOMESTEAD_WEIGHTS;
   let totalWeight = 0;
   let totalScore = 0;
 

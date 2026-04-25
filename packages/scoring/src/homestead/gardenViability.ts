@@ -56,7 +56,8 @@ function buildLabel(score: number, soilClass?: number, drainage?: string, textur
   return `${classStr} ${textureStr}, ${drainStr} — unsuitable for garden use`;
 }
 
+const ROMAN_NUMERALS: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI', 7: 'VII', 8: 'VIII' };
+
 function toRoman(n: number): string {
-  const map: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI', 7: 'VII', 8: 'VIII' };
-  return map[n] ?? String(n);
+  return ROMAN_NUMERALS[n] ?? String(n);
 }

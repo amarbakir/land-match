@@ -1,6 +1,17 @@
 import type { EnrichmentData } from '../types';
 import type { HomesteadComponentScore } from './types';
 
+// Moderate drainage is ideal: retains water without waterlogging
+const DRAINAGE_ADJUSTS: Record<string, number> = {
+  'Moderately well drained': 10,
+  'Well drained': 5,
+  'Somewhat excessively drained': -5,
+  'Excessively drained': -10,
+  'Somewhat poorly drained': -5,
+  'Poorly drained': -5,
+  'Very poorly drained': -10,
+};
+
 export function scoreWaterAvailability(enrichment: EnrichmentData): HomesteadComponentScore {
   const precip = enrichment.annualPrecipIn;
   const drainage = enrichment.soilDrainageClass;
@@ -14,14 +25,7 @@ export function scoreWaterAvailability(enrichment: EnrichmentData): HomesteadCom
   // Precip: 50+ inches = 100, 10 inches = 0, linear
   const precipScore = Math.max(0, Math.min(100, Math.round(((precip - 10) / 40) * 100)));
 
-  // Drainage adjustment: moderate drainage is ideal for homesteading
-  let drainageAdjust = 0;
-  if (drainage) {
-    if (drainage.includes('Moderately well')) drainageAdjust = 10;
-    else if (drainage === 'Well drained') drainageAdjust = 5;
-    else if (drainage.includes('Poorly')) drainageAdjust = -5;
-    else if (drainage.includes('Excessively')) drainageAdjust = -10;
-  }
+  const drainageAdjust = drainage ? (DRAINAGE_ADJUSTS[drainage] ?? 0) : 0;
 
   // Wetland proximity bonus: nearby wetlands suggest water availability
   let wetlandBonus = 0;
