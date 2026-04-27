@@ -231,7 +231,7 @@ describe('matchListingAgainstProfiles', () => {
     });
     mockUserRepo.findById.mockResolvedValueOnce({
       ...USER,
-      notificationPrefs: { alertChannel: 'sms' },
+      notificationPrefs: { alertChannels: ['sms'] },
     });
     mockAlertRepo.insert.mockResolvedValueOnce({} as any);
 
@@ -241,6 +241,54 @@ describe('matchListingAgainstProfiles', () => {
     if (!result.ok) return;
     expect(mockAlertRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({ channel: 'sms' }),
+    );
+  });
+
+  it('creates one alert per channel when user has multiple channels selected', async () => {
+    // Bug this catches: if the fan-out loop is missing, users who selected
+    // multiple channels (e.g. email + push) only get alerted on the first one
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 75,
+      componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+      hardFilterFailed: false,
+      failedFilters: [],
+    });
+
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+    mockScoreRepo.insert.mockResolvedValueOnce({
+      id: 'score-1',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 75,
+      componentScores: {},
+      llmSummary: null,
+      status: 'inbox',
+      readAt: null,
+      scoredAt: new Date(),
+    });
+    mockUserRepo.findById.mockResolvedValueOnce({
+      ...USER,
+      notificationPrefs: { alertChannels: ['email', 'push'] },
+    });
+    mockAlertRepo.insert.mockResolvedValue({} as any);
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.alertsCreated).toBe(2);
+    expect(mockAlertRepo.insert).toHaveBeenCalledTimes(2);
+    expect(mockAlertRepo.insert).toHaveBeenNthCalledWith(1,
+      expect.objectContaining({ channel: 'email' }),
+    );
+    expect(mockAlertRepo.insert).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({ channel: 'push' }),
     );
   });
 
