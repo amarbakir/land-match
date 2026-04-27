@@ -4,6 +4,7 @@ import { homesteadScore, mapEnrichmentRow, mapListingRow } from '@landmatch/scor
 
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
+import { matchListingAgainstProfiles } from './matchingService';
 
 type DbListingRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findListingById>>>;
 type DbEnrichmentRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findByUrl>>>['enrichment'];
@@ -93,7 +94,12 @@ export async function enrichAndPersist(
       return { listing, enrichmentRow };
     });
 
-    // 3. Build response
+    // 3. Score against active search profiles (fire-and-forget)
+    matchListingAgainstProfiles(persisted.listing.id).catch((e) =>
+      console.error('[listingService] background matching failed:', e),
+    );
+
+    // 4. Build response
     return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, enrichment.errors));
   } catch (error) {
     console.error('[listingService.enrichAndPersist] Unexpected error:', error);

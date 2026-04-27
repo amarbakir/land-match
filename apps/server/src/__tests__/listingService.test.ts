@@ -17,15 +17,21 @@ vi.mock('../repos/listingRepo', () => ({
   insertEnrichment: vi.fn(),
 }));
 
+vi.mock('../services/matchingService', () => ({
+  matchListingAgainstProfiles: vi.fn(),
+}));
+
 import { enrichListing } from '@landmatch/enrichment';
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
+import { matchListingAgainstProfiles } from '../services/matchingService';
 import { enrichAndPersist } from '../services/listingService';
 
 const mockEnrichListing = vi.mocked(enrichListing);
 const mockTransaction = vi.mocked(db.transaction);
 const mockInsertListing = vi.mocked(listingRepo.insertListing);
 const mockInsertEnrichment = vi.mocked(listingRepo.insertEnrichment);
+const mockMatchListing = vi.mocked(matchListingAgainstProfiles);
 
 // Realistic fixture matching what enrichListing actually returns
 function makeEnrichResult(overrides?: { errors?: Array<{ source: string; error: string }> }) {
@@ -111,6 +117,7 @@ beforeEach(() => {
   mockTransaction.mockImplementation(async (cb: any) => cb('fake-tx'));
   mockInsertListing.mockResolvedValue(listingRow);
   mockInsertEnrichment.mockResolvedValue(enrichmentRow);
+  mockMatchListing.mockResolvedValue({ ok: true, data: { scored: 1, alertsCreated: 0 } });
 });
 
 describe('enrichAndPersist', () => {
@@ -251,6 +258,34 @@ describe('enrichAndPersist', () => {
 
     const input = mockInsertListing.mock.calls[0][0];
     expect(input.userId).toBeUndefined();
+  });
+
+  it('triggers matching against search profiles after persist', async () => {
+    mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+    await enrichAndPersist({ address: '123 Rural Rd, MO' });
+
+    expect(mockMatchListing).toHaveBeenCalledWith('lst-001');
+  });
+
+  it('does not block response if matching fails', async () => {
+    mockEnrichListing.mockResolvedValue(makeEnrichResult());
+    mockMatchListing.mockRejectedValue(new Error('matching exploded'));
+
+    const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not trigger matching when enrichment fails', async () => {
+    mockEnrichListing.mockResolvedValue({
+      ok: false,
+      error: 'Geocode failed',
+    });
+
+    await enrichAndPersist({ address: 'bad address' });
+
+    expect(mockMatchListing).not.toHaveBeenCalled();
   });
 
   describe('homestead scoring in response', () => {

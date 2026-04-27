@@ -3,15 +3,25 @@ import { copyFileSync, mkdirSync, existsSync } from 'fs';
 import { defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 
-function copyManifest(): Plugin {
+function copyStaticAssets(): Plugin {
   return {
-    name: 'copy-manifest',
+    name: 'copy-static-assets',
     writeBundle() {
       mkdirSync(resolve(__dirname, 'dist'), { recursive: true });
       copyFileSync(
         resolve(__dirname, 'manifest.json'),
         resolve(__dirname, 'dist/manifest.json'),
       );
+      const iconsDir = resolve(__dirname, 'public/icons');
+      if (existsSync(iconsDir)) {
+        const destIcons = resolve(__dirname, 'dist/icons');
+        mkdirSync(destIcons, { recursive: true });
+        for (const size of ['16', '48', '128']) {
+          const file = `icon-${size}.png`;
+          const src = resolve(iconsDir, file);
+          if (existsSync(src)) copyFileSync(src, resolve(destIcons, file));
+        }
+      }
     },
   };
 }
@@ -21,7 +31,7 @@ function copyManifest(): Plugin {
 // web_accessible_resources in manifest.json. However, for simplicity and
 // maximum compatibility, we keep shared preact code in a web-accessible chunk.
 export default defineConfig({
-  plugins: [preact(), copyManifest()],
+  plugins: [preact(), copyStaticAssets()],
   root: resolve(__dirname, 'src'),
   build: {
     outDir: resolve(__dirname, 'dist'),
