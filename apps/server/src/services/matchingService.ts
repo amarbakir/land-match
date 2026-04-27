@@ -1,4 +1,4 @@
-import { err, ok, getAlertChannel, type Result } from '@landmatch/api';
+import { err, ok, getAlertChannels, type Result } from '@landmatch/api';
 import { mapEnrichmentRow, mapListingRow, scoreListing } from '@landmatch/scoring';
 import type { SearchCriteria } from '@landmatch/scoring';
 
@@ -49,16 +49,18 @@ export async function matchListingAgainstProfiles(listingId: string): Promise<Re
       if (result.overallScore >= profile.alertThreshold && !alertedProfileIds.has(profile.id)) {
         // TODO: cache by userId to avoid duplicate lookups when multiple profiles share a user
         const user = await userRepo.findById(profile.userId);
-        const channel = getAlertChannel(user?.notificationPrefs);
+        const channels = getAlertChannels(user?.notificationPrefs);
 
-        await alertRepo.insert({
-          userId: profile.userId,
-          searchProfileId: profile.id,
-          listingId,
-          scoreId: scoreRow.id,
-          channel,
-        });
-        alertsCreated++;
+        for (const channel of channels) {
+          await alertRepo.insert({
+            userId: profile.userId,
+            searchProfileId: profile.id,
+            listingId,
+            scoreId: scoreRow.id,
+            channel,
+          });
+          alertsCreated++;
+        }
       }
     }
 
