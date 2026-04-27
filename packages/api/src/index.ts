@@ -30,5 +30,5 @@ export {
 export {
   AlertChannel,
   NotificationPrefs,
-  getAlertChannel,
+  getAlertChannels,
 } from './notifications';
