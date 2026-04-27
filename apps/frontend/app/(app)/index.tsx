@@ -14,6 +14,7 @@ import { type FilterKey } from '@/src/ui/dashboard/FilterChips';
 import { MatchListPane } from '@/src/ui/dashboard/MatchListPane';
 import { ShortlistView } from '@/src/ui/dashboard/ShortlistView';
 import type { WorkspaceView } from '@/src/ui/dashboard/types';
+import { AlertSettingsScreen } from '@/src/ui/notifications/AlertSettingsScreen';
 import { ProfileEditorScreen } from '@/src/ui/profile/ProfileEditorScreen';
 import { Report } from '@/src/ui/report/Report';
 
@@ -69,6 +70,7 @@ export default function DashboardScreen() {
           onClose={handleCloseEditor}
         />
       )}
+      {view === 'alert-settings' && <AlertSettingsScreen />}
     </AppShell>
   );
 }
