@@ -64,3 +64,9 @@ export function ToggleButtonRow({
 export function toggleValue(arr: string[], value: string): string[] {
   return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
 }
+
+/** Like toggleValue but prevents the array from becoming empty */
+export function toggleValueMinOne(arr: string[], value: string): string[] {
+  const next = toggleValue(arr, value);
+  return next.length === 0 ? arr : next;
+}

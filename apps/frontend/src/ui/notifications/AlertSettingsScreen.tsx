@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Spinner, Text, YStack } from 'tamagui';
 
@@ -8,9 +8,9 @@ import { useNotificationPrefs, useUpdateNotificationPrefs } from '@/src/api/hook
 import { colors } from '@/src/theme/colors';
 import { Button } from '@/src/ui/primitives/Button';
 import { SectionCard } from '@/src/ui/profile/SectionCard';
-import { ToggleButtonRow, toggleValue } from '@/src/ui/profile/ToggleButtonRow';
+import { ToggleButtonRow, toggleValueMinOne } from '@/src/ui/profile/ToggleButtonRow';
 
-const CHANNEL_OPTIONS = [
+const CHANNEL_OPTIONS: { value: AlertChannel; label: string }[] = [
   { value: 'email', label: 'Email' },
   { value: 'sms', label: 'SMS' },
   { value: 'push', label: 'Push' },
@@ -19,18 +19,12 @@ const CHANNEL_OPTIONS = [
 export function AlertSettingsScreen() {
   const { data, isLoading } = useNotificationPrefs();
   const mutation = useUpdateNotificationPrefs();
-  const [channels, setChannels] = useState<AlertChannel[]>(['email']);
+  const [localChannels, setLocalChannels] = useState<AlertChannel[] | undefined>(undefined);
 
-  useEffect(() => {
-    if (data?.alertChannels) {
-      setChannels(data.alertChannels);
-    }
-  }, [data]);
+  const channels = localChannels ?? data?.alertChannels ?? ['email'];
 
   const handleToggle = (value: string) => {
-    const next = toggleValue(channels, value);
-    if (next.length === 0) return;
-    setChannels(next as AlertChannel[]);
+    setLocalChannels(toggleValueMinOne(channels, value) as AlertChannel[]);
   };
 
   const handleSave = () => {
