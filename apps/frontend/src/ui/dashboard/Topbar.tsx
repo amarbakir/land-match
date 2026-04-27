@@ -20,6 +20,7 @@ const VIEW_LABELS: Record<WorkspaceView, string> = {
   dismissed: 'Dismissed',
   profile: 'Edit profile',
   'new-profile': 'New profile',
+  'alert-settings': 'Alert settings',
 };
 
 function formatCoord(profile: SearchProfileResponse | null): string | null {

@@ -4,6 +4,7 @@ import type {
   EnrichListingResponse,
   MatchDetail,
   MatchItem,
+  NotificationPrefs,
   PaginatedMatches,
   ProfileCounts,
   SearchProfileResponse,
@@ -141,6 +142,28 @@ export function useUpdateMatchStatus() {
       queryClient.invalidateQueries({ queryKey: ['profileMatches'] });
       queryClient.invalidateQueries({ queryKey: ['profileCounts'] });
       queryClient.invalidateQueries({ queryKey: ['matchDetail', scoreId] });
+    },
+  });
+}
+
+export function useNotificationPrefs() {
+  return useQuery<NotificationPrefs, Error>({
+    queryKey: ['notificationPrefs'],
+    queryFn: () => apiGet<NotificationPrefs>('/api/v1/users/me/notification-preferences'),
+  });
+}
+
+export function useUpdateNotificationPrefs() {
+  const queryClient = useQueryClient();
+
+  return useMutation<NotificationPrefs, Error, NotificationPrefs>({
+    mutationFn: (body) =>
+      apiPut<NotificationPrefs, NotificationPrefs>(
+        '/api/v1/users/me/notification-preferences',
+        body,
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notificationPrefs'] });
     },
   });
 }

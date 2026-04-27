@@ -278,7 +278,12 @@ export function SidebarNav({
       >
         Account
       </Text>
-      <NavItem label="Alert settings" icon={<BellIcon size={15} color={colors.textSecondary} />} onPress={() => {}} />
+      <NavItem
+        label="Alert settings"
+        icon={<BellIcon size={15} color={activeView === 'alert-settings' ? colors.textPrimary : colors.textSecondary} />}
+        active={activeView === 'alert-settings'}
+        onPress={() => onSelectView('alert-settings')}
+      />
       <NavItem label="Settings" icon={<SettingsIcon size={15} color={colors.textSecondary} />} onPress={() => {}} />
 
       {/* User footer */}
