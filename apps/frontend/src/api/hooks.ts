@@ -6,6 +6,7 @@ import type {
   MatchItem,
   NotificationPrefs,
   PaginatedMatches,
+  PaginatedSavedListings,
   ProfileCounts,
   SearchProfileResponse,
   UpdateMatchStatus,
@@ -164,6 +165,43 @@ export function useUpdateNotificationPrefs() {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notificationPrefs'] });
+    },
+  });
+}
+
+// Saved Listings
+
+interface SavedListingsParams {
+  sort?: string;
+  sortDir?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export function useSavedListings(params: SavedListingsParams = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.sort) searchParams.set('sort', params.sort);
+  if (params.sortDir) searchParams.set('sortDir', params.sortDir);
+  if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+  if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
+
+  const qs = searchParams.toString();
+  const path = `/api/v1/listings/saved${qs ? `?${qs}` : ''}`;
+
+  return useQuery<PaginatedSavedListings, Error>({
+    queryKey: ['savedListings', params],
+    queryFn: () => apiGet<PaginatedSavedListings>(path),
+  });
+}
+
+export function useUnsaveListing() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: (listingId) =>
+      apiDelete<void>(`/api/v1/listings/${listingId}/save`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['savedListings'] });
     },
   });
 }

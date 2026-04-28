@@ -10,6 +10,7 @@ import { colors } from '@/src/theme/colors';
 import {
   ArchiveIcon,
   BellIcon,
+  BookmarkIcon,
   EditIcon,
   InboxIcon,
   PlusIcon,
@@ -22,6 +23,7 @@ interface SidebarNavProps {
   activeView: WorkspaceView;
   profiles: SearchProfileResponse[];
   profileCounts: ProfileCounts;
+  savedCount?: number;
   onSelectView: (view: WorkspaceView) => void;
   onSelectProfile: (profileId: string) => void;
   onEditProfile: (profileId: string) => void;
@@ -148,6 +150,7 @@ export function SidebarNav({
   activeView,
   profiles,
   profileCounts,
+  savedCount,
   onSelectView,
   onSelectProfile,
   onEditProfile,
@@ -206,6 +209,13 @@ export function SidebarNav({
         count={totalUnread}
         active={activeView === 'inbox'}
         onPress={() => onSelectView('inbox')}
+      />
+      <NavItem
+        label="Saved"
+        icon={<BookmarkIcon size={15} color={activeView === 'saved' ? colors.textPrimary : colors.textSecondary} />}
+        count={savedCount}
+        active={activeView === 'saved'}
+        onPress={() => onSelectView('saved')}
       />
       <NavItem
         label="Shortlist"

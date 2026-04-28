@@ -16,6 +16,7 @@ interface TopbarProps {
 
 const VIEW_LABELS: Record<WorkspaceView, string> = {
   inbox: 'Matches',
+  saved: 'Saved',
   shortlist: 'Shortlist',
   dismissed: 'Dismissed',
   profile: 'Edit profile',

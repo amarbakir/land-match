@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import type { ProfileCounts, SearchProfileResponse } from '@landmatch/api';
 import { XStack, YStack } from 'tamagui';
 
-import { useProfileCounts, useSearchProfiles } from '@/src/api/hooks';
+import { useProfileCounts, useSavedListings, useSearchProfiles } from '@/src/api/hooks';
 import { colors } from '@/src/theme/colors';
 
 import { SidebarNav } from './SidebarNav';
@@ -31,6 +31,7 @@ export function AppShell({
 }: AppShellProps) {
   const { data: profiles = [] } = useSearchProfiles();
   const { data: profileCounts = [] } = useProfileCounts();
+  const { data: savedData } = useSavedListings({ limit: 1 });
 
   const selectedProfile = profiles.find((p) => p.id === selectedProfileId) ?? profiles[0] ?? null;
 
@@ -42,6 +43,7 @@ export function AppShell({
         activeView={view}
         profiles={profiles}
         profileCounts={profileCounts}
+        savedCount={savedData?.total}
         onSelectView={onChangeView}
         onSelectProfile={(id) => {
           onChangeProfile(id);
