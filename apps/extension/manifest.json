@@ -3,19 +3,13 @@
   "name": "LandMatch",
   "version": "1.0.0",
   "description": "Instantly enrich land listings with soil, flood, and scoring data from LandMatch.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "sidePanel"],
   "host_permissions": [
     "https://www.landwatch.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
     "type": "module"
-  },
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "extension@landmatch.com",
-      "strict_min_version": "128.0"
-    }
   },
   "content_scripts": [
     {
@@ -24,8 +18,10 @@
       "run_at": "document_idle"
     }
   ],
+  "side_panel": {
+    "default_path": "sidepanel/index.html"
+  },
   "action": {
-    "default_popup": "popup/index.html",
     "default_title": "LandMatch"
   },
   "web_accessible_resources": [

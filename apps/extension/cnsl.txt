@@ -1,0 +1,189 @@
+main.js:119 [LandMatch] Content script loaded on: https://www.landwatch.com/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658
+main.js:1 [LandMatch] LD+JSON result: {title: 'Sparta, Monroe County, WI Recreational Property, H…g Property, House for sale Property ID: 426490658', price: 1890000}
+main.js:1 [LandMatch] DOM result: {title: '21881 Kale Road , Sparta, WI 54656(Monroe County)'}
+main.js:1 [LandMatch] Merged: {title: 'Sparta, Monroe County, WI Recreational Property, H…g Property, House for sale Property ID: 426490658', price: 1890000}
+main.js:1 [LandMatch] LD+JSON blocks found: 4
+main.js:1 [LandMatch] LD+JSON[0]: {@context: 'https://schema.org', @type: 'SingleFamilyResidence', url: '/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658', description: '157-Acre Driftless Region Trophy Whitetail Hunting…g, this farm is ready to be enjoyed from day one.', name: '157 acres in Monroe County, Wisconsin', …}@context: "https://schema.org"@type: "SingleFamilyResidence"address: {@type: 'PostalAddress', streetAddress: '21881 Kale Road', addressLocality: 'Sparta', addressRegion: 'WI', postalCode: '54656'}description: "157-Acre Driftless Region Trophy Whitetail Hunting Farm\r,\r,Located in the legendary Driftless Region of Monroe County, this 157-acre turnkey hunting and recreational property offers a rare opportunity to own a farm that has been strategically designed and managed for mature whitetail deer. Situated just a short distance from the interstate and within an easy drive of La Crosse, the property provides an ideal balance of seclusion and convenience.\r,\r,The farm features the diverse terrain serious Wisconsin hunters seek, including rolling ridges, hardwood timber, bedding cover, and secluded food sources that naturally funnel deer movement and create consistent hunting opportunities.\r,\r,At the heart of the property is a large ridge system stretching approximately three-quarters of a mile in length with exceptional width. This expansive top ridge offers multiple stand locations and established travel corridors. The layout allows hunters to capitalize on varying wind directions while quietly accessing stands through a well-developed trail network.\r,\r,Designed for Whitetail Success\r,\r,This farm has been carefully developed to hold and harvest mature bucks through a proven combination of food, cover, and water. \r,\r,Habitat improvements include:\r,\r,-Four strategically placed elevated box blinds overlooking key food sources\r,-More than 25 acres of open ground including 4+ acres of established food plots providing year-round nutrition\r,-A secluded back-forty kill plot designed for low-pressure hunting\r,-Newly planted switchgrass bedding areas in open ground\r,-Trees planted to create travel corridors and enhanced edge habitat\r,-A pond and water tanks providing consistent water sources\r,-An extensive trail system allowing quiet access to hunting locations\r,-A gravel access road leading directly to the ridge top\r,\r,The property is located in an area widely recognized for producing trophy-class whitetail bucks, where ideal terrain, quality habitat improvements, and limited hunting pressure allow deer to reach older age classes. In addition to outstanding whitetail hunting, the property also offers excellent turkey hunting and year-round recreational opportunities.\r,\r,Home & Improvements\r,\r,Serving as an ideal hunting lodge or full-time residence, the property includes a comfortable four-bedroom, two-bathroom home featuring an open floor plan, wood stove for efficient heat, kitchen appliances, central air conditioning and conventional heating, and fully improved well and septic systems. The finished basement family room offers exposure, and an attached two-car garage provides convenient storage.\r,\r,An additional detached two-car garage offers excellent space for ATVs, UTVs, tractors, and hunting equipment.\r,\r,Turnkey Driftless Hunting Property\r,\r,Properties with this level of habitat development, access, acreage, and improvements rarely become available in the Driftless Region. Whether you are seeking a premier hunting retreat, recreational property, or private country home with world-class whitetail hunting, this farm is ready to be enjoyed from day one."geo: {@type: 'GeoCoordinates', latitude: 43.86108, longitude: -90.88488}hasMap: "https://www.google.com/maps/place/43.86108,-90.88488"image: "https://assets.landwatch.com/resizedimages/394/0/h/80/1-6144300035"name: "157 acres in Monroe County, Wisconsin"url: "/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658"[[Prototype]]: Object
+main.js:1 [LandMatch] LD+JSON[1]: {@context: 'https://schema.org', @type: 'Product', url: 'https://www.landwatch.com/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658', image: 'https://assets.landwatch.com/resizedimages/394/0/h/80/1-6144300035', name: 'Sparta, Monroe County, WI Recreational Property, H…g Property, House for sale Property ID: 426490658', …}@context: "https://schema.org"@type: "Product"Brand: "LandWatch"Sku: "426490658"image: "https://assets.landwatch.com/resizedimages/394/0/h/80/1-6144300035"name: "Sparta, Monroe County, WI Recreational Property, Hunting Property, House for sale Property ID: 426490658"offers: {@type: 'Offer', price: 1890000, priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: 'https://www.landwatch.com/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658'}url: "https://www.landwatch.com/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658"[[Prototype]]: Object
+main.js:1 [LandMatch] LD+JSON[2]: {@context: 'https://schema.org', @type: Array(2), url: 'https://www.landwatch.com/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658', @id: 'https://www.landwatch.com/monroe-county-wisconsin-…property-for-sale/pid/426490658#listingdetailpage', description: '157-Acre Driftless Region Trophy Whitetail Hunting…g, this farm is ready to be enjoyed from day one.', …}@context: "https://schema.org"@id: "https://www.landwatch.com/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658#listingdetailpage"@type: (2) ['RealEstateListing', 'Product']datePosted: "2026-04-26"description: "157-Acre Driftless Region Trophy Whitetail Hunting Farm\r,\r,Located in the legendary Driftless Region of Monroe County, this 157-acre turnkey hunting and recreational property offers a rare opportunity to own a farm that has been strategically designed and managed for mature whitetail deer. Situated just a short distance from the interstate and within an easy drive of La Crosse, the property provides an ideal balance of seclusion and convenience.\r,\r,The farm features the diverse terrain serious Wisconsin hunters seek, including rolling ridges, hardwood timber, bedding cover, and secluded food sources that naturally funnel deer movement and create consistent hunting opportunities.\r,\r,At the heart of the property is a large ridge system stretching approximately three-quarters of a mile in length with exceptional width. This expansive top ridge offers multiple stand locations and established travel corridors. The layout allows hunters to capitalize on varying wind directions while quietly accessing stands through a well-developed trail network.\r,\r,Designed for Whitetail Success\r,\r,This farm has been carefully developed to hold and harvest mature bucks through a proven combination of food, cover, and water. \r,\r,Habitat improvements include:\r,\r,-Four strategically placed elevated box blinds overlooking key food sources\r,-More than 25 acres of open ground including 4+ acres of established food plots providing year-round nutrition\r,-A secluded back-forty kill plot designed for low-pressure hunting\r,-Newly planted switchgrass bedding areas in open ground\r,-Trees planted to create travel corridors and enhanced edge habitat\r,-A pond and water tanks providing consistent water sources\r,-An extensive trail system allowing quiet access to hunting locations\r,-A gravel access road leading directly to the ridge top\r,\r,The property is located in an area widely recognized for producing trophy-class whitetail bucks, where ideal terrain, quality habitat improvements, and limited hunting pressure allow deer to reach older age classes. In addition to outstanding whitetail hunting, the property also offers excellent turkey hunting and year-round recreational opportunities.\r,\r,Home & Improvements\r,\r,Serving as an ideal hunting lodge or full-time residence, the property includes a comfortable four-bedroom, two-bathroom home featuring an open floor plan, wood stove for efficient heat, kitchen appliances, central air conditioning and conventional heating, and fully improved well and septic systems. The finished basement family room offers exposure, and an attached two-car garage provides convenient storage.\r,\r,An additional detached two-car garage offers excellent space for ATVs, UTVs, tractors, and hunting equipment.\r,\r,Turnkey Driftless Hunting Property\r,\r,Properties with this level of habitat development, access, acreage, and improvements rarely become available in the Driftless Region. Whether you are seeking a premier hunting retreat, recreational property, or private country home with world-class whitetail hunting, this farm is ready to be enjoyed from day one."image: {@type: 'ImageObject', url: 'https://assets.landwatch.com/resizedimages/394/0/h/80/1-6144300035'}lastReviewed: "April 27, 2026 at 6:03 AM"mainEntity: {@type: 'Residence', @id: 'https://www.landwatch.com/monroe-county-wisconsin-…ational-property-for-sale/pid/426490658#residence', name: 'Sparta, Monroe County, WI Recreational Property, H…g Property, House for sale Property ID: 426490658', address: {…}, image: {…}, …}name: "Sparta, Monroe County, WI Recreational Property, Hunting Property, House for sale Property ID: 426490658"offers: {@type: 'Offer', @id: 'https://www.landwatch.com/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658#offer', price: 1890000, priceCurrency: 'USD', availability: 'https://schema.org/InStock', …}url: "https://www.landwatch.com/monroe-county-wisconsin-recreational-property-for-sale/pid/426490658"[[Prototype]]: Object
+main.js:1 [LandMatch] LD+JSON[3]: {@context: 'https://schema.org', @type: 'BreadcrumbList', itemListElement: Array(7)}
+main.js:119 [LandMatch] Extractor found no listing data on page
+installHook.js:1 Google Maps JavaScript API has been loaded directly without loading=async. This can result in suboptimal performance. For best-practice loading patterns please see https://goo.gle/js-api-loading
+overrideMethod @ installHook.js:1
+Kea @ js?libraries=geometry,visualization,drawing,places&key=AIzaSyCvtvmtxTW9V3N4SW7-QvFPV5k1O6pmkds:1458
+(anonymous) @ js?libraries=geometry,visualization,drawing,places&key=AIzaSyCvtvmtxTW9V3N4SW7-QvFPV5k1O6pmkds:14
+(anonymous) @ js?libraries=geometry,visualization,drawing,places&key=AIzaSyCvtvmtxTW9V3N4SW7-QvFPV5k1O6pmkds:1764
+(anonymous) @ js?libraries=geometry,visualization,drawing,places&key=AIzaSyCvtvmtxTW9V3N4SW7-QvFPV5k1O6pmkds:1764
+PendingScript
+p @ ScriptJs.5b4a22bd9fe9d9a21367.chunk.js:2
+t @ ScriptJs.5b4a22bd9fe9d9a21367.chunk.js:2
+(anonymous) @ ScriptJs.5b4a22bd9fe9d9a21367.chunk.js:2
+d @ ScriptJs.5b4a22bd9fe9d9a21367.chunk.js:2
+_ @ ScriptJs.5b4a22bd9fe9d9a21367.chunk.js:2
+(anonymous) @ ScriptJs.5b4a22bd9fe9d9a21367.chunk.js:2
+setTimeout
+h @ ScriptJs.5b4a22bd9fe9d9a21367.chunk.js:2
+(anonymous) @ SecondaryDetailsMapsContainer.fcccea1a43fee96dfd0d.chunk.js:1
+(anonymous) @ SecondaryDetailsMapsContainer.fcccea1a43fee96dfd0d.chunk.js:1
+Promise.then
+(anonymous) @ SecondaryDetailsMapsContainer.fcccea1a43fee96dfd0d.chunk.js:1
+componentDidMount @ SecondaryDetailsMapsContainer.fcccea1a43fee96dfd0d.chunk.js:1
+wl @ main.FriApr242026090226.js:2
+bl @ main.FriApr242026090226.js:2
+yl @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+Sc @ main.FriApr242026090226.js:2
+lc @ main.FriApr242026090226.js:2
+za @ main.FriApr242026090226.js:2
+nc @ main.FriApr242026090226.js:2
+enqueueSetState @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+Promise.then
+(anonymous) @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+wl @ main.FriApr242026090226.js:2
+bl @ main.FriApr242026090226.js:2
+yl @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+Sc @ main.FriApr242026090226.js:2
+lc @ main.FriApr242026090226.js:2
+za @ main.FriApr242026090226.js:2
+nc @ main.FriApr242026090226.js:2
+enqueueSetState @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+Promise.then
+(anonymous) @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+wl @ main.FriApr242026090226.js:2
+bl @ main.FriApr242026090226.js:2
+yl @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+Sc @ main.FriApr242026090226.js:2
+lc @ main.FriApr242026090226.js:2
+za @ main.FriApr242026090226.js:2
+uc @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+Zc @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+i @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+installHook.js:1 [GPT] PubAdsService.clearTargeting is deprecated, use googletag.setConfig({targeting: ...}) instead.
+https://goo.gle/gpt-message#170
+overrideMethod @ installHook.js:1
+(anonymous) @ pubads_impl.js?cb=31098071:19
+up @ pubads_impl.js?cb=31098071:19
+Ct @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+(anonymous) @ main.FriApr242026090226.js:2
+(anonymous) @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+aw @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+gE @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+jE @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+(anonymous) @ pubads_impl.js?cb=31098071:19
+PendingScript
+Pj @ gpt.js:11
+(anonymous) @ gpt.js:11
+(anonymous) @ gpt.js:11
+PendingScript
+r.injectScriptTagBySrc @ main.FriApr242026090226.js:2
+r.injectGPTScript @ main.FriApr242026090226.js:2
+setTimeout
+(anonymous) @ main.FriApr242026090226.js:2
+r.injectScripts @ main.FriApr242026090226.js:2
+fbevents.js:378 Unrecognized feature: 'attribution-reporting'.
+(anonymous) @ fbevents.js:378
+value @ fbevents.js:238
+value @ fbevents.js:238
+e.loadPlugin @ fbevents.js:440
+plugin @ fbevents.js:445
+value @ fbevents.js:238
+e.registerPlugin @ fbevents.js:440
+(anonymous) @ fbevents.js:443
+PendingScript
+(anonymous) @ VM2354:1
+(anonymous) @ VM2354:1
+(anonymous) @ gtm.js?id=GTM-P56JWN2:1068
+(anonymous) @ gtm.js?id=GTM-P56JWN2:1069
+OQ @ gtm.js?id=GTM-P56JWN2:1070
+NQ @ gtm.js?id=GTM-P56JWN2:1067
+(anonymous) @ gtm.js?id=GTM-P56JWN2:442
+(anonymous) @ gtm.js?id=GTM-P56JWN2:368
+gb @ gtm.js?id=GTM-P56JWN2:331
+fb @ gtm.js?id=GTM-P56JWN2:331
+(anonymous) @ gtm.js?id=GTM-P56JWN2:392
+(anonymous) @ gtm.js?id=GTM-P56JWN2:368
+gb @ gtm.js?id=GTM-P56JWN2:331
+(anonymous) @ gtm.js?id=GTM-P56JWN2:331
+pf @ gtm.js?id=GTM-P56JWN2:403
+(anonymous) @ gtm.js?id=GTM-P56JWN2:872
+Jz @ gtm.js?id=GTM-P56JWN2:792
+(anonymous) @ gtm.js?id=GTM-P56JWN2:796
+e @ gtm.js?id=GTM-P56JWN2:815
+(anonymous) @ gtm.js?id=GTM-P56JWN2:336
+(anonymous) @ gtm.js?id=GTM-P56JWN2:816
+(anonymous) @ gtm.js?id=GTM-P56JWN2:816
+bB @ gtm.js?id=GTM-P56JWN2:816
+eB @ gtm.js?id=GTM-P56JWN2:821
+iC @ gtm.js?id=GTM-P56JWN2:845
+jC @ gtm.js?id=GTM-P56JWN2:846
+(anonymous) @ gtm.js?id=GTM-P56JWN2:849
+PendingScript
+(anonymous) @ gtm.js?id=GTM-P56JWN2:1068
+(anonymous) @ gtm.js?id=GTM-P56JWN2:1069
+OQ @ gtm.js?id=GTM-P56JWN2:1070
+NQ @ gtm.js?id=GTM-P56JWN2:1067
+(anonymous) @ gtm.js?id=GTM-P56JWN2:442
+(anonymous) @ gtm.js?id=GTM-P56JWN2:368
+gb @ gtm.js?id=GTM-P56JWN2:331
+fb @ gtm.js?id=GTM-P56JWN2:331
+(anonymous) @ gtm.js?id=GTM-P56JWN2:392
+(anonymous) @ gtm.js?id=GTM-P56JWN2:368
+gb @ gtm.js?id=GTM-P56JWN2:331
+(anonymous) @ gtm.js?id=GTM-P56JWN2:331
+pf @ gtm.js?id=GTM-P56JWN2:403
+(anonymous) @ gtm.js?id=GTM-P56JWN2:872
+Jz @ gtm.js?id=GTM-P56JWN2:792
+(anonymous) @ gtm.js?id=GTM-P56JWN2:796
+e @ gtm.js?id=GTM-P56JWN2:815
+(anonymous) @ gtm.js?id=GTM-P56JWN2:336
+(anonymous) @ gtm.js?id=GTM-P56JWN2:816
+(anonymous) @ gtm.js?id=GTM-P56JWN2:816
+bB @ gtm.js?id=GTM-P56JWN2:816
+eB @ gtm.js?id=GTM-P56JWN2:821
+iC @ gtm.js?id=GTM-P56JWN2:845
+jC @ gtm.js?id=GTM-P56JWN2:846
+(anonymous) @ gtm.js?id=GTM-P56JWN2:849
+setTimeout
+dd @ gtm.js?id=GTM-P56JWN2:352
+(anonymous) @ gtm.js?id=GTM-P56JWN2:849
+Hm @ gtm.js?id=GTM-P56JWN2:1183
+(anonymous) @ gtm.js?id=GTM-P56JWN2:1186
+c @ gtm.js?id=GTM-P56JWN2:1184
+(anonymous) @ gtm.js?id=GTM-P56JWN2:1186
+(anonymous) @ gtm.js?id=GTM-P56JWN2:1186
+(anonymous) @ gtm.js?id=GTM-P56JWN2:1188
+PendingScript
+(anonymous) @ VM2322:10
+(anonymous) @ VM2322:11
+r.injectScriptTagByText @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+PendingScript
+r.injectScriptTagByText @ main.FriApr242026090226.js:2
+(anonymous) @ main.FriApr242026090226.js:2
+setTimeout
+(anonymous) @ main.FriApr242026090226.js:2
+r.injectScripts @ main.FriApr242026090226.js:2
