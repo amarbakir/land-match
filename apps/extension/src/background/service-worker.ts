@@ -4,18 +4,32 @@ import * as apiClient from '../shared/api-client';
 import { getAuth, setAuth, clearAuth } from '../shared/auth';
 import { getCached, setCached } from '../shared/cache';
 import { getOverallScore, getScoreColor } from '../shared/scoring';
-import type { ExtensionMessage, EnrichmentResultMessage, LoginResultMessage, AuthStatusMessage, SaveListingResultMessage } from '../shared/messages';
+import type {
+  ExtensionMessage,
+  EnrichmentResultMessage,
+  LoginResultMessage,
+  AuthStatusMessage,
+  SaveListingResultMessage,
+  CurrentStateMessage,
+} from '../shared/messages';
+
+// Track current enrichment state for the active tab
+let currentState: CurrentStateMessage['payload'] = { state: 'idle' };
+let lastEnrichPayload: { address: string; price?: number; acreage?: number; title?: string; url: string; source: string; externalId?: string } | null = null;
+
+// Open side panel when extension icon is clicked
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
   console.log('[LandMatch SW] Received message:', message.type);
   handleMessage(message).then((response) => {
-    console.log('[LandMatch SW] Sending response for:', message.type, 'ok' in response ? '' : response);
+    console.log('[LandMatch SW] Sending response for:', message.type);
     sendResponse(response);
   }).catch((err) => {
     console.error('[LandMatch SW] Handler error:', message.type, err);
     sendResponse({ error: String(err) });
   });
-  return true; // keep message channel open for async response
+  return true;
 });
 
 async function handleMessage(message: ExtensionMessage) {
@@ -31,11 +45,23 @@ async function handleMessage(message: ExtensionMessage) {
     case 'GET_AUTH_STATUS':
       return handleGetAuthStatus();
     case 'PAGE_CHANGED':
+      return handlePageChanged(message.payload);
     case 'RETRY_ENRICH':
+      return handleRetryEnrich();
     case 'GET_CURRENT_STATE':
-      // Handled in Task 2 (side panel state management)
-      return { type: 'CURRENT_STATE' as const, payload: { state: 'idle' as const } };
+      return handleGetCurrentState();
   }
+}
+
+function broadcastToPanel(message: object) {
+  chrome.runtime.sendMessage(message).catch(() => {
+    // Panel not open — ignore
+  });
+}
+
+function setAndBroadcastState(state: CurrentStateMessage['payload']) {
+  currentState = state;
+  broadcastToPanel({ type: 'CURRENT_STATE', payload: state });
 }
 
 async function handleEnrich(payload: {
@@ -47,41 +73,65 @@ async function handleEnrich(payload: {
   source: string;
   externalId?: string;
 }): Promise<EnrichmentResultMessage> {
+  lastEnrichPayload = payload;
+  setAndBroadcastState({ state: 'loading', url: payload.url });
+
   try {
-    // Check cache first
     const cached = await getCached<EnrichListingResponse>(payload.address);
     if (cached) {
       console.log('[LandMatch SW] Cache hit for:', payload.address);
       updateBadge(cached);
+      setAndBroadcastState({ state: 'loaded', data: cached });
       return { type: 'ENRICHMENT_RESULT', payload: cached };
     }
 
-    // Check if already enriched server-side by URL
-    console.log('[LandMatch SW] Checking server for URL:', payload.url);
     const existing = await apiClient.getListingByUrl(payload.url);
     if (existing.ok && existing.data) {
       console.log('[LandMatch SW] Server had existing enrichment');
       await setCached(payload.address, existing.data);
       updateBadge(existing.data);
+      setAndBroadcastState({ state: 'loaded', data: existing.data });
       return { type: 'ENRICHMENT_RESULT', payload: existing.data };
     }
 
-    // Enrich via API
     console.log('[LandMatch SW] Calling enrich API for:', payload.address);
     const result = await apiClient.enrichListing(payload);
 
     if (!result.ok || !result.data) {
-      console.error('[LandMatch SW] Enrich failed:', result.error);
-      return { type: 'ENRICHMENT_RESULT', payload: null, error: result.error ?? 'Enrichment failed' };
+      const error = result.error ?? 'Enrichment failed';
+      setAndBroadcastState({ state: 'error', error, url: payload.url });
+      return { type: 'ENRICHMENT_RESULT', payload: null, error };
     }
-    console.log('[LandMatch SW] Enrich succeeded, score:', result.data.homesteadScore);
 
     await setCached(payload.address, result.data);
     updateBadge(result.data);
+    setAndBroadcastState({ state: 'loaded', data: result.data });
     return { type: 'ENRICHMENT_RESULT', payload: result.data };
   } catch (error) {
-    return { type: 'ENRICHMENT_RESULT', payload: null, error: String(error) };
+    const errorMsg = String(error);
+    setAndBroadcastState({ state: 'error', error: errorMsg, url: payload.url });
+    return { type: 'ENRICHMENT_RESULT', payload: null, error: errorMsg };
   }
+}
+
+function handlePageChanged(payload: { isListing: boolean; url: string }) {
+  if (!payload.isListing) {
+    setAndBroadcastState({ state: 'idle' });
+    chrome.action.setBadgeText({ text: '' });
+    lastEnrichPayload = null;
+  }
+  return { ok: true };
+}
+
+async function handleRetryEnrich(): Promise<EnrichmentResultMessage> {
+  if (!lastEnrichPayload) {
+    return { type: 'ENRICHMENT_RESULT', payload: null, error: 'No listing to retry' };
+  }
+  return handleEnrich(lastEnrichPayload);
+}
+
+function handleGetCurrentState(): CurrentStateMessage {
+  return { type: 'CURRENT_STATE', payload: currentState };
 }
 
 async function handleSave(listingId: string): Promise<SaveListingResultMessage> {
@@ -102,13 +152,11 @@ async function handleLogin(email: string, password: string): Promise<LoginResult
     if (!result.ok || !result.data) {
       return { type: 'LOGIN_RESULT', payload: null, error: result.error ?? 'Login failed' };
     }
-
     await setAuth({
       accessToken: result.data.accessToken,
       refreshToken: result.data.refreshToken,
       email,
     });
-
     return { type: 'LOGIN_RESULT', payload: { email } };
   } catch (error) {
     return { type: 'LOGIN_RESULT', payload: null, error: String(error) };
