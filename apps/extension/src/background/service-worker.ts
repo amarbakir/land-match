@@ -7,9 +7,9 @@ import { getOverallScore, getScoreColor } from '../shared/scoring';
 import type { ExtensionMessage, EnrichmentResultMessage, LoginResultMessage, AuthStatusMessage, SaveListingResultMessage } from '../shared/messages';
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
-  console.debug('[LandMatch SW] Received message:', message.type);
+  console.log('[LandMatch SW] Received message:', message.type);
   handleMessage(message).then((response) => {
-    console.debug('[LandMatch SW] Sending response for:', message.type, 'ok' in response ? '' : response);
+    console.log('[LandMatch SW] Sending response for:', message.type, 'ok' in response ? '' : response);
     sendResponse(response);
   }).catch((err) => {
     console.error('[LandMatch SW] Handler error:', message.type, err);
@@ -46,30 +46,30 @@ async function handleEnrich(payload: {
     // Check cache first
     const cached = await getCached<EnrichListingResponse>(payload.address);
     if (cached) {
-      console.debug('[LandMatch SW] Cache hit for:', payload.address);
+      console.log('[LandMatch SW] Cache hit for:', payload.address);
       updateBadge(cached);
       return { type: 'ENRICHMENT_RESULT', payload: cached };
     }
 
     // Check if already enriched server-side by URL
-    console.debug('[LandMatch SW] Checking server for URL:', payload.url);
+    console.log('[LandMatch SW] Checking server for URL:', payload.url);
     const existing = await apiClient.getListingByUrl(payload.url);
     if (existing.ok && existing.data) {
-      console.debug('[LandMatch SW] Server had existing enrichment');
+      console.log('[LandMatch SW] Server had existing enrichment');
       await setCached(payload.address, existing.data);
       updateBadge(existing.data);
       return { type: 'ENRICHMENT_RESULT', payload: existing.data };
     }
 
     // Enrich via API
-    console.debug('[LandMatch SW] Calling enrich API for:', payload.address);
+    console.log('[LandMatch SW] Calling enrich API for:', payload.address);
     const result = await apiClient.enrichListing(payload);
 
     if (!result.ok || !result.data) {
       console.error('[LandMatch SW] Enrich failed:', result.error);
       return { type: 'ENRICHMENT_RESULT', payload: null, error: result.error ?? 'Enrichment failed' };
     }
-    console.debug('[LandMatch SW] Enrich succeeded, score:', result.data.homesteadScore);
+    console.log('[LandMatch SW] Enrich succeeded, score:', result.data.homesteadScore);
 
     await setCached(payload.address, result.data);
     updateBadge(result.data);

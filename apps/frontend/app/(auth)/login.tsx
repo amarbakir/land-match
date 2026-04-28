@@ -1,7 +1,9 @@
 import { LoginRequest } from '@landmatch/api';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Input, Spinner, Text, YStack } from 'tamagui';
+import { Input, Spinner, Text, XStack, YStack } from 'tamagui';
+
+import { Eye, EyeOff } from '@tamagui/lucide-icons';
 
 import { useAuth } from '@/src/auth/useAuth';
 import { colors } from '@/src/theme/colors';
@@ -16,6 +18,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleLogin() {
     setError(null);
@@ -55,13 +58,30 @@ export default function LoginScreen() {
           keyboardType="email-address"
           {...inputStyles}
         />
-        <Input
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          {...inputStyles}
-        />
+        <XStack alignItems="center" position="relative">
+          <Input
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            flex={1}
+            paddingRight="$8"
+            {...inputStyles}
+          />
+          <XStack
+            position="absolute"
+            right="$3"
+            onPress={() => setShowPassword(!showPassword)}
+            cursor="pointer"
+            padding="$1"
+          >
+            {showPassword ? (
+              <EyeOff size={20} color={colors.textSecondary} />
+            ) : (
+              <Eye size={20} color={colors.textSecondary} />
+            )}
+          </XStack>
+        </XStack>
 
         {error && (
           <Text color={colors.danger} fontSize="$3" textAlign="center">

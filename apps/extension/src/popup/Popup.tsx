@@ -184,7 +184,7 @@ function LoggedInView({ email, onLogout }: { email: string; onLogout: () => void
         onClick={() => {
           chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const tab = tabs[0];
-            console.debug('[LandMatch Popup] Sending FORCE_ENRICH to tab:', tab?.id, tab?.url);
+            console.log('[LandMatch Popup] Sending FORCE_ENRICH to tab:', tab?.id, tab?.url);
             if (tab?.id) {
               chrome.tabs.sendMessage(tab.id, { type: 'FORCE_ENRICH' }, (response) => {
                 if (chrome.runtime.lastError) {
