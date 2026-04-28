@@ -30,6 +30,11 @@ async function handleMessage(message: ExtensionMessage) {
       return handleLogout();
     case 'GET_AUTH_STATUS':
       return handleGetAuthStatus();
+    case 'PAGE_CHANGED':
+    case 'RETRY_ENRICH':
+    case 'GET_CURRENT_STATE':
+      // Handled in Task 2 (side panel state management)
+      return { type: 'CURRENT_STATE' as const, payload: { state: 'idle' as const } };
   }
 }
 

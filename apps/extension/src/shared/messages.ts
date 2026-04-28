@@ -33,6 +33,31 @@ export interface SaveListingResultMessage {
   error?: string;
 }
 
+// Content → Background (navigation)
+export interface PageChangedMessage {
+  type: 'PAGE_CHANGED';
+  payload: { isListing: boolean; url: string };
+}
+
+// Side Panel → Background
+export interface RetryEnrichMessage {
+  type: 'RETRY_ENRICH';
+}
+
+export interface GetCurrentStateMessage {
+  type: 'GET_CURRENT_STATE';
+}
+
+// Background → Side Panel
+export interface CurrentStateMessage {
+  type: 'CURRENT_STATE';
+  payload:
+    | { state: 'idle' }
+    | { state: 'loading'; url: string }
+    | { state: 'loaded'; data: EnrichListingResponse }
+    | { state: 'error'; error: string; url: string };
+}
+
 // Auth
 export interface LoginMessage {
   type: 'LOGIN';
@@ -63,13 +88,17 @@ export type ExtensionMessage =
   | SaveListingMessage
   | LoginMessage
   | LogoutMessage
-  | GetAuthStatusMessage;
+  | GetAuthStatusMessage
+  | PageChangedMessage
+  | RetryEnrichMessage
+  | GetCurrentStateMessage;
 
 export type ExtensionResponse =
   | EnrichmentResultMessage
   | SaveListingResultMessage
   | LoginResultMessage
-  | AuthStatusMessage;
+  | AuthStatusMessage
+  | CurrentStateMessage;
 
 export function sendMessage<T = ExtensionResponse>(message: ExtensionMessage): Promise<T> {
   return chrome.runtime.sendMessage(message);
