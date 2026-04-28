@@ -12,5 +12,4 @@ export interface ListingExtractor {
   name: string;
   matches(url: string): boolean;
   extract(document: Document): ExtractedListing | null;
-  getOverlayAnchor(document: Document): Element | null;
 }

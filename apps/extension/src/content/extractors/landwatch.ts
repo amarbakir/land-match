@@ -134,14 +134,4 @@ export const landwatchExtractor: ListingExtractor = {
     };
   },
 
-  getOverlayAnchor(doc: Document): Element | null {
-    // Insert after the main listing header/gallery area
-    return (
-      doc.querySelector('[data-testid="listing-details"]') ??
-      doc.querySelector('.property-details') ??
-      doc.querySelector('[class*="gallery"]') ??
-      doc.querySelector('h1')?.parentElement ??
-      null
-    );
-  },
 };
