@@ -13,13 +13,24 @@ async function enrichCurrentPage() {
   if (enrichingUrl === url) return;
 
   const extractor = findExtractor(url);
-  if (!extractor) return;
+  if (!extractor) {
+    console.debug('[LandMatch] No extractor matched URL:', url);
+    return;
+  }
 
   const listing = extractor.extract(document);
-  if (!listing) return;
+  if (!listing) {
+    console.debug('[LandMatch] Extractor found no listing data on page');
+    return;
+  }
 
   const anchor = extractor.getOverlayAnchor(document);
-  if (!anchor) return;
+  if (!anchor) {
+    console.debug('[LandMatch] No overlay anchor found in DOM');
+    return;
+  }
+
+  console.debug('[LandMatch] Enriching:', listing.address);
 
   enrichingUrl = url;
   injectOverlay(anchor);
@@ -40,8 +51,10 @@ async function enrichCurrentPage() {
       return;
     }
 
+    console.debug('[LandMatch] Enrichment result:', response.payload?.listing?.address, 'score:', response.payload?.homesteadScore);
     updateOverlay(response.payload);
   } catch (error) {
+    console.error('[LandMatch] Enrichment error:', error);
     showError(String(error));
   } finally {
     enrichingUrl = null;
@@ -49,6 +62,7 @@ async function enrichCurrentPage() {
 }
 
 // Run on page load
+console.debug('[LandMatch] Content script loaded on:', window.location.href);
 enrichCurrentPage();
 
 // Listen for FORCE_ENRICH from popup

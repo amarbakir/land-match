@@ -26,11 +26,39 @@ function copyStaticAssets(): Plugin {
   };
 }
 
-// Chrome MV3 content scripts run in an isolated world and CAN use static
-// ES module imports as long as the imported files are listed under
-// web_accessible_resources in manifest.json. However, for simplicity and
-// maximum compatibility, we keep shared preact code in a web-accessible chunk.
-export default defineConfig({
+const aliases = {
+  react: 'preact/compat',
+  'react-dom': 'preact/compat',
+};
+
+// Content scripts are loaded as classic scripts by Chrome — they cannot use
+// ES module import/export syntax. We split the build: the main build produces
+// ES modules for the popup + service worker (which DO support modules), and a
+// second build bundles the content script as IIFE with all deps inlined.
+const isContentBuild = process.env.BUILD_TARGET === 'content';
+
+export default defineConfig(isContentBuild ? {
+  plugins: [preact()],
+  root: resolve(__dirname, 'src'),
+  build: {
+    outDir: resolve(__dirname, 'dist'),
+    emptyOutDir: false,
+    modulePreload: false,
+    target: 'es2020',
+    lib: {
+      entry: resolve(__dirname, 'src/content/main.ts'),
+      formats: ['iife'],
+      name: 'LandMatchContent',
+      fileName: () => 'content/main.js',
+    },
+    rollupOptions: {
+      output: {
+        inlineDynamicImports: true,
+      },
+    },
+  },
+  resolve: { alias: aliases },
+} : {
   plugins: [preact(), copyStaticAssets()],
   root: resolve(__dirname, 'src'),
   build: {
@@ -41,7 +69,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         'background/service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
-        'content/main': resolve(__dirname, 'src/content/main.ts'),
         'popup/index': resolve(__dirname, 'src/popup/index.html'),
       },
       output: {
@@ -52,10 +79,5 @@ export default defineConfig({
       },
     },
   },
-  resolve: {
-    alias: {
-      react: 'preact/compat',
-      'react-dom': 'preact/compat',
-    },
-  },
+  resolve: { alias: aliases },
 });

@@ -183,8 +183,14 @@ function LoggedInView({ email, onLogout }: { email: string; onLogout: () => void
         style={styles.outlineButton}
         onClick={() => {
           chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            if (tabs[0]?.id) {
-              chrome.tabs.sendMessage(tabs[0].id, { type: 'FORCE_ENRICH' });
+            const tab = tabs[0];
+            console.debug('[LandMatch Popup] Sending FORCE_ENRICH to tab:', tab?.id, tab?.url);
+            if (tab?.id) {
+              chrome.tabs.sendMessage(tab.id, { type: 'FORCE_ENRICH' }, (response) => {
+                if (chrome.runtime.lastError) {
+                  console.error('[LandMatch Popup] Failed to send message:', chrome.runtime.lastError.message);
+                }
+              });
             }
           });
         }}
