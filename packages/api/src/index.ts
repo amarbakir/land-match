@@ -9,7 +9,7 @@ export {
   type AuthTokenResponseType,
 } from './auth';
 export { ErrorCode, ErrorMessage, type ErrorCodeType } from './errors';
-export { EnrichListingRequest, EnrichListingResponse, HomesteadComponent, ListingByUrlQuery, SaveListingResponse } from './listings';
+export { EnrichListingRequest, EnrichListingResponse, HomesteadComponent, ListingByUrlQuery, SaveListingResponse, SavedListingItem, PaginatedSavedListings, SavedListingsFilters } from './listings';
 export { err, ok, type Result } from './result';
 export {
   CreateSearchProfile,

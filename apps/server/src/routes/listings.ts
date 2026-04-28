@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { EnrichListingRequest, ListingByUrlQuery } from '@landmatch/api';
+import { EnrichListingRequest, ListingByUrlQuery, SavedListingsFilters } from '@landmatch/api';
 
 import { badRequest, notFound, okResponse, throwFromResult, unauthorized } from '../lib/httpExceptions';
 import * as listingRepo from '../repos/listingRepo';
@@ -42,6 +42,30 @@ listings.get('/by-url', async (c) => {
   return okResponse(c, result.data);
 });
 
+listings.get('/saved', async (c) => {
+  const userId = c.get('userId');
+  if (!userId) return unauthorized('UNAUTHORIZED');
+
+  const parsed = SavedListingsFilters.safeParse({
+    sort: c.req.query('sort'),
+    sortDir: c.req.query('sortDir'),
+    limit: c.req.query('limit'),
+    offset: c.req.query('offset'),
+  });
+
+  if (!parsed.success) {
+    return badRequest(parsed.error.issues.map((i) => i.message).join(', '));
+  }
+
+  const result = await listingService.getSavedListings(userId, parsed.data);
+
+  if (!result.ok) {
+    return throwFromResult(result, {});
+  }
+
+  return okResponse(c, result.data);
+});
+
 listings.post('/:id/save', async (c) => {
   const userId = c.get('userId');
   if (!userId) return unauthorized('UNAUTHORIZED');
@@ -57,6 +81,20 @@ listings.post('/:id/save', async (c) => {
   return okResponse(c, {
     savedAt: saved.savedAt.toISOString(),
   }, 201);
+});
+
+listings.delete('/:id/save', async (c) => {
+  const userId = c.get('userId');
+  if (!userId) return unauthorized('UNAUTHORIZED');
+
+  const listingId = c.req.param('id');
+  const result = await listingService.unsaveListing(userId, listingId);
+
+  if (!result.ok) {
+    return throwFromResult(result, { NOT_FOUND: 404 });
+  }
+
+  return c.body(null, 204);
 });
 
 export default listings;

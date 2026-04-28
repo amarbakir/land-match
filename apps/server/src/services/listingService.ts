@@ -1,4 +1,4 @@
-import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResponse } from '@landmatch/api';
+import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
 import { enrichListing } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow } from '@landmatch/scoring';
 
@@ -111,4 +111,102 @@ export async function getByUrl(url: string): Promise<Result<EnrichListingRespons
   const result = await listingRepo.findByUrl(url);
   if (!result) return err('NOT_FOUND');
   return ok(toEnrichListingResponse(result.listing, result.enrichment));
+}
+
+export async function getSavedListings(
+  userId: string,
+  filters: SavedListingsFilters,
+): Promise<Result<PaginatedSavedListings>> {
+  try {
+    const { rows, total } = await listingRepo.findSavedListings(userId, {
+      sort: filters.sort,
+      sortDir: filters.sortDir,
+      limit: filters.limit,
+      offset: filters.offset,
+    });
+
+    const items = rows.map((row) => {
+      // Compute profile-independent homestead score from enrichment data
+      let hsScore: number | null = null;
+      try {
+        const listingData = mapListingRow({
+          price: row.price,
+          acreage: row.acreage,
+          latitude: row.lat,
+          longitude: row.lng,
+        } as any);
+        const enrichmentData = mapEnrichmentRow({
+          soilCapabilityClass: row.soilClass,
+          soilDrainageClass: row.soilDrainageClass,
+          soilTexture: row.soilTexture,
+          femaFloodZone: row.floodZone,
+          zoningCode: row.zoning,
+          fireRiskScore: row.fireRiskScore,
+          floodRiskScore: row.floodRiskScore,
+          frostFreeDays: row.frostFreeDays,
+          annualPrecipIn: row.annualPrecipIn,
+          avgMinTempF: row.avgMinTempF,
+          avgMaxTempF: row.avgMaxTempF,
+          growingSeasonDays: row.growingSeasonDays,
+          elevationFt: row.elevationFt,
+          slopePct: row.slopePct,
+          wetlandType: row.wetlandType,
+          wetlandWithinBufferFt: row.wetlandWithinBufferFt,
+        } as any);
+        const result = homesteadScore(listingData, enrichmentData, {});
+        hsScore = result.homesteadScore;
+      } catch { /* scoring failure is non-fatal */ }
+
+      return {
+        id: row.id,
+        savedAt: row.savedAt.toISOString(),
+        listingId: row.listingId,
+        title: row.title,
+        address: row.address ?? '',
+        price: row.price,
+        acreage: row.acreage,
+        source: row.source,
+        url: row.url,
+        lat: row.lat,
+        lng: row.lng,
+        soilClass: row.soilClass,
+        floodZone: row.floodZone,
+        zoning: row.zoning,
+        homesteadScore: hsScore,
+        bestScore: row.bestScoreValue != null
+          ? { score: row.bestScoreValue, profileName: row.bestScoreProfileName ?? '' }
+          : null,
+      };
+    });
+
+    // If sorting by homestead score, sort in-memory after computation
+    if (filters.sort === 'homestead') {
+      items.sort((a, b) => {
+        const aScore = a.homesteadScore ?? -1;
+        const bScore = b.homesteadScore ?? -1;
+        return filters.sortDir === 'desc' ? bScore - aScore : aScore - bScore;
+      });
+    }
+
+    return ok({
+      items,
+      total,
+      limit: filters.limit ?? 20,
+      offset: filters.offset ?? 0,
+    });
+  } catch (error) {
+    console.error('[listingService.getSavedListings]', error);
+    return err('INTERNAL_ERROR');
+  }
+}
+
+export async function unsaveListing(userId: string, listingId: string): Promise<Result<void>> {
+  try {
+    const deleted = await listingRepo.unsaveListing(userId, listingId);
+    if (!deleted) return err('NOT_FOUND');
+    return ok(undefined);
+  } catch (error) {
+    console.error('[listingService.unsaveListing]', error);
+    return err('INTERNAL_ERROR');
+  }
 }

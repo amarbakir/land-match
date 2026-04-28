@@ -1,5 +1,5 @@
-import { eq, inArray } from 'drizzle-orm';
-import { listings, enrichments, savedListings } from '@landmatch/db';
+import { eq, inArray, and, desc, asc, sql, count as countFn } from 'drizzle-orm';
+import { listings, enrichments, savedListings, scores, searchProfiles } from '@landmatch/db';
 import type { EnrichmentResult } from '@landmatch/enrichment';
 import type { RawListing } from '@landmatch/feeds';
 
@@ -194,4 +194,94 @@ export async function findListingWithEnrichment(id: string, tx?: Tx) {
   if (rows.length === 0) return null;
 
   return { listing: rows[0].listings, enrichment: rows[0].enrichments };
+}
+
+export interface SavedListingsQuery {
+  sort?: 'date' | 'homestead' | 'price' | 'acreage';
+  sortDir?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
+
+export async function findSavedListings(userId: string, opts: SavedListingsQuery = {}, tx?: Tx) {
+  const { sort = 'date', sortDir = 'desc', limit = 20, offset = 0 } = opts;
+  const conn = tx ?? db;
+  const dir = sortDir === 'asc' ? asc : desc;
+
+  const orderColumn = sort === 'price' ? listings.price
+    : sort === 'acreage' ? listings.acreage
+    : savedListings.savedAt; // 'date' and 'homestead' both default to savedAt (homestead sorted in service layer)
+
+  // Subquery for best score per listing
+  const bestScoreSq = conn
+    .select({
+      listingId: scores.listingId,
+      bestScore: sql<number>`max(${scores.overallScore})`.as('best_score'),
+      profileName: searchProfiles.name,
+    })
+    .from(scores)
+    .innerJoin(searchProfiles, eq(scores.searchProfileId, searchProfiles.id))
+    .groupBy(scores.listingId, searchProfiles.name)
+    .as('best_score_sq');
+
+  const [rows, totalResult] = await Promise.all([
+    conn
+      .select({
+        id: savedListings.id,
+        savedAt: savedListings.savedAt,
+        listingId: savedListings.listingId,
+        title: listings.title,
+        address: listings.address,
+        price: listings.price,
+        acreage: listings.acreage,
+        source: listings.source,
+        url: listings.url,
+        lat: listings.latitude,
+        lng: listings.longitude,
+        // Enrichment summary for display
+        soilClass: enrichments.soilCapabilityClass,
+        floodZone: enrichments.femaFloodZone,
+        zoning: enrichments.zoningCode,
+        // Additional enrichment fields for homestead scoring
+        soilDrainageClass: enrichments.soilDrainageClass,
+        soilTexture: enrichments.soilTexture,
+        fireRiskScore: enrichments.fireRiskScore,
+        floodRiskScore: enrichments.floodRiskScore,
+        frostFreeDays: enrichments.frostFreeDays,
+        annualPrecipIn: enrichments.annualPrecipIn,
+        avgMinTempF: enrichments.avgMinTempF,
+        avgMaxTempF: enrichments.avgMaxTempF,
+        growingSeasonDays: enrichments.growingSeasonDays,
+        elevationFt: enrichments.elevationFt,
+        slopePct: enrichments.slopePct,
+        wetlandType: enrichments.wetlandType,
+        wetlandWithinBufferFt: enrichments.wetlandWithinBufferFt,
+        // Best score
+        bestScoreValue: bestScoreSq.bestScore,
+        bestScoreProfileName: bestScoreSq.profileName,
+      })
+      .from(savedListings)
+      .innerJoin(listings, eq(savedListings.listingId, listings.id))
+      .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
+      .leftJoin(bestScoreSq, eq(bestScoreSq.listingId, listings.id))
+      .where(eq(savedListings.userId, userId))
+      .orderBy(dir(orderColumn))
+      .limit(limit)
+      .offset(offset),
+    conn
+      .select({ count: countFn() })
+      .from(savedListings)
+      .where(eq(savedListings.userId, userId)),
+  ]);
+
+  return { rows, total: Number(totalResult[0]?.count ?? 0) };
+}
+
+export async function unsaveListing(userId: string, listingId: string, tx?: Tx) {
+  const result = await (tx ?? db)
+    .delete(savedListings)
+    .where(and(eq(savedListings.userId, userId), eq(savedListings.listingId, listingId)))
+    .returning();
+
+  return result.length > 0;
 }
