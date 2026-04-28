@@ -115,6 +115,101 @@ describe('landwatchExtractor.extract', () => {
     expect(result!.title).toBe('Structured Title');
   });
 
+  it('handles SingleFamilyResidence @type with direct address', () => {
+    setUrl('https://www.landwatch.com/monroe-county-land/pid/426490658');
+
+    document.body.innerHTML = `
+      <script type="application/ld+json">${JSON.stringify({
+        '@type': 'SingleFamilyResidence',
+        name: '157 acres in Monroe County, Wisconsin',
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: '21881 Kale Road',
+          addressLocality: 'Sparta',
+          addressRegion: 'WI',
+          postalCode: '54656',
+        },
+      })}</script>
+      <h1>21881 Kale Road , Sparta, WI 54656(Monroe County)</h1>
+    `;
+
+    const result = landwatchExtractor.extract(document);
+
+    expect(result).not.toBeNull();
+    expect(result!.address).toBe('21881 Kale Road, Sparta, WI, 54656');
+    expect(result!.acreage).toBe(157);
+  });
+
+  it('handles array @type like [RealEstateListing, Product]', () => {
+    setUrl('https://www.landwatch.com/land/pid/123456');
+
+    document.body.innerHTML = `
+      <script type="application/ld+json">${JSON.stringify({
+        '@type': ['RealEstateListing', 'Product'],
+        name: 'Test Listing',
+        mainEntity: {
+          '@type': 'Residence',
+          address: {
+            streetAddress: '100 Oak St',
+            addressLocality: 'Madison',
+            addressRegion: 'WI',
+            postalCode: '53703',
+          },
+        },
+        offers: { price: 250000 },
+      })}</script>
+      <h1>100 Oak St , Madison, WI 53703</h1>
+    `;
+
+    const result = landwatchExtractor.extract(document);
+
+    expect(result).not.toBeNull();
+    expect(result!.address).toBe('100 Oak St, Madison, WI, 53703');
+    expect(result!.price).toBe(250000);
+  });
+
+  it('merges data across multiple LD+JSON blocks', () => {
+    setUrl('https://www.landwatch.com/land/pid/555555');
+
+    document.body.innerHTML = `
+      <script type="application/ld+json">${JSON.stringify({
+        '@type': 'SingleFamilyResidence',
+        address: {
+          streetAddress: '50 River Rd',
+          addressLocality: 'Burlington',
+          addressRegion: 'VT',
+          postalCode: '05401',
+        },
+      })}</script>
+      <script type="application/ld+json">${JSON.stringify({
+        '@type': 'Product',
+        name: '80 acres in Chittenden County',
+        offers: { price: 320000 },
+      })}</script>
+      <h1>50 River Rd , Burlington, VT 05401</h1>
+    `;
+
+    const result = landwatchExtractor.extract(document);
+
+    expect(result).not.toBeNull();
+    expect(result!.address).toBe('50 River Rd, Burlington, VT, 05401');
+    expect(result!.price).toBe(320000);
+    expect(result!.acreage).toBe(80);
+  });
+
+  it('extracts address from h1 when it contains street address pattern', () => {
+    setUrl('https://www.landwatch.com/land/pid/777777');
+
+    document.body.innerHTML = `
+      <h1>123 Farm Lane , Stowe, VT 05672(Lamoille County)</h1>
+    `;
+
+    const result = landwatchExtractor.extract(document);
+
+    expect(result).not.toBeNull();
+    expect(result!.address).toBe('123 Farm Lane , Stowe, VT 05672');
+  });
+
   it('handles malformed ld+json gracefully without crashing', () => {
     setUrl('https://www.landwatch.com/tx-land/44556677');
 
