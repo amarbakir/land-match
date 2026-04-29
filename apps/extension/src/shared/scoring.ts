@@ -63,12 +63,15 @@ export function getScoreTier(score: number): ScoreTier {
   return 'fail';
 }
 
+const TIER_COLORS: Record<ScoreTier, string> = {
+  high: '#7DB88A',
+  mid: '#C4956A',
+  low: '#D4A843',
+  fail: '#DC2626',
+};
+
 export function getScoreColor(score: number): string {
-  const tier = getScoreTier(score);
-  if (tier === 'high') return '#7DB88A';
-  if (tier === 'mid') return '#C4956A';
-  if (tier === 'low') return '#D4A843';
-  return '#DC2626';
+  return TIER_COLORS[getScoreTier(score)];
 }
 
 export function getOverallScore(data: { homesteadScore?: number | null; enrichment: EnrichmentScoreInput }): number | null {

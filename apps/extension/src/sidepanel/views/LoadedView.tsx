@@ -3,6 +3,7 @@ import { useState } from 'preact/hooks';
 import type { EnrichListingResponse } from '@landmatch/api';
 import type { SaveListingResultMessage } from '../../shared/messages';
 import { sendMessage } from '../../shared/messages';
+import { fmtPrice } from '../../shared/format';
 import {
   getSoilLabel,
   getFloodColor,
@@ -17,10 +18,6 @@ import { DrawerFooter } from '../components/DrawerFooter';
 
 interface LoadedViewProps {
   data: EnrichListingResponse;
-}
-
-function fmtPrice(n: number): string {
-  return '$' + n.toLocaleString();
 }
 
 export function LoadedView({ data }: LoadedViewProps) {

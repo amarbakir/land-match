@@ -1,5 +1,6 @@
 import { h } from 'preact';
 import { Sprout, Droplet, Layers, Shield } from '../icons';
+import { BrandLogo } from '../components/BrandLogo';
 
 interface SignedOutViewProps {
   onSignIn: () => void;
@@ -10,8 +11,7 @@ export function SignedOutView({ onSignIn }: SignedOutViewProps) {
     <div class="drawer">
       <div class="drawer-header">
         <div class="drawer-bar">
-          <div class="brand-mark">L</div>
-          <span class="brand"><span>Land<em>Match</em></span></span>
+          <BrandLogo />
         </div>
       </div>
       <div class="drawer-body">

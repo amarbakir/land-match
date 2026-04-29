@@ -81,7 +81,6 @@ export function SidePanel() {
     sendMessage({ type: 'RETRY_ENRICH' });
   }
 
-  // Auth loading
   if (state.view === 'loading_auth') {
     return (
       <div class="drawer">
@@ -92,7 +91,6 @@ export function SidePanel() {
     );
   }
 
-  // Signed out
   if (state.view === 'logged_out') {
     if (showLoginForm) {
       return <LoginForm onLogin={handleLogin} onBack={() => setShowLoginForm(false)} />;
@@ -100,7 +98,6 @@ export function SidePanel() {
     return <SignedOutView onSignIn={() => setShowLoginForm(true)} />;
   }
 
-  // Logged-in states — all share the drawer header
   return (
     <div class="drawer">
       <DrawerHeader email={state.email} onLogout={handleLogout} />

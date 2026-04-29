@@ -1,5 +1,6 @@
 import { h } from 'preact';
 import { LogOut } from '../icons';
+import { BrandLogo } from './BrandLogo';
 
 interface DrawerHeaderProps {
   email?: string;
@@ -10,8 +11,7 @@ export function DrawerHeader({ email, onLogout }: DrawerHeaderProps) {
   return (
     <div class="drawer-header">
       <div class="drawer-bar">
-        <div class="brand-mark">L</div>
-        <span class="brand"><span>Land<em>Match</em></span></span>
+        <BrandLogo />
         <div style={{ flex: 1 }} />
         {email && (
           <>

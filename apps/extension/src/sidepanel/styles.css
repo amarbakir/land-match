@@ -47,12 +47,6 @@ input { font-family: inherit; color: inherit; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
 
-/* ===== Typography helpers ===== */
-.font-mono  { font-family: var(--font-mono); }
-.font-serif { font-family: var(--font-serif); }
-.text-faint { color: var(--text-faint); }
-.text-dim   { color: var(--text-dim); }
-
 /* ===== Eyebrow label ===== */
 .eyebrow {
   font-family: var(--font-mono);
@@ -76,9 +70,6 @@ input { font-family: inherit; color: inherit; }
   display: inline-block;
 }
 .tag.green  { background: rgba(125,184,138,0.12); color: var(--success); }
-.tag.gold   { background: rgba(212,168,67,0.12); color: var(--accent); }
-.tag.clay   { background: rgba(196,149,106,0.12); color: var(--accent-2); }
-.tag.danger { background: rgba(220,38,38,0.12); color: var(--danger); }
 
 /* ===== Brand mark ===== */
 .brand {
@@ -215,12 +206,6 @@ input { font-family: inherit; color: inherit; }
   background: var(--border-soft);
 }
 
-/* ===== Score tier colors ===== */
-.s-high { color: var(--success); }
-.s-mid  { color: var(--accent-2); }
-.s-low  { color: var(--accent); }
-.s-fail { color: var(--danger); }
-
 /* ===== Component bar ===== */
 .bar-grid {
   display: grid;
@@ -305,11 +290,6 @@ input { font-family: inherit; color: inherit; }
   100% { transform: translateX(250%); width: 30%; }
 }
 
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 .spinner {
   display: inline-block;
   width: 48px;
@@ -318,12 +298,6 @@ input { font-family: inherit; color: inherit; }
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
-}
-
-.spinner-sm {
-  width: 20px;
-  height: 20px;
-  border-width: 2px;
 }
 
 .shimmer-bar {

@@ -1,4 +1,5 @@
 import { h } from 'preact';
+import { fmtPrice } from '../../shared/format';
 import { HOMESTEAD_COMPONENT_LABELS, HOMESTEAD_DISPLAY_ORDER } from '../../shared/scoring';
 
 interface LoadingViewProps {
@@ -6,10 +7,6 @@ interface LoadingViewProps {
   price?: number;
   acreage?: number;
   address?: string;
-}
-
-function fmtPrice(n: number): string {
-  return '$' + (n >= 1000 ? Math.round(n / 1000) + 'K' : n.toLocaleString());
 }
 
 export function LoadingView({ title, price, acreage, address }: LoadingViewProps) {

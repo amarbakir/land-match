@@ -1,12 +1,12 @@
-import { h } from 'preact';
+import { h, type VNode } from 'preact';
 
-interface IconProps {
+export interface IconProps {
   size?: number;
   class?: string;
   style?: string | Record<string, string>;
 }
 
-function _ic(paths: any) {
+function _ic(paths: VNode | VNode[]) {
   return function Icon({ size = 14, class: cls, style }: IconProps) {
     return (
       <svg
@@ -133,7 +133,7 @@ export const Mountain = _ic(
   <path d="M3 20l6-10 4 6 3-4 5 8z" />,
 );
 
-export const COMPONENT_ICONS: Record<string, (props: IconProps) => any> = {
+export const COMPONENT_ICONS: Record<string, (props: IconProps) => VNode> = {
   gardenViability: Sprout,
   growingSeason: Sun,
   waterAvailability: Droplet,

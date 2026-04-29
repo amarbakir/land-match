@@ -2,6 +2,7 @@ import { h } from 'preact';
 import { useState } from 'preact/hooks';
 import type { LoginResultMessage } from '../shared/messages';
 import { sendMessage } from '../shared/messages';
+import { BrandLogo } from './components/BrandLogo';
 
 interface LoginFormProps {
   onLogin: (email: string) => void;
@@ -40,9 +41,8 @@ export function LoginForm({ onLogin, onBack }: LoginFormProps) {
   return (
     <div class="drawer" style={{ background: 'var(--bg)' }}>
       <div style={{ padding: '22px 22px 16px', borderBottom: '1px solid var(--border-soft)' }}>
-        <div class="brand" style={{ fontSize: 16 }}>
-          <div class="brand-mark" style={{ width: 26, height: 26, fontSize: 16 }}>L</div>
-          <span>Land<em>Match</em></span>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <BrandLogo size="md" />
         </div>
       </div>
       <div style={{ padding: 22, flex: 1 }}>
