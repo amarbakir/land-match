@@ -15,30 +15,23 @@ const mockFindSaved = vi.mocked(listingRepo.findSavedListings);
 const mockUnsave = vi.mocked(listingRepo.unsaveListing);
 
 // Realistic saved listing row matching what the repo returns
-function makeSavedRow(overrides: Partial<{
-  soilClass: number | null;
-  floodZone: string | null;
-  price: number | null;
-  acreage: number | null;
-  lat: number | null;
-  lng: number | null;
-  bestScoreValue: number | null;
-  bestScoreProfileName: string | null;
-}> = {}) {
+type SavedRow = Awaited<ReturnType<typeof listingRepo.findSavedListings>>['rows'][number];
+
+function makeSavedRow(overrides: Partial<SavedRow> = {}): SavedRow {
   return {
     id: 'sl-001',
     savedAt: new Date('2026-04-25T10:00:00Z'),
     listingId: 'lst-001',
     title: '40 Acres — Ozark County',
     address: '123 Rural Rd, MO',
-    price: overrides.price ?? 50000,
-    acreage: overrides.acreage ?? 40,
+    price: 50000,
+    acreage: 40,
     source: 'landwatch',
     url: 'https://www.landwatch.com/listing/123',
-    lat: overrides.lat ?? 36.6,
-    lng: overrides.lng ?? -92.1,
-    soilClass: overrides.soilClass ?? 2,
-    floodZone: overrides.floodZone ?? 'X',
+    lat: 36.6,
+    lng: -92.1,
+    soilClass: 2,
+    floodZone: 'X',
     zoning: 'A-1',
     soilDrainageClass: 'well drained',
     soilTexture: 'loam',
@@ -53,8 +46,9 @@ function makeSavedRow(overrides: Partial<{
     slopePct: 5,
     wetlandType: null,
     wetlandWithinBufferFt: null,
-    bestScoreValue: overrides.bestScoreValue ?? null,
-    bestScoreProfileName: overrides.bestScoreProfileName ?? null,
+    bestScoreValue: null!,
+    bestScoreProfileName: null!,
+    ...overrides,
   };
 }
 
@@ -146,7 +140,7 @@ describe('getSavedListings', () => {
     // Bug this catches: if we return { score: null, profileName: null } instead
     // of null, the frontend conditionally renders a broken badge
     mockFindSaved.mockResolvedValue({
-      rows: [makeSavedRow({ bestScoreValue: null, bestScoreProfileName: null })],
+      rows: [makeSavedRow()], // default has null! for bestScoreValue/bestScoreProfileName
       total: 1,
     });
 

@@ -1,5 +1,5 @@
 import { eq, inArray, and, desc, asc, sql, count as countFn } from 'drizzle-orm';
-import { listings, enrichments, savedListings, scores, searchProfiles } from '@landmatch/db';
+import { listings, enrichments, savedListings, scores } from '@landmatch/db';
 import type { EnrichmentResult } from '@landmatch/enrichment';
 import type { RawListing } from '@landmatch/feeds';
 
@@ -212,16 +212,20 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
     : sort === 'acreage' ? listings.acreage
     : savedListings.savedAt; // 'date' and 'homestead' both default to savedAt (homestead sorted in service layer)
 
-  // Subquery for best score per listing
+  // Subquery: highest score per listing with the corresponding profile name
   const bestScoreSq = conn
     .select({
       listingId: scores.listingId,
       bestScore: sql<number>`max(${scores.overallScore})`.as('best_score'),
-      profileName: searchProfiles.name,
+      profileName: sql<string>`(
+        SELECT sp.name FROM search_profiles sp
+        JOIN scores s2 ON s2.search_profile_id = sp.id
+        WHERE s2.listing_id = ${scores.listingId}
+        ORDER BY s2.overall_score DESC LIMIT 1
+      )`.as('profile_name'),
     })
     .from(scores)
-    .innerJoin(searchProfiles, eq(scores.searchProfileId, searchProfiles.id))
-    .groupBy(scores.listingId, searchProfiles.name)
+    .groupBy(scores.listingId)
     .as('best_score_sq');
 
   const [rows, totalResult] = await Promise.all([
@@ -238,11 +242,9 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
         url: listings.url,
         lat: listings.latitude,
         lng: listings.longitude,
-        // Enrichment summary for display
         soilClass: enrichments.soilCapabilityClass,
         floodZone: enrichments.femaFloodZone,
         zoning: enrichments.zoningCode,
-        // Additional enrichment fields for homestead scoring
         soilDrainageClass: enrichments.soilDrainageClass,
         soilTexture: enrichments.soilTexture,
         fireRiskScore: enrichments.fireRiskScore,
@@ -256,7 +258,6 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
         slopePct: enrichments.slopePct,
         wetlandType: enrichments.wetlandType,
         wetlandWithinBufferFt: enrichments.wetlandWithinBufferFt,
-        // Best score
         bestScoreValue: bestScoreSq.bestScore,
         bestScoreProfileName: bestScoreSq.profileName,
       })

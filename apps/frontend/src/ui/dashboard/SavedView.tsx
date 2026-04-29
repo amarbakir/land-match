@@ -12,6 +12,7 @@ import { BookmarkIcon } from './Icon';
 import { ScoreRing } from './ScoreRing';
 import { Tag } from './Tag';
 import type { TagTone } from './Tag';
+import { SOIL_CLASS_LABELS, FLOOD_ZONE_LABELS } from '../landLabels';
 import { formatPrice, formatTime } from './MatchRow';
 
 function deriveSavedTags(item: SavedListingItem): { label: string; tone: TagTone }[] {
@@ -23,27 +24,6 @@ function deriveSavedTags(item: SavedListingItem): { label: string; tone: TagTone
   if (item.zoning) tags.push({ label: item.zoning, tone: 'default' });
   return tags.slice(0, 3);
 }
-
-const SOIL_CLASS_LABELS: Record<number, string> = {
-  1: 'Prime farmland',
-  2: 'Good, moderate limitations',
-  3: 'Severe limitations',
-  4: 'Very severe limitations',
-  5: 'Not suited without improvement',
-  6: 'Too steep or wet for cultivation',
-  7: 'Very steep, eroded, or shallow',
-  8: 'Not suited for cultivation',
-};
-
-const FLOOD_ZONE_LABELS: Record<string, string> = {
-  X: 'Minimal risk',
-  A: 'High risk',
-  AE: 'High risk (BFE determined)',
-  AH: 'High risk (shallow flooding)',
-  AO: 'High risk (sheet flow)',
-  VE: 'Coastal high risk',
-  D: 'Undetermined risk',
-};
 
 function SavedRow({
   item,

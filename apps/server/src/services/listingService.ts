@@ -1,6 +1,6 @@
 import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
 import { enrichListing } from '@landmatch/enrichment';
-import { homesteadScore, mapEnrichmentRow, mapListingRow } from '@landmatch/scoring';
+import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
@@ -126,16 +126,15 @@ export async function getSavedListings(
     });
 
     const items = rows.map((row) => {
-      // Compute profile-independent homestead score from enrichment data
       let hsScore: number | null = null;
       try {
-        const listingData = mapListingRow({
+        const listingRow: ListingRow = {
           price: row.price,
           acreage: row.acreage,
           latitude: row.lat,
           longitude: row.lng,
-        } as any);
-        const enrichmentData = mapEnrichmentRow({
+        };
+        const enrichmentRow: EnrichmentRow = {
           soilCapabilityClass: row.soilClass,
           soilDrainageClass: row.soilDrainageClass,
           soilTexture: row.soilTexture,
@@ -152,8 +151,8 @@ export async function getSavedListings(
           slopePct: row.slopePct,
           wetlandType: row.wetlandType,
           wetlandWithinBufferFt: row.wetlandWithinBufferFt,
-        } as any);
-        const result = homesteadScore(listingData, enrichmentData, {});
+        };
+        const result = homesteadScore(mapListingRow(listingRow), mapEnrichmentRow(enrichmentRow), {});
         hsScore = result.homesteadScore;
       } catch { /* scoring failure is non-fatal */ }
 
@@ -179,7 +178,6 @@ export async function getSavedListings(
       };
     });
 
-    // If sorting by homestead score, sort in-memory after computation
     if (filters.sort === 'homestead') {
       items.sort((a, b) => {
         const aScore = a.homesteadScore ?? -1;

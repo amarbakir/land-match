@@ -15,42 +15,34 @@ type PanelState =
   | { view: 'loaded'; email: string; data: EnrichListingResponse }
   | { view: 'error'; email: string; error: string };
 
+function toPanelState(s: CurrentStateMessage['payload'], email: string): PanelState {
+  if (s.state === 'loaded') return { view: 'loaded', email, data: s.data };
+  if (s.state === 'loading') return { view: 'loading', email };
+  if (s.state === 'error') return { view: 'error', email, error: s.error };
+  return { view: 'idle', email };
+}
+
 export function SidePanel() {
   const [state, setState] = useState<PanelState>({ view: 'loading_auth' });
 
   useEffect(() => {
-    // Check auth status on mount
     sendMessage<AuthStatusMessage>({ type: 'GET_AUTH_STATUS' }).then((res) => {
       if (!res.payload.authenticated) {
         setState({ view: 'logged_out' });
         return;
       }
       const email = res.payload.email ?? '';
-      // Get current enrichment state
       sendMessage<CurrentStateMessage>({ type: 'GET_CURRENT_STATE' }).then((stateMsg) => {
-        const s = stateMsg.payload;
-        if (s.state === 'loaded') {
-          setState({ view: 'loaded', email, data: s.data });
-        } else if (s.state === 'loading') {
-          setState({ view: 'loading', email });
-        } else if (s.state === 'error') {
-          setState({ view: 'error', email, error: s.error });
-        } else {
-          setState({ view: 'idle', email });
-        }
+        setState(toPanelState(stateMsg.payload, email));
       });
     });
 
-    // Listen for state broadcasts from background
     function onMessage(message: any) {
       if (message.type === 'CURRENT_STATE') {
         const s = message.payload as CurrentStateMessage['payload'];
         setState((prev) => {
           const email = 'email' in prev ? prev.email : '';
-          if (s.state === 'loaded') return { view: 'loaded', email, data: s.data };
-          if (s.state === 'loading') return { view: 'loading', email };
-          if (s.state === 'error') return { view: 'error', email, error: s.error };
-          return { view: 'idle', email };
+          return toPanelState(s, email);
         });
       }
     }
@@ -61,12 +53,8 @@ export function SidePanel() {
 
   function handleLogin(email: string) {
     setState({ view: 'idle', email });
-    // Request current state in case we landed on a listing
     sendMessage<CurrentStateMessage>({ type: 'GET_CURRENT_STATE' }).then((stateMsg) => {
-      const s = stateMsg.payload;
-      if (s.state === 'loaded') setState({ view: 'loaded', email, data: s.data });
-      else if (s.state === 'loading') setState({ view: 'loading', email });
-      else if (s.state === 'error') setState({ view: 'error', email, error: s.error });
+      setState(toPanelState(stateMsg.payload, email));
     });
   }
 
