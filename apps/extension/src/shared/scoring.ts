@@ -20,11 +20,11 @@ export function getSoilLabel(cls: number | null): string {
 }
 
 export function getFloodColor(zone: string | null): string {
-  if (!zone) return '#6b7280';
+  if (!zone) return '#6B7363';
   const upper = zone.toUpperCase();
-  if (upper === 'X' || upper === 'C' || upper === 'B') return '#22c55e';
-  if (upper.startsWith('A') || upper.startsWith('V')) return '#ef4444';
-  return '#eab308';
+  if (upper === 'X' || upper === 'C' || upper === 'B') return '#7DB88A';
+  if (upper.startsWith('A') || upper.startsWith('V')) return '#DC2626';
+  return '#D4A843';
 }
 
 export function getFloodLabel(zone: string | null): string {
@@ -54,10 +54,21 @@ export function computeSimplifiedScore(data: EnrichmentScoreInput): number | nul
   return Math.round(components.reduce((a, b) => a + b, 0) / components.length);
 }
 
+export type ScoreTier = 'high' | 'mid' | 'low' | 'fail';
+
+export function getScoreTier(score: number): ScoreTier {
+  if (score >= 80) return 'high';
+  if (score >= 60) return 'mid';
+  if (score >= 40) return 'low';
+  return 'fail';
+}
+
 export function getScoreColor(score: number): string {
-  if (score >= 70) return '#22c55e';
-  if (score >= 40) return '#eab308';
-  return '#ef4444';
+  const tier = getScoreTier(score);
+  if (tier === 'high') return '#7DB88A';
+  if (tier === 'mid') return '#C4956A';
+  if (tier === 'low') return '#D4A843';
+  return '#DC2626';
 }
 
 export function getOverallScore(data: { homesteadScore?: number | null; enrichment: EnrichmentScoreInput }): number | null {
