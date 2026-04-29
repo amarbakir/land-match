@@ -74,7 +74,7 @@ async function handleEnrich(payload: {
   externalId?: string;
 }): Promise<EnrichmentResultMessage> {
   lastEnrichPayload = payload;
-  setAndBroadcastState({ state: 'loading', url: payload.url });
+  setAndBroadcastState({ state: 'loading', url: payload.url, title: payload.title, price: payload.price, acreage: payload.acreage, address: payload.address });
 
   try {
     const cached = await getCached<EnrichListingResponse>(payload.address);

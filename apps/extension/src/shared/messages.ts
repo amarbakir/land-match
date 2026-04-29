@@ -53,7 +53,7 @@ export interface CurrentStateMessage {
   type: 'CURRENT_STATE';
   payload:
     | { state: 'idle' }
-    | { state: 'loading'; url: string }
+    | { state: 'loading'; url: string; title?: string; price?: number; acreage?: number; address?: string }
     | { state: 'loaded'; data: EnrichListingResponse }
     | { state: 'error'; error: string; url: string };
 }
