@@ -3,27 +3,39 @@ import { useEffect, useState } from 'preact/hooks';
 import type { EnrichListingResponse } from '@landmatch/api';
 import type { AuthStatusMessage, CurrentStateMessage } from '../shared/messages';
 import { sendMessage } from '../shared/messages';
+import { DrawerHeader } from './components/DrawerHeader';
 import { LoginForm } from './LoginForm';
-import { IdleState } from './IdleState';
-import { ScoreCard } from './ScoreCard';
+import { SignedOutView } from './views/SignedOutView';
+import { IdleView } from './views/IdleView';
+import { LoadingView } from './views/LoadingView';
+import { LoadedView } from './views/LoadedView';
+import { ErrorView } from './views/ErrorView';
+import { PartialDataView } from './views/PartialDataView';
 
 type PanelState =
   | { view: 'loading_auth' }
   | { view: 'logged_out' }
   | { view: 'idle'; email: string }
-  | { view: 'loading'; email: string }
+  | { view: 'loading'; email: string; title?: string; price?: number; acreage?: number; address?: string }
   | { view: 'loaded'; email: string; data: EnrichListingResponse }
   | { view: 'error'; email: string; error: string };
 
 function toPanelState(s: CurrentStateMessage['payload'], email: string): PanelState {
   if (s.state === 'loaded') return { view: 'loaded', email, data: s.data };
-  if (s.state === 'loading') return { view: 'loading', email };
+  if (s.state === 'loading') return { view: 'loading', email, title: s.title, price: s.price, acreage: s.acreage, address: s.address };
   if (s.state === 'error') return { view: 'error', email, error: s.error };
   return { view: 'idle', email };
 }
 
+function isPartialData(data: EnrichListingResponse): boolean {
+  if (!data.homesteadComponents) return false;
+  const errors = data.enrichment.errors ?? [];
+  return errors.length > 0;
+}
+
 export function SidePanel() {
   const [state, setState] = useState<PanelState>({ view: 'loading_auth' });
+  const [showLoginForm, setShowLoginForm] = useState(false);
 
   useEffect(() => {
     sendMessage<AuthStatusMessage>({ type: 'GET_AUTH_STATUS' }).then((res) => {
@@ -52,6 +64,7 @@ export function SidePanel() {
   }, []);
 
   function handleLogin(email: string) {
+    setShowLoginForm(false);
     setState({ view: 'idle', email });
     sendMessage<CurrentStateMessage>({ type: 'GET_CURRENT_STATE' }).then((stateMsg) => {
       setState(toPanelState(stateMsg.payload, email));
@@ -61,54 +74,56 @@ export function SidePanel() {
   function handleLogout() {
     sendMessage({ type: 'LOGOUT' });
     setState({ view: 'logged_out' });
+    setShowLoginForm(false);
   }
 
   function handleRetry() {
     sendMessage({ type: 'RETRY_ENRICH' });
   }
 
+  // Auth loading
   if (state.view === 'loading_auth') {
     return (
-      <div class="loading-container">
-        <div class="spinner" />
+      <div class="drawer">
+        <div class="center-container">
+          <div class="spinner" />
+        </div>
       </div>
     );
   }
 
+  // Signed out
   if (state.view === 'logged_out') {
-    return <LoginForm onLogin={handleLogin} />;
+    if (showLoginForm) {
+      return <LoginForm onLogin={handleLogin} onBack={() => setShowLoginForm(false)} />;
+    }
+    return <SignedOutView onSignIn={() => setShowLoginForm(true)} />;
   }
 
+  // Logged-in states — all share the drawer header
   return (
-    <div>
-      {/* User header */}
-      <div class="panel" style="border-bottom: 1px solid #e5e7eb; padding-bottom: 12px;">
-        <div class="user-row">
-          <span style="font-weight: 500;">{state.email}</span>
-          <button
-            onClick={handleLogout}
-            style="background:none;border:none;color:#6b7280;cursor:pointer;text-decoration:underline;font-size:13px;"
-          >
-            Sign out
-          </button>
-        </div>
-      </div>
+    <div class="drawer">
+      <DrawerHeader email={state.email} onLogout={handleLogout} />
 
-      {/* Content area */}
-      {state.view === 'idle' && <IdleState />}
+      {state.view === 'idle' && <IdleView />}
+
       {state.view === 'loading' && (
-        <div class="loading-container">
-          <div class="spinner" />
-          <span>Enriching listing...</span>
-        </div>
+        <LoadingView
+          title={state.title}
+          price={state.price}
+          acreage={state.acreage}
+          address={state.address}
+        />
       )}
-      {state.view === 'loaded' && <ScoreCard data={state.data} />}
+
+      {state.view === 'loaded' && (
+        isPartialData(state.data)
+          ? <PartialDataView data={state.data} />
+          : <LoadedView data={state.data} />
+      )}
+
       {state.view === 'error' && (
-        <div class="panel">
-          <div class="logo">LandMatch</div>
-          <p class="error">{state.error}</p>
-          <button class="btn btn-outline" onClick={handleRetry}>Retry</button>
-        </div>
+        <ErrorView error={state.error} onRetry={handleRetry} />
       )}
     </div>
   );

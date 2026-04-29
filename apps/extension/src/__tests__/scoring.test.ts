@@ -92,20 +92,20 @@ describe('getSoilLabel', () => {
 });
 
 describe('getFloodColor', () => {
-  it('returns green for minimal-risk zones', () => {
-    expect(getFloodColor('X')).toBe('#22c55e');
-    expect(getFloodColor('B')).toBe('#22c55e');
-    expect(getFloodColor('C')).toBe('#22c55e');
+  it('returns meadow green for minimal-risk zones', () => {
+    expect(getFloodColor('X')).toBe('#7DB88A');
+    expect(getFloodColor('B')).toBe('#7DB88A');
+    expect(getFloodColor('C')).toBe('#7DB88A');
   });
 
-  it('returns red for high-risk zones', () => {
-    expect(getFloodColor('A')).toBe('#ef4444');
-    expect(getFloodColor('AE')).toBe('#ef4444');
-    expect(getFloodColor('VE')).toBe('#ef4444');
+  it('returns danger red for high-risk zones', () => {
+    expect(getFloodColor('A')).toBe('#DC2626');
+    expect(getFloodColor('AE')).toBe('#DC2626');
+    expect(getFloodColor('VE')).toBe('#DC2626');
   });
 
-  it('returns gray for null/unknown', () => {
-    expect(getFloodColor(null)).toBe('#6b7280');
+  it('returns faint for null/unknown', () => {
+    expect(getFloodColor(null)).toBe('#6B7363');
   });
 });
 
@@ -197,18 +197,23 @@ describe('homestead display constants', () => {
 });
 
 describe('getScoreColor', () => {
-  it('returns green for scores >= 70', () => {
-    expect(getScoreColor(70)).toBe('#22c55e');
-    expect(getScoreColor(100)).toBe('#22c55e');
+  it('returns meadow green for high scores (>=80)', () => {
+    expect(getScoreColor(80)).toBe('#7DB88A');
+    expect(getScoreColor(100)).toBe('#7DB88A');
   });
 
-  it('returns yellow for scores 40-69', () => {
-    expect(getScoreColor(40)).toBe('#eab308');
-    expect(getScoreColor(69)).toBe('#eab308');
+  it('returns clay for mid scores (60-79)', () => {
+    expect(getScoreColor(60)).toBe('#C4956A');
+    expect(getScoreColor(79)).toBe('#C4956A');
   });
 
-  it('returns red for scores < 40', () => {
-    expect(getScoreColor(39)).toBe('#ef4444');
-    expect(getScoreColor(0)).toBe('#ef4444');
+  it('returns golden wheat for low scores (40-59)', () => {
+    expect(getScoreColor(40)).toBe('#D4A843');
+    expect(getScoreColor(59)).toBe('#D4A843');
+  });
+
+  it('returns danger red for failing scores (<40)', () => {
+    expect(getScoreColor(39)).toBe('#DC2626');
+    expect(getScoreColor(0)).toBe('#DC2626');
   });
 });
