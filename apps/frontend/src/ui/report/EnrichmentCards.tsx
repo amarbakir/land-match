@@ -5,6 +5,7 @@ import { Text, View, XStack, YStack } from 'tamagui';
 
 import { colors } from '@/src/theme/colors';
 import { DropletIcon, HomeIcon, SeedIcon, SunIcon } from '@/src/ui/dashboard/Icon';
+import { DataRow } from '@/src/ui/primitives/DataRow';
 
 import { ROMAN } from './constants';
 import { SectionHeader } from './SectionHeader';
@@ -20,7 +21,7 @@ const SOIL_LABELS: Record<number, string> = {
   8: 'Unsuitable for agriculture',
 };
 
-interface DataRow {
+interface CardRow {
   key: string;
   value: string | null;
 }
@@ -40,7 +41,7 @@ function DataCard({
   icon: ReactElement;
   title: string;
   score?: number | null;
-  rows: DataRow[];
+  rows: CardRow[];
 }) {
   const badge = score != null ? tierBadgeStyle(score) : null;
 
@@ -86,26 +87,7 @@ function DataCard({
       {/* Rows */}
       <YStack gap={6}>
         {rows.map((row, i) => (
-          <XStack
-            key={row.key}
-            justifyContent="space-between"
-            alignItems="center"
-            paddingVertical={4}
-            {...(i > 0 ? { borderTopWidth: 1, borderTopColor: colors.borderSoft, borderStyle: 'dashed' as const } : {})}
-          >
-            <Text fontSize={12} color={colors.textFaint}>
-              {row.key}
-            </Text>
-            {row.value != null ? (
-              <Text fontFamily="$mono" fontSize={11.5} fontWeight="500" color={colors.textPrimary}>
-                {row.value}
-              </Text>
-            ) : (
-              <Text fontSize={11.5} color={colors.textFaint} fontStyle="italic">
-                N/A
-              </Text>
-            )}
-          </XStack>
+          <DataRow key={row.key} label={row.key} value={row.value} variant="compact" divider={i > 0} />
         ))}
       </YStack>
     </View>

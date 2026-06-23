@@ -6,6 +6,7 @@ import { Spinner, Text, XStack, YStack } from 'tamagui';
 
 import { useSavedListings, useUnsaveListing } from '@/src/api/hooks';
 import { colors } from '@/src/theme/colors';
+import { DataRow } from '@/src/ui/primitives/DataRow';
 
 import { EmptyState } from './EmptyState';
 import { BookmarkIcon } from './Icon';
@@ -112,23 +113,6 @@ function SavedRow({
         </Text>
       </XStack>
     </Pressable>
-  );
-}
-
-function DataRow({ label, value }: { label: string; value: string | null }) {
-  return (
-    <XStack justifyContent="space-between" alignItems="center" paddingVertical={4}>
-      <Text fontSize={13} color={colors.textSecondary}>
-        {label}
-      </Text>
-      {value ? (
-        <Text fontSize={13} color={colors.textPrimary} fontFamily="$mono">
-          {value}
-        </Text>
-      ) : (
-        <Text fontSize={13} color={colors.textFaint}>—</Text>
-      )}
-    </XStack>
   );
 }
 
