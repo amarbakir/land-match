@@ -9,7 +9,7 @@ import { matchListingAgainstProfiles } from './matchingService';
 type DbListingRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findListingById>>>;
 type DbEnrichmentRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findByUrl>>>['enrichment'];
 
-function computeHomestead(listing: DbListingRow, enrichment: DbEnrichmentRow) {
+export function computeHomestead(listing: DbListingRow, enrichment: DbEnrichmentRow) {
   try {
     const result = homesteadScore(mapListingRow(listing), mapEnrichmentRow(enrichment), {});
     const components: Record<string, { score: number; label: string }> = {};
