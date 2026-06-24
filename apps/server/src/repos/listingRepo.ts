@@ -1,7 +1,6 @@
 import { eq, inArray, and, desc, asc, sql, count as countFn } from 'drizzle-orm';
 import { listings, enrichments, savedListings, scores } from '@landmatch/db';
 import type { EnrichmentResult } from '@landmatch/enrichment';
-import type { RawListing } from '@landmatch/feeds';
 
 import { db, type Tx } from '../db/client';
 import { generateId } from '../lib/id';
@@ -131,62 +130,6 @@ export async function findListingById(id: string, tx?: Tx) {
   return (tx ?? db).query.listings.findFirst({
     where: eq(listings.id, id),
   });
-}
-
-export async function upsertFromFeed(input: RawListing, tx?: Tx) {
-  const id = generateId();
-  const now = new Date();
-
-  const [row] = await (tx ?? db)
-    .insert(listings)
-    .values({
-      id,
-      externalId: input.externalId,
-      source: input.source,
-      url: input.url,
-      title: input.title,
-      description: input.description ?? null,
-      price: input.price ?? null,
-      acreage: input.acreage ?? null,
-      address: input.address ?? null,
-      city: input.city ?? null,
-      county: input.county ?? null,
-      state: input.state ?? null,
-      rawData: input.rawData,
-      enrichmentStatus: 'pending',
-      firstSeenAt: now,
-      lastSeenAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [listings.externalId, listings.source],
-      set: {
-        lastSeenAt: now,
-        title: input.title,
-        description: input.description ?? null,
-        price: input.price ?? null,
-        acreage: input.acreage ?? null,
-      },
-    })
-    .returning();
-
-  return row;
-}
-
-export async function findPendingEnrichment(limit: number, tx?: Tx) {
-  return (tx ?? db)
-    .select()
-    .from(listings)
-    .where(eq(listings.enrichmentStatus, 'pending'))
-    .limit(limit);
-}
-
-export type EnrichmentStatus = 'pending' | 'enriched' | 'complete' | 'failed';
-
-export async function updateEnrichmentStatus(id: string, status: EnrichmentStatus, tx?: Tx) {
-  await (tx ?? db)
-    .update(listings)
-    .set({ enrichmentStatus: status })
-    .where(eq(listings.id, id));
 }
 
 export async function findByIds(ids: string[], tx?: Tx) {

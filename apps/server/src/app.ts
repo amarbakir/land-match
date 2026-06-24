@@ -8,7 +8,6 @@ import { pool } from './db/client';
 import { registerGeodataAdapters } from './lib/geodataAdapters';
 import { generateRequestId } from './middleware/logging';
 import { optionalAuth, requireAuth } from './middleware/auth';
-import adminRouter from './routes/admin';
 import authRouter from './routes/auth';
 import listingsRouter from './routes/listings';
 import searchProfilesRouter from './routes/searchProfiles';
@@ -61,8 +60,6 @@ export function createApp() {
   });
 
   // Mount API routes
-  app.use('/api/v1/admin/*', requireAuth);
-  app.route('/api/v1/admin', adminRouter);
   app.route('/api/v1/auth', authRouter);
   app.use('/api/v1/listings/*', optionalAuth);
   app.route('/api/v1/listings', listingsRouter);
