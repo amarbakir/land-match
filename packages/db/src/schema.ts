@@ -98,6 +98,8 @@ export const enrichments = pgTable('enrichments', {
   // Meta
   enrichedAt: timestamp('enriched_at', { withTimezone: true, mode: 'date' }),
   sourcesUsed: text('sources_used').array(),
+  // Computed
+  homesteadScore: integer('homestead_score'),
 });
 
 export const scores = pgTable('scores', {
