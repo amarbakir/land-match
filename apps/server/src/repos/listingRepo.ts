@@ -116,6 +116,17 @@ export async function insertEnrichment(
   return row;
 }
 
+export async function updateHomesteadScore(
+  listingId: string,
+  score: number | null,
+  tx?: Tx,
+) {
+  await (tx ?? db)
+    .update(enrichments)
+    .set({ homesteadScore: score })
+    .where(eq(enrichments.listingId, listingId));
+}
+
 export async function findListingById(id: string, tx?: Tx) {
   return (tx ?? db).query.listings.findFirst({
     where: eq(listings.id, id),
@@ -245,6 +256,7 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
         soilClass: enrichments.soilCapabilityClass,
         floodZone: enrichments.femaFloodZone,
         zoning: enrichments.zoningCode,
+        homesteadScore: enrichments.homesteadScore,
         soilDrainageClass: enrichments.soilDrainageClass,
         soilTexture: enrichments.soilTexture,
         fireRiskScore: enrichments.fireRiskScore,

@@ -73,6 +73,7 @@ const ENRICHMENT = {
   wetlandType: null,
   wetlandDescription: null,
   wetlandWithinBufferFt: null,
+  homesteadScore: null,
   enrichedAt: new Date(),
   sourcesUsed: ['usda', 'fema'],
 };

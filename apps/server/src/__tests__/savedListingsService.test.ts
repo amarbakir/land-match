@@ -33,6 +33,7 @@ function makeSavedRow(overrides: Partial<SavedRow> = {}): SavedRow {
     soilClass: 2,
     floodZone: 'X',
     zoning: 'A-1',
+    homesteadScore: null,
     soilDrainageClass: 'well drained',
     soilTexture: 'loam',
     fireRiskScore: null,
