@@ -10,6 +10,7 @@ import { eq, isNull } from 'drizzle-orm';
 import { enrichments, listings } from '@landmatch/db';
 
 import { db } from '../src/db/client';
+import { updateHomesteadScore } from '../src/repos/listingRepo';
 import { computeHomestead } from '../src/services/listingService';
 
 async function main() {
@@ -22,22 +23,17 @@ async function main() {
   console.log(`[backfill] ${rows.length} enrichment row(s) with null homestead_score`);
 
   let updated = 0;
-  let failed = 0;
   for (const { listing, enrichment } of rows) {
     const { homesteadScore } = computeHomestead(listing, enrichment);
     if (homesteadScore == null) {
-      failed += 1;
       console.warn(`[backfill] score compute returned null for listing ${listing.id} — left null`);
       continue;
     }
-    await db
-      .update(enrichments)
-      .set({ homesteadScore })
-      .where(eq(enrichments.listingId, listing.id));
+    await updateHomesteadScore(listing.id, homesteadScore);
     updated += 1;
   }
 
-  console.log(`[backfill] done — updated ${updated}, left null ${failed}`);
+  console.log(`[backfill] done — updated ${updated}, left null ${rows.length - updated}`);
   process.exit(0);
 }
 
