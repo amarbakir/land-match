@@ -135,35 +135,37 @@ export async function getSavedListings(
     });
 
     const items = rows.map((row) => {
-      let hsScore: number | null = null;
-      try {
-        const listingRow: ListingRow = {
-          price: row.price,
-          acreage: row.acreage,
-          latitude: row.lat,
-          longitude: row.lng,
-        };
-        const enrichmentRow: EnrichmentRow = {
-          soilCapabilityClass: row.soilClass,
-          soilDrainageClass: row.soilDrainageClass,
-          soilTexture: row.soilTexture,
-          femaFloodZone: row.floodZone,
-          zoningCode: row.zoning,
-          fireRiskScore: row.fireRiskScore,
-          floodRiskScore: row.floodRiskScore,
-          frostFreeDays: row.frostFreeDays,
-          annualPrecipIn: row.annualPrecipIn,
-          avgMinTempF: row.avgMinTempF,
-          avgMaxTempF: row.avgMaxTempF,
-          growingSeasonDays: row.growingSeasonDays,
-          elevationFt: row.elevationFt,
-          slopePct: row.slopePct,
-          wetlandType: row.wetlandType,
-          wetlandWithinBufferFt: row.wetlandWithinBufferFt,
-        };
-        const result = homesteadScore(mapListingRow(listingRow), mapEnrichmentRow(enrichmentRow), {});
-        hsScore = result.homesteadScore;
-      } catch { /* scoring failure is non-fatal */ }
+      let hsScore: number | null = row.homesteadScore;
+      if (hsScore == null) {
+        try {
+          const listingRow: ListingRow = {
+            price: row.price,
+            acreage: row.acreage,
+            latitude: row.lat,
+            longitude: row.lng,
+          };
+          const enrichmentRow: EnrichmentRow = {
+            soilCapabilityClass: row.soilClass,
+            soilDrainageClass: row.soilDrainageClass,
+            soilTexture: row.soilTexture,
+            femaFloodZone: row.floodZone,
+            zoningCode: row.zoning,
+            fireRiskScore: row.fireRiskScore,
+            floodRiskScore: row.floodRiskScore,
+            frostFreeDays: row.frostFreeDays,
+            annualPrecipIn: row.annualPrecipIn,
+            avgMinTempF: row.avgMinTempF,
+            avgMaxTempF: row.avgMaxTempF,
+            growingSeasonDays: row.growingSeasonDays,
+            elevationFt: row.elevationFt,
+            slopePct: row.slopePct,
+            wetlandType: row.wetlandType,
+            wetlandWithinBufferFt: row.wetlandWithinBufferFt,
+          };
+          const result = homesteadScore(mapListingRow(listingRow), mapEnrichmentRow(enrichmentRow), {});
+          hsScore = result.homesteadScore;
+        } catch { /* scoring failure is non-fatal */ }
+      }
 
       return {
         id: row.id,
