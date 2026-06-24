@@ -1,8 +1,8 @@
 import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
-import { enrichListing } from '@landmatch/enrichment';
+import { enrichListing, type EnrichmentResult } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
-import { db } from '../db/client';
+import { db, type Tx } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 import { matchListingAgainstProfiles } from './matchingService';
 
@@ -21,6 +21,21 @@ export function computeHomestead(listing: DbListingRow, enrichment: DbEnrichment
   } catch {
     return { homesteadScore: null, homesteadComponents: null };
   }
+}
+
+// Single write path for enrichment: insert the enrichment row, then compute and
+// persist its homestead score. Used by every enrichment producer (interactive
+// enrich + feed pipeline) so no path leaves homestead_score unset. Returns the
+// inserted row and the computed score so callers can reuse it without recomputing.
+export async function persistEnrichment(
+  listing: DbListingRow,
+  enrichment: EnrichmentResult,
+  tx?: Tx,
+) {
+  const enrichmentRow = await listingRepo.insertEnrichment(listing.id, enrichment, tx);
+  const hs = computeHomestead(listing, enrichmentRow);
+  await listingRepo.updateHomesteadScore(listing.id, hs.homesteadScore, tx);
+  return { enrichmentRow, hs };
 }
 
 // Recompute the homestead score from a saved-listings projection row. Used as a
@@ -61,8 +76,9 @@ function toEnrichListingResponse(
   listing: DbListingRow,
   enrichment: DbEnrichmentRow,
   errors: Array<{ source: string; error: string }> = [],
+  precomputed?: ReturnType<typeof computeHomestead>,
 ): EnrichListingResponse {
-  const hs = computeHomestead(listing, enrichment);
+  const hs = precomputed ?? computeHomestead(listing, enrichment);
   return {
     listing: {
       id: listing.id,
@@ -126,16 +142,9 @@ export async function enrichAndPersist(
         tx,
       );
 
-      const enrichmentRow = await listingRepo.insertEnrichment(
-        listing.id,
-        enrichment,
-        tx,
-      );
+      const { enrichmentRow, hs } = await persistEnrichment(listing, enrichment, tx);
 
-      const { homesteadScore: hsScore } = computeHomestead(listing, enrichmentRow);
-      await listingRepo.updateHomesteadScore(listing.id, hsScore, tx);
-
-      return { listing, enrichmentRow };
+      return { listing, enrichmentRow, hs };
     });
 
     // 3. Score against active search profiles (fire-and-forget)
@@ -143,8 +152,8 @@ export async function enrichAndPersist(
       console.error('[listingService] background matching failed:', e),
     );
 
-    // 4. Build response
-    return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, enrichment.errors));
+    // 4. Build response (reuse the score computed during persistence)
+    return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, enrichment.errors, persisted.hs));
   } catch (error) {
     console.error('[listingService.enrichAndPersist] Unexpected error:', error);
     return err('INTERNAL_ERROR');

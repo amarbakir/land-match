@@ -122,4 +122,35 @@ describe('feedPipelineService.runPipeline', () => {
     expect(result.alertsCreated).toBe(1);
     expect(mockListingRepo.updateEnrichmentStatus).toHaveBeenCalledWith('listing-1', 'complete');
   });
+
+  it('persists the homestead score for feed-enriched listings', async () => {
+    // Bug this catches: if the feed pipeline inserts enrichment without writing
+    // homestead_score, every feed-sourced listing (the bulk of inventory) stays
+    // null and is recomputed on every saved-listings request — the exact latency
+    // this feature exists to eliminate.
+    const { enrichListing } = await import('@landmatch/enrichment');
+    const mockEnrich = vi.mocked(enrichListing);
+
+    mockListingRepo.findPendingEnrichment.mockResolvedValueOnce([
+      { id: 'listing-1', address: '123 Main St', price: 50000, acreage: 40, latitude: 42, longitude: -73, enrichmentStatus: 'pending' } as any,
+    ]);
+    mockEnrich.mockResolvedValueOnce(ok({
+      geocode: { lat: 42.0, lng: -73.0, matchedAddress: '123 MAIN ST' },
+      enrichment: { sourcesUsed: ['usda', 'fema'], errors: [] },
+    }));
+    mockListingRepo.insertEnrichment.mockResolvedValueOnce({} as any);
+    mockListingRepo.updateEnrichmentStatus.mockResolvedValueOnce(undefined);
+    mockMatchingService.matchListingAgainstProfiles.mockResolvedValueOnce(
+      ok({ scored: 0, alertsCreated: 0 }),
+    );
+
+    await runPipeline([], 10);
+
+    // The score write must happen for this listing (value may be a number, or
+    // null on compute failure — the point is the persistence call occurs).
+    const wroteScore = mockListingRepo.updateHomesteadScore.mock.calls.some(
+      (call) => call[0] === 'listing-1',
+    );
+    expect(wroteScore).toBe(true);
+  });
 });

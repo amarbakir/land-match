@@ -9,6 +9,7 @@ import { enrichListing } from '@landmatch/enrichment';
 
 import { feedPipeline } from '../config';
 import * as listingRepo from '../repos/listingRepo';
+import { persistEnrichment } from './listingService';
 import { matchListingAgainstProfiles } from './matchingService';
 
 export interface BuildAdaptersOptions {
@@ -101,7 +102,7 @@ export async function runPipeline(
           return;
         }
 
-        await listingRepo.insertEnrichment(listing.id, enrichResult.data.enrichment);
+        await persistEnrichment(listing, enrichResult.data.enrichment);
         await listingRepo.updateEnrichmentStatus(listing.id, 'complete');
         enrichedListingIds.push(listing.id);
         result.enriched++;
