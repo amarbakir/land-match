@@ -1,15 +1,16 @@
 import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
-import { enrichListing } from '@landmatch/enrichment';
+import { enrichListing, type EnrichmentResult } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
-import { db } from '../db/client';
+import { db, type Tx } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 import { matchListingAgainstProfiles } from './matchingService';
 
 type DbListingRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findListingById>>>;
 type DbEnrichmentRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findByUrl>>>['enrichment'];
+type SavedListingRow = Awaited<ReturnType<typeof listingRepo.findSavedListings>>['rows'][number];
 
-function computeHomestead(listing: DbListingRow, enrichment: DbEnrichmentRow) {
+export function computeHomestead(listing: DbListingRow, enrichment: DbEnrichmentRow) {
   try {
     const result = homesteadScore(mapListingRow(listing), mapEnrichmentRow(enrichment), {});
     const components: Record<string, { score: number; label: string }> = {};
@@ -22,12 +23,62 @@ function computeHomestead(listing: DbListingRow, enrichment: DbEnrichmentRow) {
   }
 }
 
+// Single write path for enrichment: insert the enrichment row, then compute and
+// persist its homestead score. Used by every enrichment producer (interactive
+// enrich + feed pipeline) so no path leaves homestead_score unset. Returns the
+// inserted row and the computed score so callers can reuse it without recomputing.
+export async function persistEnrichment(
+  listing: DbListingRow,
+  enrichment: EnrichmentResult,
+  tx?: Tx,
+) {
+  const enrichmentRow = await listingRepo.insertEnrichment(listing.id, enrichment, tx);
+  const hs = computeHomestead(listing, enrichmentRow);
+  await listingRepo.updateHomesteadScore(listing.id, hs.homesteadScore, tx);
+  return { enrichmentRow, hs };
+}
+
+// Recompute the homestead score from a saved-listings projection row. Used as a
+// fallback when the persisted homestead_score column is null (pre-backfill rows).
+function scoreFromSavedRow(row: SavedListingRow): number | null {
+  try {
+    const listingRow: ListingRow = {
+      price: row.price,
+      acreage: row.acreage,
+      latitude: row.lat,
+      longitude: row.lng,
+    };
+    const enrichmentRow: EnrichmentRow = {
+      soilCapabilityClass: row.soilClass,
+      soilDrainageClass: row.soilDrainageClass,
+      soilTexture: row.soilTexture,
+      femaFloodZone: row.floodZone,
+      zoningCode: row.zoning,
+      fireRiskScore: row.fireRiskScore,
+      floodRiskScore: row.floodRiskScore,
+      frostFreeDays: row.frostFreeDays,
+      annualPrecipIn: row.annualPrecipIn,
+      avgMinTempF: row.avgMinTempF,
+      avgMaxTempF: row.avgMaxTempF,
+      growingSeasonDays: row.growingSeasonDays,
+      elevationFt: row.elevationFt,
+      slopePct: row.slopePct,
+      wetlandType: row.wetlandType,
+      wetlandWithinBufferFt: row.wetlandWithinBufferFt,
+    };
+    return homesteadScore(mapListingRow(listingRow), mapEnrichmentRow(enrichmentRow), {}).homesteadScore;
+  } catch {
+    return null; // scoring failure is non-fatal
+  }
+}
+
 function toEnrichListingResponse(
   listing: DbListingRow,
   enrichment: DbEnrichmentRow,
   errors: Array<{ source: string; error: string }> = [],
+  precomputed?: ReturnType<typeof computeHomestead>,
 ): EnrichListingResponse {
-  const hs = computeHomestead(listing, enrichment);
+  const hs = precomputed ?? computeHomestead(listing, enrichment);
   return {
     listing: {
       id: listing.id,
@@ -91,13 +142,9 @@ export async function enrichAndPersist(
         tx,
       );
 
-      const enrichmentRow = await listingRepo.insertEnrichment(
-        listing.id,
-        enrichment,
-        tx,
-      );
+      const { enrichmentRow, hs } = await persistEnrichment(listing, enrichment, tx);
 
-      return { listing, enrichmentRow };
+      return { listing, enrichmentRow, hs };
     });
 
     // 3. Score against active search profiles (fire-and-forget)
@@ -105,8 +152,8 @@ export async function enrichAndPersist(
       console.error('[listingService] background matching failed:', e),
     );
 
-    // 4. Build response
-    return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, enrichment.errors));
+    // 4. Build response (reuse the score computed during persistence)
+    return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, enrichment.errors, persisted.hs));
   } catch (error) {
     console.error('[listingService.enrichAndPersist] Unexpected error:', error);
     return err('INTERNAL_ERROR');
@@ -132,35 +179,9 @@ export async function getSavedListings(
     });
 
     const items = rows.map((row) => {
-      let hsScore: number | null = null;
-      try {
-        const listingRow: ListingRow = {
-          price: row.price,
-          acreage: row.acreage,
-          latitude: row.lat,
-          longitude: row.lng,
-        };
-        const enrichmentRow: EnrichmentRow = {
-          soilCapabilityClass: row.soilClass,
-          soilDrainageClass: row.soilDrainageClass,
-          soilTexture: row.soilTexture,
-          femaFloodZone: row.floodZone,
-          zoningCode: row.zoning,
-          fireRiskScore: row.fireRiskScore,
-          floodRiskScore: row.floodRiskScore,
-          frostFreeDays: row.frostFreeDays,
-          annualPrecipIn: row.annualPrecipIn,
-          avgMinTempF: row.avgMinTempF,
-          avgMaxTempF: row.avgMaxTempF,
-          growingSeasonDays: row.growingSeasonDays,
-          elevationFt: row.elevationFt,
-          slopePct: row.slopePct,
-          wetlandType: row.wetlandType,
-          wetlandWithinBufferFt: row.wetlandWithinBufferFt,
-        };
-        const result = homesteadScore(mapListingRow(listingRow), mapEnrichmentRow(enrichmentRow), {});
-        hsScore = result.homesteadScore;
-      } catch { /* scoring failure is non-fatal */ }
+      // Prefer the persisted score; recompute only for pre-backfill null rows
+      // (?? keeps a persisted 0 — a valid hard-filtered score — from recomputing).
+      const hsScore = row.homesteadScore ?? scoreFromSavedRow(row);
 
       return {
         id: row.id,

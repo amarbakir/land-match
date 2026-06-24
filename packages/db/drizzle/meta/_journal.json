@@ -43,6 +43,13 @@
       "when": 1777002515875,
       "tag": "0005_thin_darwin",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782271096802,
+      "tag": "0006_complete_blindfold",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,7 @@ vi.mock('../db/client', () => ({
 vi.mock('../repos/listingRepo', () => ({
   insertListing: vi.fn(),
   insertEnrichment: vi.fn(),
+  updateHomesteadScore: vi.fn(),
 }));
 
 vi.mock('../services/matchingService', () => ({
@@ -31,6 +32,7 @@ const mockEnrichListing = vi.mocked(enrichListing);
 const mockTransaction = vi.mocked(db.transaction);
 const mockInsertListing = vi.mocked(listingRepo.insertListing);
 const mockInsertEnrichment = vi.mocked(listingRepo.insertEnrichment);
+const mockUpdateHomesteadScore = vi.mocked(listingRepo.updateHomesteadScore);
 const mockMatchListing = vi.mocked(matchListingAgainstProfiles);
 
 // Realistic fixture matching what enrichListing actually returns
@@ -106,6 +108,7 @@ const enrichmentRow = {
   wetlandType: null,
   wetlandDescription: null,
   wetlandWithinBufferFt: null,
+  homesteadScore: null,
   enrichedAt: new Date(),
   sourcesUsed: ['usda', 'fema'],
 };
@@ -286,6 +289,20 @@ describe('enrichAndPersist', () => {
     await enrichAndPersist({ address: 'bad address' });
 
     expect(mockMatchListing).not.toHaveBeenCalled();
+  });
+
+  it('computes and persists homesteadScore within the transaction', async () => {
+    // Bug this catches: if the score is never written, getSavedListings has
+    // nothing to read and silently falls back to per-request compute forever.
+    mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+    await enrichAndPersist({ address: '123 Rural Rd, MO', price: 50000, acreage: 40 });
+
+    expect(mockUpdateHomesteadScore).toHaveBeenCalledTimes(1);
+    const [listingId, score, tx] = mockUpdateHomesteadScore.mock.calls[0];
+    expect(listingId).toBe(listingRow.id); // same listing inserted in this txn
+    expect(typeof score).toBe('number');   // a real, enriched listing scores a number
+    expect(tx).toBe('fake-tx');            // written inside the transaction
   });
 
   describe('homestead scoring in response', () => {

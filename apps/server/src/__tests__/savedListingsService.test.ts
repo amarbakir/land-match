@@ -33,6 +33,7 @@ function makeSavedRow(overrides: Partial<SavedRow> = {}): SavedRow {
     soilClass: 2,
     floodZone: 'X',
     zoning: 'A-1',
+    homesteadScore: null,
     soilDrainageClass: 'well drained',
     soilTexture: 'loam',
     fireRiskScore: null,
@@ -216,6 +217,58 @@ describe('getSavedListings', () => {
       limit: 10,
       offset: 30,
     });
+  });
+
+  it('returns the persisted homesteadScore when present, without recomputing', async () => {
+    // Bug this catches: if the read path ignores the stored column and always
+    // recomputes, the persistence work is pointless. The fixture uses a score
+    // (7) that the scorer would never produce for this good-soil row, so a pass
+    // proves we read the column rather than recomputing.
+    mockFindSaved.mockResolvedValue({
+      rows: [makeSavedRow({ soilClass: 2, floodZone: 'X', homesteadScore: 7 })],
+      total: 1,
+    });
+
+    const result = await getSavedListings('user-1', { sort: 'date', sortDir: 'desc', limit: 20, offset: 0 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.items[0].homesteadScore).toBe(7);
+    }
+  });
+
+  it('treats a persisted score of 0 as valid, not a fallback trigger', async () => {
+    // Bug this catches: a `homesteadScore || compute()` truthiness check would
+    // discard a legitimate 0 (hard-filtered listing) and recompute.
+    mockFindSaved.mockResolvedValue({
+      rows: [makeSavedRow({ soilClass: 2, floodZone: 'X', homesteadScore: 0 })],
+      total: 1,
+    });
+
+    const result = await getSavedListings('user-1', { sort: 'date', sortDir: 'desc', limit: 20, offset: 0 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.items[0].homesteadScore).toBe(0);
+    }
+  });
+
+  it('falls back to computing the score when the persisted column is null', async () => {
+    // Bug this catches: pre-backfill rows have null homesteadScore; if there is
+    // no fallback the UI shows no score ring for them.
+    mockFindSaved.mockResolvedValue({
+      rows: [makeSavedRow({ soilClass: 2, floodZone: 'X', homesteadScore: null })],
+      total: 1,
+    });
+
+    const result = await getSavedListings('user-1', { sort: 'date', sortDir: 'desc', limit: 20, offset: 0 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const score = result.data.items[0].homesteadScore;
+      expect(score).not.toBeNull();
+      expect(score!).toBeGreaterThan(40); // good soil (class 2) + minimal flood (X)
+    }
   });
 });
 

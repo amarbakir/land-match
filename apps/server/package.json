@@ -11,7 +11,8 @@
     "test:run": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:coverage": "vitest run --coverage",
-    "seed:pipeline": "tsx scripts/seed-pipeline.ts"
+    "seed:pipeline": "tsx scripts/seed-pipeline.ts",
+    "backfill:homestead": "tsx scripts/backfill-homestead-score.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
