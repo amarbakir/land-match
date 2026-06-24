@@ -97,6 +97,9 @@ export async function enrichAndPersist(
         tx,
       );
 
+      const { homesteadScore: hsScore } = computeHomestead(listing, enrichmentRow);
+      await listingRepo.updateHomesteadScore(listing.id, hsScore, tx);
+
       return { listing, enrichmentRow };
     });
 
