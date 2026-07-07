@@ -1,4 +1,4 @@
-import { boolean, index, jsonb, pgTable, text, timestamp, integer, real, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, doublePrecision, index, jsonb, pgTable, text, timestamp, integer, real, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -34,15 +34,18 @@ export const listings = pgTable('listings', {
   url: text('url'),
   title: text('title'),
   description: text('description'),
-  price: real('price'),
-  acreage: real('acreage'),
+  // double precision (not real/float4): float4's ~7 significant digits round
+  // million-dollar prices to the nearest ~$10 and shift lat/lng enough to land
+  // a point in the wrong flood zone on boundary-sensitive lookups.
+  price: doublePrecision('price'),
+  acreage: doublePrecision('acreage'),
   address: text('address'),
   city: text('city'),
   county: text('county'),
   state: text('state'),
   zip: text('zip'),
-  latitude: real('latitude'),
-  longitude: real('longitude'),
+  latitude: doublePrecision('latitude'),
+  longitude: doublePrecision('longitude'),
   rawData: jsonb('raw_data'),
   enrichmentStatus: text('enrichment_status').notNull().default('pending'),
   userId: text('user_id').references(() => users.id),
@@ -77,7 +80,7 @@ export const enrichments = pgTable('enrichments', {
   // Parcel (feature-flagged)
   zoningCode: text('zoning_code'),
   zoningDescription: text('zoning_description'),
-  verifiedAcreage: real('verified_acreage'),
+  verifiedAcreage: doublePrecision('verified_acreage'),
   parcelGeometry: jsonb('parcel_geometry'),
   // Climate (feature-flagged)
   fireRiskScore: integer('fire_risk_score'),
