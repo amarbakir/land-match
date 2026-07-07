@@ -35,6 +35,13 @@ describe('sentry config', () => {
     expect((await importFresh()).config.sentry.spotlight).toBe(true);
   });
 
+  it('environment falls back to NODE_ENV when SENTRY_ENVIRONMENT is unset', async () => {
+    vi.stubEnv('SENTRY_ENVIRONMENT', '');
+    const { config } = await importFresh();
+
+    expect(config.sentry.environment).toBe('test');
+  });
+
   it('is configured when SENTRY_DSN is set', async () => {
     vi.stubEnv('SENTRY_DSN', 'https://key@sentry.example/1');
     const { config } = await importFresh();

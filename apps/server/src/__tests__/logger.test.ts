@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { logger, resolveLogLevel } from '../lib/logger';
+import { resolveLogLevel } from '../lib/logger';
 
 describe('resolveLogLevel', () => {
   it('honors LOG_LEVEL over everything', () => {
@@ -22,7 +22,17 @@ describe('resolveLogLevel', () => {
 });
 
 describe('logger', () => {
-  it('is silent when running under vitest (NODE_ENV=test)', () => {
-    expect(logger.level).toBe('silent');
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // Re-import with LOG_LEVEL stubbed empty so a developer's local .env
+  // (which resolveLogLevel deliberately honors) can't flip this test.
+  it('wires resolveLogLevel into the pino instance (silent under NODE_ENV=test)', async () => {
+    vi.stubEnv('LOG_LEVEL', '');
+    vi.resetModules();
+
+    const { logger: freshLogger } = await import('../lib/logger');
+    expect(freshLogger.level).toBe('silent');
   });
 });
