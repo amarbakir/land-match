@@ -1,7 +1,8 @@
 import type { EnrichListingResponse, SaveListingResponse } from '@landmatch/api';
+import { ApiError, createApiClient } from '@landmatch/api-client';
 
-import { API_V1 } from './config';
-import { getAuth, setAuth, clearAuth, getAccessToken } from './auth';
+import { tokenStorage } from './auth';
+import { API_BASE_URL } from './config';
 
 interface ApiResponse<T> {
   ok: boolean;
@@ -10,94 +11,23 @@ interface ApiResponse<T> {
   error?: string;
 }
 
-let refreshPromise: Promise<boolean> | null = null;
+const client = createApiClient({ baseUrl: API_BASE_URL, storage: tokenStorage });
 
-async function refreshAccessToken(): Promise<boolean> {
-  if (refreshPromise) return refreshPromise;
-
-  refreshPromise = (async () => {
-    try {
-      const auth = await getAuth();
-      if (!auth?.refreshToken) return false;
-
-      const response = await fetch(`${API_V1}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: auth.refreshToken }),
-      });
-
-      if (!response.ok) {
-        await clearAuth();
-        return false;
-      }
-
-      const result = (await response.json()) as ApiResponse<{
-        accessToken: string;
-        refreshToken: string;
-      }>;
-      if (!result.ok || !result.data) {
-        await clearAuth();
-        return false;
-      }
-
-      await setAuth({
-        accessToken: result.data.accessToken,
-        refreshToken: result.data.refreshToken,
-        email: auth.email,
-      });
-      return true;
-    } catch {
-      return false;
-    } finally {
-      refreshPromise = null;
+// The service worker forwards results over chrome messaging, where thrown
+// errors do not serialize — so wrap the shared client's throw-based contract
+// back into the {ok, data, code, error} envelope at this boundary.
+async function toEnvelope<T>(promise: Promise<T>): Promise<ApiResponse<T>> {
+  try {
+    return { ok: true, data: await promise };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, error: error.message, code: error.code };
     }
-  })();
-
-  return refreshPromise;
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
-async function fetchWithAuth(
-  path: string,
-  options: RequestInit = {},
-): Promise<Response> {
-  const token = await getAccessToken();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...((options.headers as Record<string, string>) ?? {}),
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  return fetch(`${API_V1}${path}`, { ...options, headers });
-}
-
-async function request<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<ApiResponse<T>> {
-  let response = await fetchWithAuth(path, options);
-
-  if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      response = await fetchWithAuth(path, options);
-    }
-  }
-
-  if (!response.ok) {
-    try {
-      return (await response.json()) as ApiResponse<T>;
-    } catch {
-      return { ok: false, error: `HTTP ${response.status}: ${response.statusText}` };
-    }
-  }
-
-  return response.json() as Promise<ApiResponse<T>>;
-}
-
-export async function enrichListing(payload: {
+export function enrichListing(payload: {
   address: string;
   price?: number;
   acreage?: number;
@@ -106,23 +36,28 @@ export async function enrichListing(payload: {
   source?: string;
   externalId?: string;
 }) {
-  return request<EnrichListingResponse>('/listings/enrich', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  return toEnvelope(
+    client.post<typeof payload, EnrichListingResponse>('/listings/enrich', payload),
+  );
 }
 
-export async function getListingByUrl(url: string) {
-  return request<EnrichListingResponse>(`/listings/by-url?url=${encodeURIComponent(url)}`);
+export function getListingByUrl(url: string) {
+  return toEnvelope(
+    client.get<EnrichListingResponse>(`/listings/by-url?url=${encodeURIComponent(url)}`),
+  );
 }
 
-export async function saveListing(listingId: string) {
-  return request<SaveListingResponse>(`/listings/${listingId}/save`, { method: 'POST' });
+export function saveListing(listingId: string) {
+  return toEnvelope(
+    client.post<undefined, SaveListingResponse>(`/listings/${listingId}/save`, undefined),
+  );
 }
 
-export async function login(email: string, password: string) {
-  return request<{ accessToken: string; refreshToken: string }>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
+export function login(email: string, password: string) {
+  return toEnvelope(
+    client.post<
+      { email: string; password: string },
+      { accessToken: string; refreshToken: string }
+    >('/auth/login', { email, password }, { noAuth: true }),
+  );
 }

@@ -38,6 +38,9 @@ importers:
       '@landmatch/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@landmatch/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@landmatch/scoring':
         specifier: workspace:*
         version: link:../../packages/scoring

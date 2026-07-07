@@ -1,3 +1,5 @@
+import type { TokenStorage, Tokens } from '@landmatch/api-client';
+
 interface StoredAuth {
   accessToken: string;
   refreshToken: string;
@@ -19,7 +21,17 @@ export async function clearAuth(): Promise<void> {
   await chrome.storage.local.remove(AUTH_KEY);
 }
 
-export async function getAccessToken(): Promise<string | null> {
-  const auth = await getAuth();
-  return auth?.accessToken ?? null;
-}
+export const tokenStorage: TokenStorage = {
+  async getTokens(): Promise<Tokens | null> {
+    const auth = await getAuth();
+    if (!auth) return null;
+    return { accessToken: auth.accessToken, refreshToken: auth.refreshToken };
+  },
+  async setTokens(tokens: Tokens): Promise<void> {
+    const existing = await getAuth();
+    await setAuth({ ...tokens, email: existing?.email ?? '' });
+  },
+  async clearTokens(): Promise<void> {
+    await clearAuth();
+  },
+};
