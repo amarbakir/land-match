@@ -52,18 +52,16 @@ describe('initSentry', () => {
   it('does not init when neither DSN nor spotlight is set', async () => {
     vi.stubEnv('SENTRY_DSN', '');
     vi.stubEnv('SENTRY_SPOTLIGHT', '');
-    const { init } = await importFresh();
+    await importFresh();
 
-    init.initSentry();
     expect(Sentry.init).not.toHaveBeenCalled();
   });
 
   it('inits with spotlight enabled and no DSN', async () => {
     vi.stubEnv('SENTRY_DSN', '');
     vi.stubEnv('SENTRY_SPOTLIGHT', '1');
-    const { init } = await importFresh();
+    await importFresh();
 
-    init.initSentry();
     expect(Sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({ dsn: undefined, spotlight: true }),
     );
@@ -72,9 +70,8 @@ describe('initSentry', () => {
   it('inits with the DSN when configured', async () => {
     vi.stubEnv('SENTRY_DSN', 'https://key@sentry.example/1');
     vi.stubEnv('SENTRY_SPOTLIGHT', '');
-    const { init } = await importFresh();
+    await importFresh();
 
-    init.initSentry();
     expect(Sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({ dsn: 'https://key@sentry.example/1' }),
     );

@@ -1,10 +1,7 @@
-// sort-imports-ignore — initSentry() must run before other imports execute (CJS: import order = execution order)
+// sort-imports-ignore — ./init must be imported first so Sentry initializes before other modules load
+import './init';
+
 import * as Sentry from '@sentry/node';
-
-import { initSentry } from './init';
-
-initSentry();
-
 import { serve } from '@hono/node-server';
 
 import { createApp } from './app';

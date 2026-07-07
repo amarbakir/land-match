@@ -16,3 +16,9 @@ export function initSentry(): void {
     });
   }
 }
+
+// Self-executing: this module must be imported (as a bare side-effect import,
+// first) by any entrypoint so Sentry initializes before other modules load.
+// Under tsx/esbuild, imports are hoisted, so a called-from-index.ts init()
+// runs too late — only import order at the module-eval level is reliable.
+initSentry();

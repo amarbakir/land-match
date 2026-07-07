@@ -19,7 +19,11 @@ export function resolveLogLevel(
 }
 
 const nodeEnv = process.env.NODE_ENV;
-const usePretty = nodeEnv !== 'production' && nodeEnv !== 'test';
+// pino-pretty is a devDependency and isn't bundled for deployed Lambda/Fargate
+// stages (which run with NODE_ENV=development). Gate on isTTY too so only an
+// interactive local terminal gets pretty output; pipes/bundles/remote runtimes
+// fall back to JSON.
+const usePretty = nodeEnv !== 'production' && nodeEnv !== 'test' && Boolean(process.stdout.isTTY);
 
 export const logger = pino({
   level: resolveLogLevel(nodeEnv, process.env.LOG_LEVEL),
