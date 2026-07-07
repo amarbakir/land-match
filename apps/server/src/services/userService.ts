@@ -1,5 +1,6 @@
 import { err, ok, type Result, NotificationPrefs, type NotificationPrefs as NotificationPrefsType } from '@landmatch/api';
 
+import { logger } from '../lib/logger';
 import * as userRepo from '../repos/userRepo';
 
 export async function getNotificationPrefs(userId: string): Promise<Result<NotificationPrefsType>> {
@@ -10,7 +11,7 @@ export async function getNotificationPrefs(userId: string): Promise<Result<Notif
     const prefs = NotificationPrefs.parse(user.notificationPrefs ?? {});
     return ok(prefs);
   } catch (error) {
-    console.error('[userService.getNotificationPrefs]', error);
+    logger.error({ err: error }, 'userService.getNotificationPrefs');
     return err('INTERNAL_ERROR');
   }
 }
@@ -25,7 +26,7 @@ export async function updateNotificationPrefs(
 
     return ok(input);
   } catch (error) {
-    console.error('[userService.updateNotificationPrefs]', error);
+    logger.error({ err: error }, 'userService.updateNotificationPrefs');
     return err('INTERNAL_ERROR');
   }
 }

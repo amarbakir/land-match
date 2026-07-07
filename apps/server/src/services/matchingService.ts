@@ -2,6 +2,7 @@ import { err, ok, getAlertChannels, type Result } from '@landmatch/api';
 import { mapEnrichmentRow, mapListingRow, scoreListing } from '@landmatch/scoring';
 import type { SearchCriteria } from '@landmatch/scoring';
 
+import { logger } from '../lib/logger';
 import * as listingRepo from '../repos/listingRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
 import * as scoreRepo from '../repos/scoreRepo';
@@ -66,7 +67,7 @@ export async function matchListingAgainstProfiles(listingId: string): Promise<Re
 
     return ok({ scored, alertsCreated });
   } catch (error) {
-    console.error('[matchingService.matchListingAgainstProfiles]', error);
+    logger.error({ err: error }, 'matchingService.matchListingAgainstProfiles');
     return err('INTERNAL_ERROR');
   }
 }

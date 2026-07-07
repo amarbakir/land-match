@@ -1,6 +1,7 @@
 import { err, ok, type Result } from '@landmatch/api';
 import type { CreateSearchProfile, UpdateSearchProfile, SearchProfileResponse } from '@landmatch/api';
 
+import { logger } from '../lib/logger';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
 
 type ProfileRow = NonNullable<Awaited<ReturnType<typeof searchProfileRepo.findById>>>;
@@ -38,7 +39,7 @@ export async function create(userId: string, input: CreateSearchProfile): Promis
     });
     return ok(toResponse(row));
   } catch (error) {
-    console.error('[searchProfileService.create]', error);
+    logger.error({ err: error }, 'searchProfileService.create');
     return err('INTERNAL_ERROR');
   }
 }
@@ -49,7 +50,7 @@ export async function getById(userId: string, id: string): Promise<Result<Search
     if (!result.ok) return result;
     return ok(toResponse(result.data));
   } catch (error) {
-    console.error('[searchProfileService.getById]', error);
+    logger.error({ err: error }, 'searchProfileService.getById');
     return err('INTERNAL_ERROR');
   }
 }
@@ -59,7 +60,7 @@ export async function listByUser(userId: string): Promise<Result<SearchProfileRe
     const rows = await searchProfileRepo.findByUserId(userId);
     return ok(rows.map(toResponse));
   } catch (error) {
-    console.error('[searchProfileService.listByUser]', error);
+    logger.error({ err: error }, 'searchProfileService.listByUser');
     return err('INTERNAL_ERROR');
   }
 }
@@ -84,7 +85,7 @@ export async function update(
     if (!row) return err('NOT_FOUND');
     return ok(toResponse(row));
   } catch (error) {
-    console.error('[searchProfileService.update]', error);
+    logger.error({ err: error }, 'searchProfileService.update');
     return err('INTERNAL_ERROR');
   }
 }
@@ -97,7 +98,7 @@ export async function remove(userId: string, id: string): Promise<Result<void>> 
     await searchProfileRepo.deleteById(id);
     return ok(undefined);
   } catch (error) {
-    console.error('[searchProfileService.remove]', error);
+    logger.error({ err: error }, 'searchProfileService.remove');
     return err('INTERNAL_ERROR');
   }
 }
