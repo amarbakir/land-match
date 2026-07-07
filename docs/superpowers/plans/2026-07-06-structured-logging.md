@@ -1,14 +1,14 @@
-# Structured Logging Implementation Plan
+# Structured Logging + Sentry Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace all `console.*` usage in `apps/server` with pino structured logging, with request-scoped child loggers and a per-request access log.
+**Goal:** Replace all `console.*` usage in `apps/server` with pino structured logging (request-scoped child loggers, per-request access log), and wire Sentry error tracking with Spotlight for local dev, mirroring the Compair repo's setup.
 
-**Architecture:** A root pino logger (`lib/logger.ts`) reads env directly (no `config.ts` import, avoiding a cycle). A single `requestLogging` middleware sets `requestId`, `startTime`, and a child logger on Hono context, then emits one access-log line per completed request. All existing `console.*` call sites migrate to the logger.
+**Architecture:** A root pino logger (`lib/logger.ts`) reads env directly (no `config.ts` import, avoiding a cycle). A single `requestLogging` middleware sets `requestId`, `startTime`, and a child logger on Hono context, then emits one access-log line per completed request. All existing `console.*` call sites migrate to the logger. Sentry initializes DSN-optional via `init.ts`; Spotlight (`SENTRY_SPOTLIGHT=1`) provides a local error/trace UI with no account; exceptions are captured at error boundaries only.
 
-**Tech Stack:** pino (runtime), pino-pretty (dev-only), Hono 4, Vitest.
+**Tech Stack:** pino (runtime), pino-pretty (dev-only), @sentry/node (runtime), @spotlightjs/spotlight (root dev-only), Hono 4, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-07-06-structured-logging-design.md` — Bead: `land-match-r31.1`
+**Spec:** `docs/superpowers/specs/2026-07-06-structured-logging-design.md` — Beads: `land-match-r31.1` (logging, Tasks 1–5), `land-match-r31.2` (Sentry, Tasks 6–7)
 
 ## Global Constraints
 
@@ -532,7 +532,324 @@ git commit -m "land-match-r31.1: migrate service logging to pino"
 
 ---
 
-### Task 6: Full verification
+### Task 6: Sentry config + init
+
+**Files:**
+- Modify: `apps/server/src/config.ts`
+- Create: `apps/server/src/init.ts`
+- Test: `apps/server/src/__tests__/sentry.test.ts`
+- Modify: `apps/server/package.json` (dep via pnpm)
+
+**Interfaces:**
+- Consumes: existing `optional()` helper and `NODE_ENV` in `config.ts`.
+- Produces: `sentry` config export `{ dsn: string; environment: string; tracesSampleRate: number; spotlight: boolean; isConfigured: boolean }`; `initSentry(): void` from `apps/server/src/init.ts`. Task 7 calls `initSentry()` and `Sentry.captureException`.
+
+- [ ] **Step 1: Install dependency**
+
+```bash
+pnpm --filter @landmatch/server add @sentry/node
+```
+
+- [ ] **Step 2: Write the failing test**
+
+Create `apps/server/src/__tests__/sentry.test.ts`:
+
+```typescript
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import * as Sentry from '@sentry/node';
+
+vi.mock('@sentry/node', () => ({ init: vi.fn() }));
+
+async function importFresh() {
+  vi.resetModules();
+  const config = await import('../config');
+  const init = await import('../init');
+  return { config, init };
+}
+
+describe('sentry config', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('is unconfigured by default and spotlight is off', async () => {
+    vi.stubEnv('SENTRY_DSN', '');
+    vi.stubEnv('SENTRY_SPOTLIGHT', '');
+    const { config } = await importFresh();
+
+    expect(config.sentry.isConfigured).toBe(false);
+    expect(config.sentry.spotlight).toBe(false);
+    expect(config.sentry.tracesSampleRate).toBe(0.1);
+  });
+
+  it('parses SENTRY_SPOTLIGHT=1 and =true', async () => {
+    vi.stubEnv('SENTRY_SPOTLIGHT', '1');
+    expect((await importFresh()).config.sentry.spotlight).toBe(true);
+
+    vi.stubEnv('SENTRY_SPOTLIGHT', 'true');
+    expect((await importFresh()).config.sentry.spotlight).toBe(true);
+  });
+
+  it('is configured when SENTRY_DSN is set', async () => {
+    vi.stubEnv('SENTRY_DSN', 'https://key@sentry.example/1');
+    const { config } = await importFresh();
+
+    expect(config.sentry.isConfigured).toBe(true);
+  });
+});
+
+describe('initSentry', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('does not init when neither DSN nor spotlight is set', async () => {
+    vi.stubEnv('SENTRY_DSN', '');
+    vi.stubEnv('SENTRY_SPOTLIGHT', '');
+    const { init } = await importFresh();
+
+    init.initSentry();
+    expect(Sentry.init).not.toHaveBeenCalled();
+  });
+
+  it('inits with spotlight enabled and no DSN', async () => {
+    vi.stubEnv('SENTRY_DSN', '');
+    vi.stubEnv('SENTRY_SPOTLIGHT', '1');
+    const { init } = await importFresh();
+
+    init.initSentry();
+    expect(Sentry.init).toHaveBeenCalledWith(
+      expect.objectContaining({ dsn: undefined, spotlight: true }),
+    );
+  });
+
+  it('inits with the DSN when configured', async () => {
+    vi.stubEnv('SENTRY_DSN', 'https://key@sentry.example/1');
+    vi.stubEnv('SENTRY_SPOTLIGHT', '');
+    const { init } = await importFresh();
+
+    init.initSentry();
+    expect(Sentry.init).toHaveBeenCalledWith(
+      expect.objectContaining({ dsn: 'https://key@sentry.example/1' }),
+    );
+  });
+});
+```
+
+Note: `vi.mock('@sentry/node')` is hoisted, so the mocked module is what `init.ts` sees even through `vi.resetModules()`.
+
+- [ ] **Step 3: Run test to verify it fails**
+
+Run: `cd apps/server && npx vitest run src/__tests__/sentry.test.ts`
+Expected: FAIL — `config.sentry` undefined / `Cannot find module '../init'`
+
+- [ ] **Step 4: Write minimal implementation**
+
+Append to `apps/server/src/config.ts` (before `validateConfig`):
+
+```typescript
+/**
+ * Sentry configuration — DSN-optional. Locally, SENTRY_SPOTLIGHT=1 sends
+ * events to the Spotlight sidecar with no account needed.
+ */
+export const sentry = {
+  dsn: process.env.SENTRY_DSN || '',
+  environment: process.env.SENTRY_ENVIRONMENT || NODE_ENV,
+  tracesSampleRate: parseFloat(optional('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
+  spotlight: process.env.SENTRY_SPOTLIGHT === '1' || process.env.SENTRY_SPOTLIGHT === 'true',
+  get isConfigured() {
+    return this.dsn.length > 0;
+  },
+} as const;
+```
+
+Also add `sentry,` to the `export default` object at the bottom of config.ts, and add a line to `validateConfig()`:
+
+```typescript
+  logger.info(
+    { sentry: sentry.isConfigured ? 'configured' : 'not configured', spotlight: sentry.spotlight },
+    'sentry status',
+  );
+```
+
+(If Task 4 hasn't run yet and validateConfig still uses console.log, use `console.log` and let Task 4 migrate it — tasks 4 and 6 are independent.)
+
+Create `apps/server/src/init.ts`:
+
+```typescript
+import * as Sentry from '@sentry/node';
+
+import { sentry as sentryConfig } from './config';
+
+/**
+ * Initialize Sentry if configured (DSN set) or Spotlight is enabled.
+ * Call once, first thing at process start.
+ */
+export function initSentry(): void {
+  if (sentryConfig.isConfigured || sentryConfig.spotlight) {
+    Sentry.init({
+      dsn: sentryConfig.dsn || undefined,
+      environment: sentryConfig.environment,
+      tracesSampleRate: sentryConfig.tracesSampleRate,
+      spotlight: sentryConfig.spotlight,
+    });
+  }
+}
+```
+
+- [ ] **Step 5: Run test to verify it passes**
+
+Run: `cd apps/server && npx vitest run src/__tests__/sentry.test.ts`
+Expected: PASS (6 tests). Also run the full suite: `npx vitest run` — ALL PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/server/src/config.ts apps/server/src/init.ts apps/server/src/__tests__/sentry.test.ts apps/server/package.json pnpm-lock.yaml
+git commit -m "land-match-r31.2: add Sentry config and DSN-optional init"
+```
+
+---
+
+### Task 7: Wire Sentry into entrypoints + Spotlight dev scripts
+
+**Files:**
+- Modify: `apps/server/src/index.ts`
+- Modify: `apps/server/src/app.ts`
+- Modify: `apps/server/src/middleware/requestLogging.ts`
+- Modify: `apps/server/src/jobs/scheduler.ts`
+- Modify: `apps/server/package.json`, root `package.json`
+- Test: extend `apps/server/src/__tests__/requestLogging.test.ts`
+
+**Interfaces:**
+- Consumes: `initSentry()` from Task 6; `requestLogging` from Task 2.
+- Produces: exceptions captured at all error boundaries; `requestId` tag on Sentry scope; `pnpm dev:debugging` scripts.
+
+- [ ] **Step 1: Write the failing test (requestId tag on Sentry scope)**
+
+Add to `apps/server/src/__tests__/requestLogging.test.ts`:
+
+```typescript
+import * as Sentry from '@sentry/node';
+
+vi.mock('@sentry/node', () => {
+  const scope = { setTag: vi.fn() };
+  return { getCurrentScope: () => scope };
+});
+
+// inside describe('requestLogging'):
+  it('tags the Sentry scope with the request id', async () => {
+    const app = buildApp();
+    await app.request('/ok', { headers: { 'x-request-id': 'req-tag' } });
+
+    expect(Sentry.getCurrentScope().setTag).toHaveBeenCalledWith('requestId', 'req-tag');
+  });
+```
+
+Run: `cd apps/server && npx vitest run src/__tests__/requestLogging.test.ts`
+Expected: the new test FAILS (`setTag` not called), the rest still pass.
+
+- [ ] **Step 2: Implement — requestLogging.ts**
+
+Add `import * as Sentry from '@sentry/node';` and, right after `c.set('logger', requestLogger);`:
+
+```typescript
+    Sentry.getCurrentScope().setTag('requestId', requestId);
+```
+
+Run: `npx vitest run src/__tests__/requestLogging.test.ts` — Expected: PASS (7 tests).
+
+- [ ] **Step 3: index.ts — init first + capture at process boundaries**
+
+At the very top of `apps/server/src/index.ts` (before other app imports):
+
+```typescript
+import * as Sentry from '@sentry/node';
+
+import { initSentry } from './init';
+
+initSentry();
+```
+
+(Keep the remaining imports after; tsx executes imports in order, and `init.ts` only pulls in `config.ts`.)
+
+Update the process handlers:
+
+```typescript
+process.on('unhandledRejection', (reason: unknown) => {
+  Sentry.captureException(reason);
+  logger.error({ err: reason }, 'unhandled rejection');
+});
+
+process.on('uncaughtException', (error: Error) => {
+  Sentry.captureException(error);
+  logger.fatal({ err: error }, 'uncaught exception');
+  void Sentry.flush(2000).finally(() => process.exit(1));
+});
+```
+
+And the startup catch:
+
+```typescript
+startServer().catch((error) => {
+  Sentry.captureException(error);
+  logger.fatal({ err: error }, 'server start failed');
+  void Sentry.flush(2000).finally(() => process.exit(1));
+});
+```
+
+- [ ] **Step 4: app.ts onError + scheduler catch**
+
+`app.ts`: add `import * as Sentry from '@sentry/node';` and in `onError`, before the logger line added in Task 3:
+
+```typescript
+    Sentry.captureException(err);
+```
+
+(Only in the non-HTTPException branch — expected 4xx/401s are not error events.)
+
+`jobs/scheduler.ts`: add the same import; in the `catch (error)` block, before the logger line:
+
+```typescript
+      Sentry.captureException(error);
+```
+
+- [ ] **Step 5: Spotlight dev scripts**
+
+```bash
+pnpm add -D -w @spotlightjs/spotlight
+```
+
+`apps/server/package.json` scripts:
+
+```json
+    "dev:debugging": "SENTRY_SPOTLIGHT=1 pnpm dev",
+```
+
+Root `package.json` scripts:
+
+```json
+    "dev:debugging": "SENTRY_SPOTLIGHT=1 pnpm dev:server & npx @spotlightjs/spotlight",
+```
+
+- [ ] **Step 6: Full suite green**
+
+Run: `cd apps/server && npx vitest run`
+Expected: ALL PASS
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/server/src apps/server/package.json package.json pnpm-lock.yaml
+git commit -m "land-match-r31.2: capture exceptions in Sentry, Spotlight dev scripts"
+```
+
+---
+
+### Task 8: Full verification
 
 **Files:** none new.
 
@@ -552,10 +869,14 @@ Expected: all pass.
 
 Run: `pnpm dev:server` (Ctrl-C after checking). Expected: pretty-printed startup lines (config loaded, migrations, scheduler, server running) instead of raw `console.log` — then hit `curl localhost:3000/health` (no access log line) and `curl localhost:3000/api/v1/listings/by-url?url=x` (one access-log line with requestId, status, durationMs).
 
-- [ ] **Step 3: Final commit if anything was fixed**
+- [ ] **Step 3: Verify Spotlight locally**
+
+Run: `pnpm dev:debugging` from the repo root. Expected: Spotlight UI on http://localhost:8969. Trigger an error (e.g. temporarily hit an endpoint that throws, or POST invalid JSON to force a 500) and confirm the exception appears in Spotlight with the `requestId` tag. Ctrl-C when done.
+
+- [ ] **Step 4: Final commit if anything was fixed**
 
 ```bash
-git add -A && git commit -m "land-match-r31.1: verification fixes"
+git add -A && git commit -m "land-match-r31: verification fixes"
 ```
 
 (Skip if the tree is clean.)

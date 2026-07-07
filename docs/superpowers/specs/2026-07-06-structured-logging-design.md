@@ -1,17 +1,18 @@
-# Structured Logging — Design
+# Structured Logging + Sentry — Design
 
 **Date:** 2026-07-06
-**Bead:** land-match-r31 (Monitoring & Observability epic — structured logging item)
-**Status:** Approved
+**Bead:** land-match-r31 (Monitoring & Observability epic — structured logging + error tracking items)
+**Status:** Approved (Sentry/Spotlight scope added per user request after initial approval)
 
 ## Goal
 
-Replace all `console.*` usage in `apps/server` (~40 call sites across 13 files) with structured, leveled logging, and add a per-request HTTP access log. This is the foundation for the rest of the r31 epic (metrics, error tracking, uptime probes), which stays out of scope here.
+Replace all `console.*` usage in `apps/server` (~40 call sites across 13 files) with structured, leveled logging, add a per-request HTTP access log, and wire up Sentry error tracking with Spotlight for local development (mirroring the Compair repo's setup). Metrics and uptime probes stay out of scope.
 
 ## Decisions
 
 - **Library:** pino (runtime dep) + pino-pretty (dev dep, loaded only outside production).
 - **Access log:** every request gets one structured line on completion.
+- **Error tracking:** `@sentry/node`, DSN-optional. Locally, Spotlight (`SENTRY_SPOTLIGHT=1` + `npx @spotlightjs/spotlight` UI) gives error/trace visibility with no account; for beta/prod the user sets `SENTRY_DSN`.
 - **Scope:** server only. `packages/enrichment` and `packages/scoring` have no console usage and are untouched.
 
 ## Components
@@ -45,6 +46,15 @@ All `console.log/warn/error` in `apps/server/src` move to the logger:
 - `app.ts` `onError`: logs via the request-scoped logger when available.
 - `index.ts` startup lines.
 
+### 5. Sentry + Spotlight (Compair pattern)
+
+- **Config** (`config.ts`): `sentry` block — `dsn` (`SENTRY_DSN`, default empty), `environment` (`SENTRY_ENVIRONMENT`, default `NODE_ENV`), `tracesSampleRate` (`SENTRY_TRACES_SAMPLE_RATE`, default 0.1), `spotlight` (`SENTRY_SPOTLIGHT=1|true`), `isConfigured` (dsn non-empty).
+- **Init** (`apps/server/src/init.ts`): `initSentry()` — calls `Sentry.init` only when `isConfigured || spotlight`; passes dsn (or undefined), environment, tracesSampleRate, spotlight. Called first thing in `index.ts`.
+- **Capture points:** `app.ts` `onError` (`Sentry.captureException(err)`); `index.ts` `unhandledRejection`/`uncaughtException` (capture + `Sentry.flush(2000)` before exit); scheduler catch block.
+- **Request tagging:** `requestLogging` middleware sets `Sentry.getCurrentScope().setTag('requestId', requestId)`.
+- **Scripts:** server `dev:debugging` (`SENTRY_SPOTLIGHT=1 pnpm dev`); root `dev:debugging` runs server + `npx @spotlightjs/spotlight`; `@spotlightjs/spotlight` as root dev dep.
+- **Not included:** shipping pino logs to Sentry (errors are captured at boundaries; logs stay on stdout).
+
 ## Testing
 
 TDD on new units:
@@ -52,12 +62,15 @@ TDD on new units:
 - **logger.ts**: level resolution from env (dev default, prod default, test silent, `LOG_LEVEL` override).
 - **accessLog**: inject a stub logger; assert emitted fields, status→level mapping, `/health` exclusion.
 - **Request-ID child**: request-scoped logger carries `requestId`.
+- **Sentry config**: spotlight flag parsing, `isConfigured`, sample-rate default.
+- **initSentry**: mocked `@sentry/node` — init called when DSN or spotlight set, skipped otherwise.
+- **onError capture**: mocked `@sentry/node` — `captureException` called for unhandled route errors.
 
 Call-site migration is behavior-preserving; the existing server suite (132 tests) staying green is the check.
 
 ## Non-goals
 
 - Metrics events (enrichment latency, geocode success rate) — separate r31 item.
-- Error tracking (Sentry) — needs an account; separate r31 item.
 - External API uptime probes — separate r31 item.
+- Shipping pino logs to Sentry/Spotlight (error boundaries only for now).
 - Log shipping, rotation, redaction beyond pino defaults; frontend/extension logging.
