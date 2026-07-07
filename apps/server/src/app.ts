@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { secureHeaders } from 'hono/secure-headers';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import * as Sentry from '@sentry/node';
@@ -25,6 +26,9 @@ export function createApp() {
   registerEnrichmentMetrics();
 
   const app = new Hono<Env>();
+
+  // Security headers (nosniff, HSTS, frame/referrer policy) on every response
+  app.use('*', secureHeaders());
 
   // CORS
   app.use('*', cors({ origin: server.corsOrigin }));
