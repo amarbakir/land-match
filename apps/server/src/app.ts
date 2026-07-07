@@ -8,6 +8,7 @@ import { pool } from './db/client';
 import { registerGeodataAdapters } from './lib/geodataAdapters';
 import { generateRequestId } from './middleware/logging';
 import { optionalAuth, requireAuth } from './middleware/auth';
+import { rateLimit } from './middleware/rateLimit';
 import authRouter from './routes/auth';
 import listingsRouter from './routes/listings';
 import searchProfilesRouter from './routes/searchProfiles';
@@ -58,6 +59,11 @@ export function createApp() {
 
     return c.json({ status: allOk ? 'ok' : 'error', components: { db } }, allOk ? 200 : 503);
   });
+
+  // Rate limits: strict on credential endpoints, looser on enrichment
+  // (which fans out to external APIs and must not be hammered)
+  app.use('/api/v1/auth/*', rateLimit({ windowMs: 60_000, max: 10 }));
+  app.use('/api/v1/listings/enrich', rateLimit({ windowMs: 60_000, max: 20 }));
 
   // Mount API routes
   app.route('/api/v1/auth', authRouter);

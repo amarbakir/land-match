@@ -9,6 +9,7 @@ export const ErrorCode = {
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',
   CONFLICT: 'CONFLICT',
+  RATE_LIMITED: 'RATE_LIMITED',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 
   // Auth
@@ -29,6 +30,7 @@ export const ErrorMessage: Record<ErrorCodeType, string> = {
   FORBIDDEN: 'Access denied',
   NOT_FOUND: 'Resource not found',
   CONFLICT: 'Resource conflict',
+  RATE_LIMITED: 'Too many requests, please try again later',
   INTERNAL_ERROR: 'Internal server error',
   INVALID_CREDENTIALS: 'Invalid email or password',
   INVALID_REFRESH_TOKEN: 'Invalid or expired refresh token',
