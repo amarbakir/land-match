@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 export const RegisterRequest = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  // bcrypt truncates beyond 72 bytes, so longer passwords must be rejected
+  password: z.string().min(8).max(72),
   name: z.string().optional(),
 });
 
