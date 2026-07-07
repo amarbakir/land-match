@@ -69,6 +69,9 @@ importers:
       '@landmatch/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@landmatch/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@tamagui/animations-react-native':
         specifier: ^1.144.4
         version: 1.144.4(react-dom@19.2.0(react@19.2.0))(react-native@0.83.2(@babel/core@7.29.0)(@react-native/metro-config@0.85.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)

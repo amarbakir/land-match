@@ -34,7 +34,7 @@ const mockApiPost = vi.mocked(apiPost);
  */
 async function registerFlow(data: { email: string; password: string; name?: string }) {
   // This mirrors AuthContext.register after the fix
-  await apiPost('/api/v1/auth/register', data, { noAuth: true });
+  await apiPost('/auth/register', data, { noAuth: true });
 }
 
 /**
@@ -43,8 +43,11 @@ async function registerFlow(data: { email: string; password: string; name?: stri
  * login resolves with tokens stored so the screen can navigate to /(app).
  */
 async function loginFlow(data: { email: string; password: string }) {
-  const result = await apiPost('/api/v1/auth/login', data, { noAuth: true });
-  await setTokens((result as any).accessToken, (result as any).refreshToken);
+  const result = await apiPost('/auth/login', data, { noAuth: true });
+  await setTokens({
+    accessToken: (result as { accessToken: string }).accessToken,
+    refreshToken: (result as { refreshToken: string }).refreshToken,
+  });
 }
 
 describe('register flow – no auto-authentication', () => {
@@ -70,7 +73,7 @@ describe('register flow – no auto-authentication', () => {
     await registerFlow({ email: 'user@example.com', password: 'password123' });
 
     expect(mockApiPost).toHaveBeenCalledWith(
-      '/api/v1/auth/register',
+      '/auth/register',
       { email: 'user@example.com', password: 'password123' },
       { noAuth: true },
     );
@@ -113,7 +116,10 @@ describe('login flow – stores tokens for navigation', () => {
 
     await loginFlow({ email: 'user@example.com', password: 'password123' });
 
-    expect(mockSetTokens).toHaveBeenCalledWith('my-access-token', 'my-refresh-token');
+    expect(mockSetTokens).toHaveBeenCalledWith({
+      accessToken: 'my-access-token',
+      refreshToken: 'my-refresh-token',
+    });
   });
 
   // BUG: if apiPost throws but setTokens was already called (or vice versa),

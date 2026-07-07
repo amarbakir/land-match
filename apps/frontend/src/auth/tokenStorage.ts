@@ -31,17 +31,17 @@ export async function getTokens(): Promise<Tokens | null> {
   return { accessToken, refreshToken };
 }
 
-export async function setTokens(accessToken: string, refreshToken: string): Promise<void> {
+export async function setTokens(tokens: Tokens): Promise<void> {
   if (Platform.OS === 'web') {
-    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
     return;
   }
 
   const SecureStore = await getSecureStore();
   await Promise.all([
-    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken),
-    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken),
+    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, tokens.accessToken),
+    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, tokens.refreshToken),
   ]);
 }
 

@@ -20,7 +20,7 @@ export function useEnrichListing() {
   return useMutation<EnrichListingResponse, Error, EnrichListingRequest>({
     mutationFn: (body) =>
       apiPost<EnrichListingRequest, EnrichListingResponse>(
-        '/api/v1/listings/enrich',
+        '/listings/enrich',
         body,
       ),
   });
@@ -29,14 +29,14 @@ export function useEnrichListing() {
 export function useSearchProfiles() {
   return useQuery<SearchProfileResponse[], Error>({
     queryKey: ['searchProfiles'],
-    queryFn: () => apiGet<SearchProfileResponse[]>('/api/v1/search-profiles'),
+    queryFn: () => apiGet<SearchProfileResponse[]>('/search-profiles'),
   });
 }
 
 export function useProfileCounts() {
   return useQuery<ProfileCounts, Error>({
     queryKey: ['profileCounts'],
-    queryFn: () => apiGet<ProfileCounts>('/api/v1/search-profiles/counts'),
+    queryFn: () => apiGet<ProfileCounts>('/search-profiles/counts'),
     refetchInterval: 60_000,
   });
 }
@@ -60,7 +60,7 @@ export function useProfileMatches(profileId: string | null, params: MatchQueryPa
   if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
 
   const qs = searchParams.toString();
-  const path = `/api/v1/search-profiles/${profileId}/matches${qs ? `?${qs}` : ''}`;
+  const path = `/search-profiles/${profileId}/matches${qs ? `?${qs}` : ''}`;
 
   return useQuery<PaginatedMatches, Error>({
     queryKey: ['profileMatches', profileId, params],
@@ -72,7 +72,7 @@ export function useProfileMatches(profileId: string | null, params: MatchQueryPa
 export function useMatchDetail(scoreId: string | null) {
   return useQuery<MatchDetail, Error>({
     queryKey: ['matchDetail', scoreId],
-    queryFn: () => apiGet<MatchDetail>(`/api/v1/scores/${scoreId}`),
+    queryFn: () => apiGet<MatchDetail>(`/scores/${scoreId}`),
     enabled: !!scoreId,
   });
 }
@@ -83,7 +83,7 @@ export function useCreateSearchProfile() {
   return useMutation<SearchProfileResponse, Error, CreateSearchProfile>({
     mutationFn: (body) =>
       apiPost<CreateSearchProfile, SearchProfileResponse>(
-        '/api/v1/search-profiles',
+        '/search-profiles',
         body,
       ),
     onSuccess: () => {
@@ -103,7 +103,7 @@ export function useUpdateSearchProfile() {
   >({
     mutationFn: ({ id, data }) =>
       apiPut<UpdateSearchProfile, SearchProfileResponse>(
-        `/api/v1/search-profiles/${id}`,
+        `/search-profiles/${id}`,
         data,
       ),
     onSuccess: () => {
@@ -118,7 +118,7 @@ export function useDeleteSearchProfile() {
 
   return useMutation<void, Error, string>({
     mutationFn: (id) =>
-      apiDelete<void>(`/api/v1/search-profiles/${id}`),
+      apiDelete<void>(`/search-profiles/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['searchProfiles'] });
       queryClient.invalidateQueries({ queryKey: ['profileCounts'] });
@@ -136,7 +136,7 @@ export function useUpdateMatchStatus() {
   >({
     mutationFn: ({ scoreId, data }) =>
       apiPatch<UpdateMatchStatus, { scoreId: string; status: string; readAt: string | null }>(
-        `/api/v1/scores/${scoreId}`,
+        `/scores/${scoreId}`,
         data,
       ),
     onSuccess: (_data, { scoreId }) => {
@@ -150,7 +150,7 @@ export function useUpdateMatchStatus() {
 export function useNotificationPrefs() {
   return useQuery<NotificationPrefs, Error>({
     queryKey: ['notificationPrefs'],
-    queryFn: () => apiGet<NotificationPrefs>('/api/v1/users/me/notification-preferences'),
+    queryFn: () => apiGet<NotificationPrefs>('/users/me/notification-preferences'),
   });
 }
 
@@ -160,7 +160,7 @@ export function useUpdateNotificationPrefs() {
   return useMutation<NotificationPrefs, Error, NotificationPrefs>({
     mutationFn: (body) =>
       apiPut<NotificationPrefs, NotificationPrefs>(
-        '/api/v1/users/me/notification-preferences',
+        '/users/me/notification-preferences',
         body,
       ),
     onSuccess: () => {
@@ -186,7 +186,7 @@ export function useSavedListings(params: SavedListingsParams = {}) {
   if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
 
   const qs = searchParams.toString();
-  const path = `/api/v1/listings/saved${qs ? `?${qs}` : ''}`;
+  const path = `/listings/saved${qs ? `?${qs}` : ''}`;
 
   return useQuery<PaginatedSavedListings, Error>({
     queryKey: ['savedListings', params],
@@ -199,7 +199,7 @@ export function useUnsaveListing() {
 
   return useMutation<void, Error, string>({
     mutationFn: (listingId) =>
-      apiDelete<void>(`/api/v1/listings/${listingId}/save`),
+      apiDelete<void>(`/listings/${listingId}/save`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['savedListings'] });
     },

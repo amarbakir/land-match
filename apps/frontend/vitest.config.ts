@@ -11,6 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@landmatch/api': path.resolve(__dirname, '../../packages/api/src'),
+      '@landmatch/api-client': path.resolve(__dirname, '../../packages/api-client/src'),
       '@': path.resolve(__dirname),
       // Stub native/UI dependencies so pure-logic tests can import component
       // files without crashing on Flow types or missing native modules.

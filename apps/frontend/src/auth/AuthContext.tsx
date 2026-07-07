@@ -45,17 +45,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (data: LoginRequestType) => {
     const result = await apiPost<LoginRequestType, AuthTokenResponseType>(
-      '/api/v1/auth/login',
+      '/auth/login',
       data,
       { noAuth: true },
     );
-    await setTokens(result.accessToken, result.refreshToken);
+    await setTokens({ accessToken: result.accessToken, refreshToken: result.refreshToken });
     setIsAuthenticated(true);
   }, []);
 
   const register = useCallback(async (data: RegisterRequestType) => {
     await apiPost<RegisterRequestType, AuthTokenResponseType>(
-      '/api/v1/auth/register',
+      '/auth/register',
       data,
       { noAuth: true },
     );
