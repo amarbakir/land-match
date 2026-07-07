@@ -69,6 +69,19 @@ describe('register', () => {
     expect(result).toEqual({ ok: false, error: 'EMAIL_ALREADY_EXISTS' });
     expect(mockUserRepo.insert).not.toHaveBeenCalled();
   });
+
+  // Bug this catches: two concurrent registrations both pass the pre-check, then
+  // the loser trips the unique constraint. Without mapping SQLSTATE 23505 this
+  // surfaces as a confusing 500 instead of the same EMAIL_ALREADY_EXISTS the
+  // pre-check would have returned.
+  it('maps a unique-violation race on insert to EMAIL_ALREADY_EXISTS', async () => {
+    mockUserRepo.findByEmail.mockResolvedValue(undefined); // pre-check passes
+    mockUserRepo.insert.mockRejectedValue(Object.assign(new Error('duplicate key'), { code: '23505' }));
+
+    const result = await register('race@example.com', 'password123');
+
+    expect(result).toEqual({ ok: false, error: 'EMAIL_ALREADY_EXISTS' });
+  });
 });
 
 describe('login', () => {

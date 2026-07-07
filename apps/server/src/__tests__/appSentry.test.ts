@@ -9,14 +9,24 @@ vi.mock('@sentry/node', () => ({
   getCurrentScope: () => ({ setTag: vi.fn() }),
 }));
 
+// Force an unhandled (non-HTTPException) error from a route to exercise onError's
+// capture branch. Malformed JSON is now caught at the parse site as a 400
+// (readJson), so we make the service itself throw unexpectedly.
+vi.mock('../services/authService', () => ({
+  login: vi.fn(async () => {
+    throw new Error('unexpected boom');
+  }),
+  register: vi.fn(),
+  refresh: vi.fn(),
+}));
+
 describe('app Sentry capture', () => {
   it('captures unhandled route errors', async () => {
     const app = createApp();
-    // malformed JSON body makes c.req.json() throw → onError non-HTTPException branch
     const res = await app.request('/api/v1/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: '{bad json',
+      body: JSON.stringify({ email: 'user@example.com', password: 'password123' }),
     });
 
     expect(res.status).toBe(500);

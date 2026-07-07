@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { EnrichListingRequest, ListingByUrlQuery, SavedListingsFilters } from '@landmatch/api';
 
-import { badRequest, notFound, okResponse, throwFromResult, unauthorized } from '../lib/httpExceptions';
+import { badRequest, notFound, okResponse, readJson, throwFromResult, unauthorized } from '../lib/httpExceptions';
 import * as listingRepo from '../repos/listingRepo';
 import * as listingService from '../services/listingService';
 import type { Env } from '../types/env';
@@ -9,7 +9,7 @@ import type { Env } from '../types/env';
 const listings = new Hono<Env>();
 
 listings.post('/enrich', async (c) => {
-  const body = await c.req.json();
+  const body = await readJson(c);
   const parsed = EnrichListingRequest.safeParse(body);
 
   if (!parsed.success) {

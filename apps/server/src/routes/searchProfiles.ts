@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { CreateSearchProfile, UpdateSearchProfile } from '@landmatch/api';
 
-import { badRequest, okResponse, throwFromResult } from '../lib/httpExceptions';
+import { badRequest, okResponse, readJson, throwFromResult } from '../lib/httpExceptions';
 import * as searchProfileService from '../services/searchProfileService';
 import type { Env } from '../types/env';
 
@@ -9,7 +9,7 @@ const searchProfiles = new Hono<Env>();
 
 searchProfiles.post('/', async (c) => {
   const userId = c.get('userId');
-  const body = await c.req.json();
+  const body = await readJson(c);
   const parsed = CreateSearchProfile.safeParse(body);
 
   if (!parsed.success) {
@@ -49,7 +49,7 @@ searchProfiles.get('/:id', async (c) => {
 
 searchProfiles.put('/:id', async (c) => {
   const userId = c.get('userId');
-  const body = await c.req.json();
+  const body = await readJson(c);
   const parsed = UpdateSearchProfile.safeParse(body);
 
   if (!parsed.success) {

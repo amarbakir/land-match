@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { users } from '@landmatch/db';
 
 import { db, type Tx } from '../db/client';
@@ -30,8 +30,11 @@ export async function insert(input: InsertUserInput, tx?: Tx) {
 }
 
 export async function findByEmail(email: string, tx?: Tx) {
+  // Case-insensitive match. New emails are normalized to lowercase at the API
+  // boundary, but rows written before that (mixed case) must still match on
+  // login and on the register pre-check so they aren't locked out or duplicated.
   return (tx ?? db).query.users.findFirst({
-    where: eq(users.email, email),
+    where: sql`lower(${users.email}) = ${email.toLowerCase()}`,
   });
 }
 

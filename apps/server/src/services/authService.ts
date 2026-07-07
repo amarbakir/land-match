@@ -4,6 +4,7 @@ import { ok, err, type Result, type AuthTokenResponseType } from '@landmatch/api
 import { captureError } from '../lib/captureError';
 import { generateTokenPair, verifyToken } from '../lib/jwt';
 import { ERR } from '../lib/errors';
+import { isUniqueViolation } from '../lib/pgErrors';
 import * as userRepo from '../repos/userRepo';
 
 const BCRYPT_ROUNDS = 12;
@@ -32,6 +33,10 @@ export async function register(
     const tokens = await generateTokenPair(user.id);
     return ok(tokens);
   } catch (e) {
+    // Two concurrent registrations for the same email both pass the pre-check;
+    // the loser trips the unique constraint. Map that to the same conflict the
+    // pre-check returns, not a 500.
+    if (isUniqueViolation(e)) return err(ERR.EMAIL_ALREADY_EXISTS);
     captureError(e, 'authService.register');
     return err(ERR.INTERNAL_ERROR);
   }

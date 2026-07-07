@@ -42,6 +42,21 @@ export function badRequest(message: string): never {
   throw new HTTPException(400, { res: jsonError(400, code, msg) });
 }
 
+/**
+ * Reads and JSON-parses the request body, turning a malformed body into a clean
+ * 400 instead of letting `c.req.json()` throw a SyntaxError that surfaces as a
+ * 500 (and attacker-triggerable Sentry noise). Handled at the parse site — not a
+ * middleware — so it is content-type-independent, runs after auth/rate-limit, and
+ * never forces a body on routes that don't read one.
+ */
+export async function readJson(c: Context<Env>): Promise<unknown> {
+  try {
+    return await c.req.json();
+  } catch {
+    badRequest('Invalid JSON body');
+  }
+}
+
 export function notFound(message: string): never {
   const { code, message: msg } = resolveCodeAndMessage(404, message);
   throw new HTTPException(404, { res: jsonError(404, code, msg) });

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { UpdateMatchStatus } from '@landmatch/api';
 
-import { badRequest, okResponse, throwFromResult } from '../lib/httpExceptions';
+import { badRequest, okResponse, readJson, throwFromResult } from '../lib/httpExceptions';
 import * as matchService from '../services/matchService';
 import type { Env } from '../types/env';
 
@@ -24,7 +24,7 @@ scoresRouter.get('/:id', async (c) => {
 scoresRouter.patch('/:id', async (c) => {
   const userId = c.get('userId');
   const scoreId = c.req.param('id');
-  const body = await c.req.json();
+  const body = await readJson(c);
 
   const parsed = UpdateMatchStatus.safeParse(body);
   if (!parsed.success) {

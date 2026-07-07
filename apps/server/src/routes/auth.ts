@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
 import { RegisterRequest, LoginRequest, RefreshRequest } from '@landmatch/api';
 
-import { badRequest, throwFromResult, okResponse } from '../lib/httpExceptions';
+import { badRequest, readJson, throwFromResult, okResponse } from '../lib/httpExceptions';
 import * as authService from '../services/authService';
 import type { Env } from '../types/env';
 
 const auth = new Hono<Env>();
 
 auth.post('/register', async (c) => {
-  const body = await c.req.json();
+  const body = await readJson(c);
   const parsed = RegisterRequest.safeParse(body);
 
   if (!parsed.success) {
@@ -25,7 +25,7 @@ auth.post('/register', async (c) => {
 });
 
 auth.post('/login', async (c) => {
-  const body = await c.req.json();
+  const body = await readJson(c);
   const parsed = LoginRequest.safeParse(body);
 
   if (!parsed.success) {
@@ -42,7 +42,7 @@ auth.post('/login', async (c) => {
 });
 
 auth.post('/refresh', async (c) => {
-  const body = await c.req.json();
+  const body = await readJson(c);
   const parsed = RefreshRequest.safeParse(body);
 
   if (!parsed.success) {
