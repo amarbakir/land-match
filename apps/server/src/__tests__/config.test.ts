@@ -48,3 +48,48 @@ describe('auth config — JWT secret', () => {
     expect(config.auth.jwtSecret).toBe('dev-jwt-secret-change-in-production');
   });
 });
+
+describe('server config — CORS origin', () => {
+  beforeEach(() => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/landmatch');
+    vi.stubEnv('JWT_SECRET', 'a-real-production-secret');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('throws in production when CORS_ORIGIN is the wildcard', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('CORS_ORIGIN', '*');
+
+    await expect(importConfig()).rejects.toThrow(/CORS_ORIGIN/);
+  });
+
+  it('parses a comma-separated list into trimmed origins', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('CORS_ORIGIN', 'https://app.example.com, https://admin.example.com');
+
+    const config = await importConfig();
+    expect(config.server.corsOrigin).toEqual([
+      'https://app.example.com',
+      'https://admin.example.com',
+    ]);
+  });
+
+  it('returns a single origin as a string', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('CORS_ORIGIN', 'https://app.example.com');
+
+    const config = await importConfig();
+    expect(config.server.corsOrigin).toBe('https://app.example.com');
+  });
+
+  it('defaults to the wildcard outside production', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('CORS_ORIGIN', '');
+
+    const config = await importConfig();
+    expect(config.server.corsOrigin).toBe('*');
+  });
+});

@@ -77,11 +77,22 @@ export const database = {
 /**
  * Server configuration
  */
+function resolveCorsOrigin(): string | string[] {
+  const raw = isProduction ? required('CORS_ORIGIN') : optional('CORS_ORIGIN', '*');
+  const origins = raw.split(',').map((o) => o.trim()).filter(Boolean);
+
+  if (isProduction && origins.includes('*')) {
+    throw new Error('CORS_ORIGIN must not be the wildcard "*" in production');
+  }
+
+  return origins.length === 1 ? origins[0] : origins;
+}
+
 export const server = {
   port: parseInt(optional('PORT', '3000'), 10),
   nodeEnv: NODE_ENV,
   isProduction,
-  corsOrigin: isProduction ? required('CORS_ORIGIN') : optional('CORS_ORIGIN', '*'),
+  corsOrigin: resolveCorsOrigin(),
 } as const;
 
 /**
