@@ -23,7 +23,9 @@ export const searchProfiles = pgTable('search_profiles', {
   criteria: jsonb('criteria').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('search_profiles_user_id_idx').on(table.userId),
+]);
 
 export const listings = pgTable('listings', {
   id: text('id').primaryKey(),
@@ -112,7 +114,10 @@ export const scores = pgTable('scores', {
   status: text('status').notNull().default('inbox'),
   readAt: timestamp('read_at', { withTimezone: true, mode: 'date' }),
   scoredAt: timestamp('scored_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('scores_search_profile_id_idx').on(table.searchProfileId),
+  index('scores_listing_id_idx').on(table.listingId),
+]);
 
 export const alerts = pgTable('alerts', {
   id: text('id').primaryKey(),
@@ -124,4 +129,7 @@ export const alerts = pgTable('alerts', {
   status: text('status').notNull().default('pending'),
   sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('alerts_status_idx').on(table.status),
+  index('alerts_user_profile_status_idx').on(table.userId, table.searchProfileId, table.status),
+]);
