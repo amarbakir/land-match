@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { MiddlewareHandler } from 'hono';
+import * as Sentry from '@sentry/node';
 
 import type { Logger } from '../lib/logger';
 import type { Env } from '../types/env';
@@ -21,6 +22,7 @@ export function requestLogging(rootLogger: Logger): MiddlewareHandler<Env> {
     c.set('requestId', requestId);
     c.set('startTime', Date.now());
     c.set('logger', requestLogger);
+    Sentry.getCurrentScope().setTag('requestId', requestId);
 
     await next();
 

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import * as Sentry from '@sentry/node';
 
 import { server } from './config';
 import { pool } from './db/client';
@@ -35,6 +36,7 @@ export function createApp() {
       return err.getResponse();
     }
     const statusCode = 500 as ContentfulStatusCode;
+    Sentry.captureException(err);
     (c.get('logger') ?? logger).error({ err }, `unhandled error: ${c.req.method} ${c.req.path}`);
     return c.json({ ok: false, code: 'INTERNAL_ERROR', error: err.message || 'Internal server error' }, statusCode);
   });

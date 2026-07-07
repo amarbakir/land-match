@@ -6,6 +6,7 @@
     "dev:frontend": "pnpm --filter @landmatch/frontend start",
     "dev:server": "pnpm --filter @landmatch/server dev",
     "dev": "pnpm dev:server & pnpm dev:frontend",
+    "dev:debugging": "SENTRY_SPOTLIGHT=1 pnpm dev:server & npx @spotlightjs/spotlight",
     "build": "pnpm --recursive build",
     "lint": "pnpm --recursive lint",
     "format": "prettier --write .",
@@ -14,6 +15,7 @@
     "sst:dev:remove": "AWS_PROFILE=sandbox-admin npx sst remove --stage dev"
   },
   "devDependencies": {
+    "@spotlightjs/spotlight": "^4.11.7",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@typescript-eslint/parser": "^8.56.1",
     "eslint": "^9.39.2",

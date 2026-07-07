@@ -4,6 +4,7 @@
   "main": "./src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:debugging": "SENTRY_SPOTLIGHT=1 pnpm dev",
     "build": "tsc",
     "lint": "tsc --noEmit && eslint src/",
     "start": "node dist/index.js",

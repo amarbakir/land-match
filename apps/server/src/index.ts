@@ -1,3 +1,9 @@
+import * as Sentry from '@sentry/node';
+
+import { initSentry } from './init';
+
+initSentry();
+
 import { serve } from '@hono/node-server';
 
 import { createApp } from './app';
@@ -7,12 +13,14 @@ import { startScheduler } from './jobs/scheduler';
 import { logger } from './lib/logger';
 
 process.on('unhandledRejection', (reason: unknown) => {
+  Sentry.captureException(reason);
   logger.error({ err: reason }, 'unhandled rejection');
 });
 
 process.on('uncaughtException', (error: Error) => {
+  Sentry.captureException(error);
   logger.fatal({ err: error }, 'uncaught exception');
-  process.exit(1);
+  void Sentry.flush(2000).finally(() => process.exit(1));
 });
 
 async function startServer() {
@@ -26,6 +34,7 @@ async function startServer() {
 }
 
 startServer().catch((error) => {
+  Sentry.captureException(error);
   logger.fatal({ err: error }, 'server start failed');
-  process.exit(1);
+  void Sentry.flush(2000).finally(() => process.exit(1));
 });

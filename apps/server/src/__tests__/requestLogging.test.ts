@@ -1,9 +1,15 @@
 import { Hono } from 'hono';
+import * as Sentry from '@sentry/node';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Logger } from '../lib/logger';
 import { requestLogging, generateRequestId } from '../middleware/requestLogging';
 import type { Env } from '../types/env';
+
+vi.mock('@sentry/node', () => {
+  const scope = { setTag: vi.fn() };
+  return { getCurrentScope: () => scope };
+});
 
 const childLogger = {
   info: vi.fn(),
@@ -85,5 +91,12 @@ describe('requestLogging', () => {
     expect(childLogger.info).not.toHaveBeenCalled();
     expect(childLogger.warn).not.toHaveBeenCalled();
     expect(childLogger.error).not.toHaveBeenCalled();
+  });
+
+  it('tags the Sentry scope with the request id', async () => {
+    const app = buildApp();
+    await app.request('/ok', { headers: { 'x-request-id': 'req-tag' } });
+
+    expect(Sentry.getCurrentScope().setTag).toHaveBeenCalledWith('requestId', 'req-tag');
   });
 });

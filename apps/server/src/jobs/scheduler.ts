@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import * as Sentry from '@sentry/node';
 
 import { email } from '../config';
 import { deliverPendingAlerts } from '../services/alertDeliveryService';
@@ -35,6 +36,7 @@ export function startScheduler(): void {
         logger.warn({ errors: result.data.errors.slice(0, 10) }, 'delivery errors');
       }
     } catch (error) {
+      Sentry.captureException(error);
       logger.error({ err: error }, 'email delivery failed');
     } finally {
       deliveryJobRunning = false;
