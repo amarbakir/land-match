@@ -155,6 +155,20 @@ export const email = {
 } as const;
 
 /**
+ * Sentry configuration — DSN-optional. Locally, SENTRY_SPOTLIGHT=1 sends
+ * events to the Spotlight sidecar with no account needed.
+ */
+export const sentry = {
+  dsn: process.env.SENTRY_DSN || '',
+  environment: process.env.SENTRY_ENVIRONMENT || NODE_ENV,
+  tracesSampleRate: parseFloat(optional('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
+  spotlight: process.env.SENTRY_SPOTLIGHT === '1' || process.env.SENTRY_SPOTLIGHT === 'true',
+  get isConfigured() {
+    return this.dsn.length > 0;
+  },
+} as const;
+
+/**
  * Validate configuration at startup
  */
 export function validateConfig(): void {
@@ -164,6 +178,8 @@ export function validateConfig(): void {
       database: database.url ? 'configured' : 'NOT SET',
       auth: auth.jwtSecret ? 'configured' : 'NOT configured',
       emailFrom: email.fromAddress,
+      sentry: sentry.isConfigured ? 'configured' : 'not configured',
+      spotlight: sentry.spotlight,
     },
     'config loaded',
   );
@@ -181,5 +197,6 @@ export default {
   auth,
   email,
   features,
+  sentry,
   validateConfig,
 };

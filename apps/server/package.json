@@ -22,6 +22,7 @@
     "@landmatch/scoring": "workspace:*",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.0.7",
+    "@sentry/node": "^10.63.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
