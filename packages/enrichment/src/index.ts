@@ -5,6 +5,7 @@ export { createWetlandsAdapter } from './wetlands';
 export { enrichListing, type EnrichedListing } from './enrichListing';
 export { floodAdapter } from './flood';
 export { geocode, type GeocodeData } from './geocode';
+export { setMetricsSink, type EnrichmentMetric, type MetricsSink } from './metrics';
 export { parcelAdapter } from './parcel';
 export { clearAdditionalAdapters, registerAdapter, runEnrichmentPipeline } from './pipeline';
 export { soilAdapter } from './soil';

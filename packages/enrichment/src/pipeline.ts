@@ -1,5 +1,6 @@
 import { climateAdapter } from './climate';
 import { floodAdapter } from './flood';
+import { emitMetric } from './metrics';
 import { parcelAdapter } from './parcel';
 import { soilAdapter } from './soil';
 import type { EnrichmentAdapter, EnrichmentKey, EnrichmentResult, LatLng } from './types';
@@ -32,8 +33,19 @@ export async function runEnrichmentPipeline(coords: LatLng): Promise<EnrichmentR
   const allAdapters = [...defaultAdapters, ...additionalAdapters];
   const available = allAdapters.filter((r) => r.adapter.isAvailable());
 
+  const pipelineStart = performance.now();
   const results = await Promise.allSettled(
-    available.map((r) => r.adapter.enrich(coords).then((result) => ({ key: r.key, name: r.adapter.name, result }))),
+    available.map(async (r) => {
+      const start = performance.now();
+      try {
+        const result = await r.adapter.enrich(coords);
+        emitMetric({ type: 'adapter', source: r.adapter.name, ok: result.ok, ms: performance.now() - start });
+        return { key: r.key, name: r.adapter.name, result };
+      } catch (e) {
+        emitMetric({ type: 'adapter', source: r.adapter.name, ok: false, ms: performance.now() - start });
+        throw e;
+      }
+    }),
   );
 
   const enrichment: EnrichmentResult = {
@@ -57,6 +69,13 @@ export async function runEnrichmentPipeline(coords: LatLng): Promise<EnrichmentR
     enrichment.sourcesUsed.push(name);
     assignResult(enrichment, key, result.data);
   }
+
+  emitMetric({
+    type: 'pipeline',
+    ms: performance.now() - pipelineStart,
+    sourcesUsed: enrichment.sourcesUsed.length,
+    errors: enrichment.errors.length,
+  });
 
   return enrichment;
 }

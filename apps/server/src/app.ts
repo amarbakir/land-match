@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/node';
 
 import { server } from './config';
 import { pool } from './db/client';
+import { registerEnrichmentMetrics } from './lib/enrichmentMetrics';
 import { registerGeodataAdapters } from './lib/geodataAdapters';
 import { logger } from './lib/logger';
 import { requestLogging } from './middleware/requestLogging';
@@ -21,6 +22,7 @@ import type { Env } from './types/env';
 
 export function createApp() {
   registerGeodataAdapters();
+  registerEnrichmentMetrics();
 
   const app = new Hono<Env>();
 
