@@ -134,6 +134,10 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       throw parseApiError(await response.text(), response.status);
     }
 
+    if (response.status === 204) {
+      return undefined as TRes;
+    }
+
     const json = (await response.json()) as { data: TRes };
     return json.data;
   }

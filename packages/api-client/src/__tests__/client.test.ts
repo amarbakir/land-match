@@ -119,6 +119,15 @@ describe('request basics', () => {
 
     await expect(client.post('/items', {})).rejects.toThrow('Request failed (400)');
   });
+
+  // Bug guard: 204 No Content (e.g. DELETE /listings/:id/save) crashing json()
+  it('returns undefined for 204 No Content responses', async () => {
+    const storage = makeStorage(null);
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(client.delete('/listings/abc/save')).resolves.toBeUndefined();
+  });
 });
 
 describe('401 refresh flow', () => {
