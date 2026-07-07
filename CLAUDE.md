@@ -20,11 +20,11 @@ LandMatch — intelligent property search tool for back-to-land buyers (homestea
 | ---------------------- | ---------------------------------------------------------------------------------------- |
 | `apps/frontend/`       | Expo app — file-based routes, UI components, API client                                  |
 | `apps/server/`         | Hono API — routes in `src/routes/`, services in `src/services/`, repos in `src/repos/`   |
+| `apps/extension/`      | Chrome extension — content extractors, side panel, its own auth + API client             |
 | `packages/api/`        | Zod schemas — single source of truth for API contracts                                   |
 | `packages/db/`         | Drizzle schema (`src/schema.ts`) + migrations (`drizzle/`) + drizzle config              |
-| `apps/extension/`      | Chrome extension — content extractors, side panel, its own auth + API client             |
-| `packages/geodata/`    | Geodata ETL + PostGIS helpers (PRISM climate normals, wetlands, elevation)               |
 | `packages/enrichment/` | Data source adapters: soil (USDA), flood (FEMA), parcel (Regrid), climate (First Street) |
+| `packages/geodata/`    | Geodata ETL + PostGIS helpers (PRISM climate normals, wetlands, elevation)               |
 | `packages/scoring/`    | Deterministic scoring engine + LLM summary generation                                    |
 | `docs/`                | Design specs, implementation plans                                                       |
 | `infra/`               | Deploy scripts, SST helpers                                                              |
