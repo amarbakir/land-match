@@ -1,3 +1,5 @@
+import type { AuthTokenResponseType } from '@landmatch/api';
+
 export interface Tokens {
   accessToken: string;
   refreshToken: string;
@@ -50,8 +52,44 @@ function parseApiError(text: string, status: number): ApiError {
 }
 
 export function createApiClient(options: ApiClientOptions): ApiClient {
-  const { storage } = options;
+  const { storage, onAuthFailure } = options;
   const apiBase = `${options.baseUrl}/api/v1`;
+
+  let refreshPromise: Promise<Tokens | null> | null = null;
+
+  function tryRefresh(): Promise<Tokens | null> {
+    // Deduplicate concurrent refresh attempts
+    if (refreshPromise) return refreshPromise;
+
+    refreshPromise = (async () => {
+      try {
+        const tokens = await storage.getTokens();
+        if (!tokens) return null;
+
+        const response = await fetch(`${apiBase}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+        });
+        if (!response.ok) return null;
+
+        const json = (await response.json()) as { data: AuthTokenResponseType };
+        const data = json.data;
+        // A malformed body (data null/missing fields) throws here and is
+        // caught below — treated as a failed refresh.
+        const next = { accessToken: data.accessToken, refreshToken: data.refreshToken };
+        if (!next.accessToken || !next.refreshToken) return null;
+        await storage.setTokens(next);
+        return next;
+      } catch {
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+
+    return refreshPromise;
+  }
 
   async function authFetch(path: string, init: RequestInit): Promise<Response> {
     const tokens = await storage.getTokens();
@@ -60,7 +98,20 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       headers.set('Authorization', `Bearer ${tokens.accessToken}`);
     }
 
-    return fetch(`${apiBase}${path}`, { ...init, headers });
+    let response = await fetch(`${apiBase}${path}`, { ...init, headers });
+
+    if (response.status === 401 && tokens) {
+      const newTokens = await tryRefresh();
+      if (newTokens) {
+        headers.set('Authorization', `Bearer ${newTokens.accessToken}`);
+        response = await fetch(`${apiBase}${path}`, { ...init, headers });
+      } else {
+        await storage.clearTokens();
+        onAuthFailure?.();
+      }
+    }
+
+    return response;
   }
 
   async function request<TRes>(

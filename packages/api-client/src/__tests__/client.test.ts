@@ -120,3 +120,136 @@ describe('request basics', () => {
     await expect(client.post('/items', {})).rejects.toThrow('Request failed (400)');
   });
 });
+
+describe('401 refresh flow', () => {
+  // Bug guard: retry using the stale token → silent 401 loop
+  it('retries with the NEW token after refresh, not the stale one', async () => {
+    const storage = makeStorage({ accessToken: 'expired', refreshToken: 'refresh-1' });
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(401, { ok: false, error: 'Token expired' }))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          ok: true,
+          data: { accessToken: 'fresh', refreshToken: 'refresh-2', expiresIn: 3600 },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true, data: { items: [] } }));
+
+    await client.get('/items');
+
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch.mock.calls[1][0]).toBe('http://api.test/api/v1/auth/refresh');
+    const retryHeaders = new Headers(mockFetch.mock.calls[2][1]?.headers);
+    expect(retryHeaders.get('Authorization')).toBe('Bearer fresh');
+    expect(storage.setTokens).toHaveBeenCalledWith({
+      accessToken: 'fresh',
+      refreshToken: 'refresh-2',
+    });
+  });
+
+  // Bug guard: failed refresh leaving the user stuck with dead tokens
+  it('clears tokens and fires onAuthFailure when refresh returns non-ok', async () => {
+    const storage = makeStorage({ accessToken: 'expired', refreshToken: 'refresh-1' });
+    const onAuthFailure = vi.fn();
+    const client = createApiClient({ baseUrl: BASE_URL, storage, onAuthFailure });
+
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(401, { ok: false, error: 'Token expired' }))
+      .mockResolvedValueOnce(jsonResponse(401, { ok: false, error: 'Refresh token expired' }));
+
+    await expect(client.get('/items')).rejects.toThrow('Token expired');
+
+    expect(storage.clearTokens).toHaveBeenCalled();
+    expect(onAuthFailure).toHaveBeenCalled();
+  });
+
+  // New unified behavior: extension previously kept stale tokens on network errors
+  it('clears tokens and fires onAuthFailure when refresh throws (network error)', async () => {
+    const storage = makeStorage({ accessToken: 'expired', refreshToken: 'refresh-1' });
+    const onAuthFailure = vi.fn();
+    const client = createApiClient({ baseUrl: BASE_URL, storage, onAuthFailure });
+
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(401, { ok: false, error: 'Token expired' }))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await expect(client.get('/items')).rejects.toThrow('Token expired');
+
+    expect(storage.clearTokens).toHaveBeenCalled();
+    expect(onAuthFailure).toHaveBeenCalled();
+  });
+
+  // Bug guard: refresh 200 with garbage data → TypeError crash or infinite loop
+  it('treats malformed refresh response as failure and clears tokens', async () => {
+    const storage = makeStorage({ accessToken: 'expired', refreshToken: 'refresh-1' });
+    const onAuthFailure = vi.fn();
+    const client = createApiClient({ baseUrl: BASE_URL, storage, onAuthFailure });
+
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(401, { ok: false, error: 'expired' }))
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true, data: null }));
+
+    await expect(client.get('/items')).rejects.toThrow();
+
+    expect(storage.clearTokens).toHaveBeenCalled();
+    expect(onAuthFailure).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(2); // original 401 + refresh, no loop
+  });
+
+  // Bug guard: unauthenticated 401 triggering a pointless refresh
+  it('does not attempt refresh when no tokens are stored', async () => {
+    const storage = makeStorage(null);
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(jsonResponse(401, { ok: false, error: 'Auth required' }));
+
+    await expect(client.get('/items')).rejects.toThrow('Auth required');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(storage.clearTokens).not.toHaveBeenCalled();
+  });
+
+  // Bug guard: 403 accidentally triggering refresh → wasted token rotation
+  it('does not attempt refresh on 403 Forbidden', async () => {
+    const storage = makeStorage({ accessToken: 'valid', refreshToken: 'refresh-1' });
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(jsonResponse(403, { ok: false, error: 'Forbidden' }));
+
+    await expect(client.get('/admin')).rejects.toThrow('Forbidden');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  // Bug guard: concurrent 401s each rotating the refresh token → race
+  it('deduplicates concurrent refresh attempts', async () => {
+    const storage = makeStorage({ accessToken: 'expired', refreshToken: 'refresh-1' });
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    let refreshCallCount = 0;
+
+    mockFetch.mockImplementation(async (input) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url;
+      if (url.includes('/auth/refresh')) {
+        refreshCallCount++;
+        return jsonResponse(200, {
+          ok: true,
+          data: { accessToken: 'fresh', refreshToken: 'refresh-2', expiresIn: 3600 },
+        });
+      }
+      return jsonResponse(200, { ok: true, data: { items: [] } });
+    });
+    // First fetch of each concurrent request returns 401
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(401, { ok: false, error: 'expired' }))
+      .mockResolvedValueOnce(jsonResponse(401, { ok: false, error: 'expired' }));
+
+    await Promise.all([client.get('/items'), client.get('/users')]);
+
+    expect(refreshCallCount).toBe(1);
+  });
+});
