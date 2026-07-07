@@ -87,8 +87,21 @@ export const server = {
 /**
  * Auth configuration
  */
+const DEV_JWT_SECRET = 'dev-jwt-secret-change-in-production';
+
+function resolveJwtSecret(): string {
+  const value = process.env.JWT_SECRET;
+  if (isProduction) {
+    if (!value || value === DEV_JWT_SECRET) {
+      throw new Error('JWT_SECRET must be set to a non-default value in production');
+    }
+    return value;
+  }
+  return value || DEV_JWT_SECRET;
+}
+
 export const auth = {
-  jwtSecret: required('JWT_SECRET', 'dev-jwt-secret-change-in-production'),
+  jwtSecret: resolveJwtSecret(),
   jwtExpiresIn: optional('JWT_EXPIRES_IN', '15m'),
   refreshTokenExpiresInDays: 30,
 } as const;
