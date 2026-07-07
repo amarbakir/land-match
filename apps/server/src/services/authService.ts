@@ -8,6 +8,15 @@ import * as userRepo from '../repos/userRepo';
 
 const BCRYPT_ROUNDS = 12;
 
+// A hash of a fixed dummy password, compared against when no user (or no
+// password) is found so login spends the same bcrypt time whether or not the
+// email exists — without it, an unknown email returns before any hashing and is
+// measurably faster, leaking account existence via a timing side-channel.
+// Derived from BCRYPT_ROUNDS (not a hardcoded literal) so the work factor can
+// never drift from real password hashes and silently reopen the oracle.
+// Computed once at module load; resolved well before the first request.
+const dummyHashPromise = bcrypt.hash('dummy-password-for-timing-equalization', BCRYPT_ROUNDS);
+
 export async function register(
   email: string,
   password: string,
@@ -34,10 +43,12 @@ export async function login(
 ): Promise<Result<AuthTokenResponseType>> {
   try {
     const user = await userRepo.findByEmail(email);
-    if (!user || !user.passwordHash) return err(ERR.INVALID_CREDENTIALS);
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) return err(ERR.INVALID_CREDENTIALS);
+    // Always run a bcrypt comparison — against the real hash if the user exists,
+    // otherwise against a dummy — so response time doesn't reveal whether the
+    // email is registered. A truthy `valid` is only possible on the real branch.
+    const valid = await bcrypt.compare(password, user?.passwordHash ?? (await dummyHashPromise));
+    if (!user || !user.passwordHash || !valid) return err(ERR.INVALID_CREDENTIALS);
 
     const tokens = await generateTokenPair(user.id);
     return ok(tokens);

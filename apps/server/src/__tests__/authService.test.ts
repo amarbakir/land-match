@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import bcrypt from 'bcryptjs';
 
 import * as userRepo from '../repos/userRepo';
 import * as jwt from '../lib/jwt';
@@ -101,6 +102,38 @@ describe('login', () => {
     const result = await login('nobody@example.com', 'password123');
 
     expect(result).toEqual({ ok: false, error: 'INVALID_CREDENTIALS' });
+  });
+
+  // Bug this catches: an early `if (!user) return` (the pre-cge.4 behavior) skips
+  // bcrypt entirely for unknown emails, so they respond measurably faster than a
+  // wrong-password attempt — a timing oracle for account enumeration. Login must
+  // spend a bcrypt comparison even when the email doesn't exist.
+  it('still performs a bcrypt comparison when the email is unknown (constant-time)', async () => {
+    mockUserRepo.findByEmail.mockResolvedValue(undefined);
+    const compareSpy = vi.spyOn(bcrypt, 'compare');
+
+    const result = await login('nobody@example.com', 'password123');
+
+    expect(result).toEqual({ ok: false, error: 'INVALID_CREDENTIALS' });
+    expect(compareSpy).toHaveBeenCalledTimes(1);
+    // never a truthy match against the dummy hash
+    await expect(compareSpy.mock.results[0].value).resolves.toBe(false);
+
+    compareSpy.mockRestore();
+  });
+
+  // Same side-channel for OAuth accounts that have no password hash: must not
+  // short-circuit before the comparison.
+  it('still performs a bcrypt comparison for a passwordless (OAuth) user', async () => {
+    mockUserRepo.findByEmail.mockResolvedValue({ ...STORED_USER, passwordHash: null });
+    const compareSpy = vi.spyOn(bcrypt, 'compare');
+
+    const result = await login('test@example.com', 'password123');
+
+    expect(result).toEqual({ ok: false, error: 'INVALID_CREDENTIALS' });
+    expect(compareSpy).toHaveBeenCalledTimes(1);
+
+    compareSpy.mockRestore();
   });
 
   // Bug: user exists via OAuth (no password) — bcrypt.compare with null crashes
