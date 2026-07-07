@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@landmatch/api';
 
-import { logger } from '../lib/logger';
+import { captureError } from '../lib/captureError';
 import * as alertRepo from '../repos/alertRepo';
 import * as listingRepo from '../repos/listingRepo';
 import * as scoreRepo from '../repos/scoreRepo';
@@ -168,7 +168,7 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
 
     return ok({ emailsSent, alertsProcessed, errors });
   } catch (error) {
-    logger.error({ err: error }, 'alertDeliveryService.deliverPendingAlerts');
+    captureError(error, 'alertDeliveryService.deliverPendingAlerts');
     return err('INTERNAL_ERROR');
   }
 }

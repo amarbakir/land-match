@@ -2,7 +2,7 @@ import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResp
 import { enrichListing, type EnrichmentResult } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
-import { logger } from '../lib/logger';
+import { captureError } from '../lib/captureError';
 import { db, type Tx } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 import { matchListingAgainstProfiles } from './matchingService';
@@ -150,13 +150,13 @@ export async function enrichAndPersist(
 
     // 3. Score against active search profiles (fire-and-forget)
     matchListingAgainstProfiles(persisted.listing.id).catch((e) =>
-      logger.error({ err: e }, 'listingService: background matching failed'),
+      captureError(e, 'listingService: background matching failed'),
     );
 
     // 4. Build response (reuse the score computed during persistence)
     return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, enrichment.errors, persisted.hs));
   } catch (error) {
-    logger.error({ err: error }, 'listingService.enrichAndPersist');
+    captureError(error, 'listingService.enrichAndPersist');
     return err('INTERNAL_ERROR');
   }
 }
@@ -221,7 +221,7 @@ export async function getSavedListings(
       offset: filters.offset ?? 0,
     });
   } catch (error) {
-    logger.error({ err: error }, 'listingService.getSavedListings');
+    captureError(error, 'listingService.getSavedListings');
     return err('INTERNAL_ERROR');
   }
 }
@@ -232,7 +232,7 @@ export async function unsaveListing(userId: string, listingId: string): Promise<
     if (!deleted) return err('NOT_FOUND');
     return ok(undefined);
   } catch (error) {
-    logger.error({ err: error }, 'listingService.unsaveListing');
+    captureError(error, 'listingService.unsaveListing');
     return err('INTERNAL_ERROR');
   }
 }

@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { ok, err, type Result, type AuthTokenResponseType } from '@landmatch/api';
 
-import { logger } from '../lib/logger';
+import { captureError } from '../lib/captureError';
 import { generateTokenPair, verifyToken } from '../lib/jwt';
 import { ERR } from '../lib/errors';
 import * as userRepo from '../repos/userRepo';
@@ -23,7 +23,7 @@ export async function register(
     const tokens = await generateTokenPair(user.id);
     return ok(tokens);
   } catch (e) {
-    logger.error({ err: e }, 'authService.register');
+    captureError(e, 'authService.register');
     return err(ERR.INTERNAL_ERROR);
   }
 }
@@ -42,7 +42,7 @@ export async function login(
     const tokens = await generateTokenPair(user.id);
     return ok(tokens);
   } catch (e) {
-    logger.error({ err: e }, 'authService.login');
+    captureError(e, 'authService.login');
     return err(ERR.INTERNAL_ERROR);
   }
 }
@@ -60,7 +60,7 @@ export async function refresh(
     const tokens = await generateTokenPair(user.id);
     return ok(tokens);
   } catch (e) {
-    logger.error({ err: e }, 'authService.refresh');
+    captureError(e, 'authService.refresh');
     return err(ERR.INTERNAL_ERROR);
   }
 }

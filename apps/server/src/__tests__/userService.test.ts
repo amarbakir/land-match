@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import * as Sentry from '@sentry/node';
+
 import * as userRepo from '../repos/userRepo';
 import * as userService from '../services/userService';
 
+vi.mock('@sentry/node', () => ({ captureException: vi.fn() }));
 vi.mock('../repos/userRepo');
 
 const mockRepo = vi.mocked(userRepo);
@@ -65,6 +68,17 @@ describe('userService', () => {
 
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe('INTERNAL_ERROR');
+    });
+
+    it('reports repo failures to Sentry', async () => {
+      const error = new Error('connection refused');
+      mockRepo.findById.mockRejectedValueOnce(error);
+
+      await userService.getNotificationPrefs('user-1');
+
+      expect(Sentry.captureException).toHaveBeenCalledWith(error, {
+        tags: { context: 'userService.getNotificationPrefs' },
+      });
     });
   });
 

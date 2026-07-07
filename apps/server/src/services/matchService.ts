@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@landmatch/api';
 import type { MatchItem, MatchDetail, PaginatedMatches, MatchFilters, ProfileCounts, UpdateMatchStatus } from '@landmatch/api';
 
-import { logger } from '../lib/logger';
+import { captureError } from '../lib/captureError';
 import * as scoreRepo from '../repos/scoreRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
 
@@ -69,7 +69,7 @@ export async function getMatchDetail(userId: string, scoreId: string): Promise<R
 
     return ok(toMatchDetail(row));
   } catch (error) {
-    logger.error({ err: error }, 'matchService.getMatchDetail');
+    captureError(error, 'matchService.getMatchDetail');
     return err('INTERNAL_ERROR');
   }
 }
@@ -100,7 +100,7 @@ export async function getMatches(
       offset: filters.offset ?? 0,
     });
   } catch (error) {
-    logger.error({ err: error }, 'matchService.getMatches');
+    captureError(error, 'matchService.getMatches');
     return err('INTERNAL_ERROR');
   }
 }
@@ -131,7 +131,7 @@ export async function updateMatchStatus(
       readAt: updated.readAt ? updated.readAt.toISOString() : null,
     });
   } catch (error) {
-    logger.error({ err: error }, 'matchService.updateMatchStatus');
+    captureError(error, 'matchService.updateMatchStatus');
     return err('INTERNAL_ERROR');
   }
 }
@@ -153,7 +153,7 @@ export async function getProfileCounts(userId: string): Promise<Result<ProfileCo
 
     return ok(result);
   } catch (error) {
-    logger.error({ err: error }, 'matchService.getProfileCounts');
+    captureError(error, 'matchService.getProfileCounts');
     return err('INTERNAL_ERROR');
   }
 }
