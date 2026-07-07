@@ -75,13 +75,24 @@ describe('auth flow (integration)', () => {
     expect(((await wrong.json()) as Json).code).toBe(((await unknown.json()) as Json).code);
   });
 
-  it('refreshes tokens with a valid refresh token, rejects a garbage one', async () => {
+  it('refreshes tokens, and the new access token actually authenticates a request', async () => {
     const { body } = await register('refresh@example.com');
 
     const good = await post('/api/v1/auth/refresh', { refreshToken: body.data.refreshToken });
     expect(good.status).toBe(200);
-    expect(((await good.json()) as Json).data.accessToken).toBeTruthy();
+    const refreshed = (await good.json()) as Json;
+    expect(refreshed.data.accessToken).toBeTruthy();
 
+    // Bug this catches: a refresh that returns a malformed/unsigned access token
+    // would still look "truthy" but fail on the next authenticated call. Use it
+    // against an auth-gated endpoint and require a real 200.
+    const authed = await createApp().request('/api/v1/search-profiles', {
+      headers: { authorization: `Bearer ${refreshed.data.accessToken}` },
+    });
+    expect(authed.status).toBe(200);
+  });
+
+  it('rejects an invalid refresh token with 401', async () => {
     const bad = await post('/api/v1/auth/refresh', { refreshToken: 'not.a.valid.token' });
     expect(bad.status).toBe(401);
   });
