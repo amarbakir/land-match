@@ -19,7 +19,8 @@ export function computeHomestead(listing: DbListingRow, enrichment: DbEnrichment
       components[key] = { score: value.score, label: value.label };
     }
     return { homesteadScore: result.homesteadScore, homesteadComponents: components };
-  } catch {
+  } catch (e) {
+    captureError(e, 'listingService.computeHomestead');
     return { homesteadScore: null, homesteadComponents: null };
   }
 }
@@ -41,36 +42,35 @@ export async function persistEnrichment(
 
 // Recompute the homestead score from a saved-listings projection row. Used as a
 // fallback when the persisted homestead_score column is null (pre-backfill rows).
+// May throw if the scoring engine fails; the caller degrades per-row to null and
+// reports once per request rather than once per row (a systematic scoring bug
+// would otherwise fire one Sentry event per listing and exhaust the error quota).
 function scoreFromSavedRow(row: SavedListingRow): number | null {
-  try {
-    const listingRow: ListingRow = {
-      price: row.price,
-      acreage: row.acreage,
-      latitude: row.lat,
-      longitude: row.lng,
-    };
-    const enrichmentRow: EnrichmentRow = {
-      soilCapabilityClass: row.soilClass,
-      soilDrainageClass: row.soilDrainageClass,
-      soilTexture: row.soilTexture,
-      femaFloodZone: row.floodZone,
-      zoningCode: row.zoning,
-      fireRiskScore: row.fireRiskScore,
-      floodRiskScore: row.floodRiskScore,
-      frostFreeDays: row.frostFreeDays,
-      annualPrecipIn: row.annualPrecipIn,
-      avgMinTempF: row.avgMinTempF,
-      avgMaxTempF: row.avgMaxTempF,
-      growingSeasonDays: row.growingSeasonDays,
-      elevationFt: row.elevationFt,
-      slopePct: row.slopePct,
-      wetlandType: row.wetlandType,
-      wetlandWithinBufferFt: row.wetlandWithinBufferFt,
-    };
-    return homesteadScore(mapListingRow(listingRow), mapEnrichmentRow(enrichmentRow), {}).homesteadScore;
-  } catch {
-    return null; // scoring failure is non-fatal
-  }
+  const listingRow: ListingRow = {
+    price: row.price,
+    acreage: row.acreage,
+    latitude: row.lat,
+    longitude: row.lng,
+  };
+  const enrichmentRow: EnrichmentRow = {
+    soilCapabilityClass: row.soilClass,
+    soilDrainageClass: row.soilDrainageClass,
+    soilTexture: row.soilTexture,
+    femaFloodZone: row.floodZone,
+    zoningCode: row.zoning,
+    fireRiskScore: row.fireRiskScore,
+    floodRiskScore: row.floodRiskScore,
+    frostFreeDays: row.frostFreeDays,
+    annualPrecipIn: row.annualPrecipIn,
+    avgMinTempF: row.avgMinTempF,
+    avgMaxTempF: row.avgMaxTempF,
+    growingSeasonDays: row.growingSeasonDays,
+    elevationFt: row.elevationFt,
+    slopePct: row.slopePct,
+    wetlandType: row.wetlandType,
+    wetlandWithinBufferFt: row.wetlandWithinBufferFt,
+  };
+  return homesteadScore(mapListingRow(listingRow), mapEnrichmentRow(enrichmentRow), {}).homesteadScore;
 }
 
 function toEnrichListingResponse(
@@ -179,10 +179,19 @@ export async function getSavedListings(
       offset: filters.offset,
     });
 
+    let recomputeFailures = 0;
     const items = rows.map((row) => {
       // Prefer the persisted score; recompute only for pre-backfill null rows
       // (?? keeps a persisted 0 — a valid hard-filtered score — from recomputing).
-      const hsScore = row.homesteadScore ?? scoreFromSavedRow(row);
+      let hsScore = row.homesteadScore;
+      if (hsScore == null) {
+        try {
+          hsScore = scoreFromSavedRow(row);
+        } catch {
+          recomputeFailures += 1; // degrade this row; report the batch once below
+          hsScore = null;
+        }
+      }
 
       return {
         id: row.id,
@@ -205,6 +214,13 @@ export async function getSavedListings(
           : null,
       };
     });
+
+    if (recomputeFailures > 0) {
+      captureError(
+        new Error(`homestead recompute failed for ${recomputeFailures}/${rows.length} saved rows`),
+        'listingService.getSavedListings.recompute',
+      );
+    }
 
     if (filters.sort === 'homestead') {
       items.sort((a, b) => {
