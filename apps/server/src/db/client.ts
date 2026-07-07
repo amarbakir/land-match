@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import * as schema from '@landmatch/db';
 
 import { database } from '../config';
+import { logger } from '../lib/logger';
 
 // Create connection pool using parsed config object
 export const pool = new Pool(database.connection);
@@ -35,13 +36,13 @@ export async function runMigrations() {
     const migrationDb = drizzle(migrationPool, { schema });
 
     const migrationsFolder = path.resolve(__dirname, '../../../../packages/db/drizzle');
-    console.log('Migrations folder:', migrationsFolder);
+    logger.info({ migrationsFolder }, 'running database migrations');
     await migrate(migrationDb, { migrationsFolder });
-    console.log('Database migrations completed');
+    logger.info('database migrations completed');
 
     await migrationPool.end();
   } catch (error) {
-    console.error('Failed to run database migrations:', error);
+    logger.error({ err: error }, 'database migrations failed');
     throw error;
   }
 }

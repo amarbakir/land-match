@@ -7,6 +7,7 @@ import {
 
 import { pool } from '../db/client';
 import { features } from '../config';
+import { logger } from './logger';
 
 export function registerGeodataAdapters(): void {
   if (!features.enableGeodataEnrichment) return;
@@ -15,5 +16,5 @@ export function registerGeodataAdapters(): void {
   registerAdapter('elevation', createElevationAdapter(pool));
   registerAdapter('wetlands', createWetlandsAdapter(pool));
 
-  console.log('[geodata] Registered PostGIS enrichment adapters: climateNormals, elevation, wetlands');
+  logger.info('registered PostGIS enrichment adapters: climateNormals, elevation, wetlands');
 }

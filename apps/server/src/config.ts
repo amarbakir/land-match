@@ -1,5 +1,7 @@
 import dotenv from 'dotenv';
 
+import { logger } from './lib/logger';
+
 // Load .env file
 dotenv.config();
 
@@ -18,7 +20,7 @@ function required(name: string, defaultValue?: string): string {
     if (isProduction) {
       throw new Error(`Missing required environment variable: ${name}`);
     }
-    console.warn(`Warning: ${name} not set, some features may not work`);
+    logger.warn(`${name} not set, some features may not work`);
     return '';
   }
   return value;
@@ -156,10 +158,15 @@ export const email = {
  * Validate configuration at startup
  */
 export function validateConfig(): void {
-  console.log(`[CONFIG] Environment: ${server.nodeEnv}`);
-  console.log(`[CONFIG] Database URL: ${database.url ? 'configured' : 'NOT SET'}`);
-  console.log(`[CONFIG] Auth: ${auth.jwtSecret ? 'configured' : 'NOT configured'}`);
-  console.log(`[CONFIG] Email: from=${email.fromAddress}`);
+  logger.info(
+    {
+      env: server.nodeEnv,
+      database: database.url ? 'configured' : 'NOT SET',
+      auth: auth.jwtSecret ? 'configured' : 'NOT configured',
+      emailFrom: email.fromAddress,
+    },
+    'config loaded',
+  );
 
   if (isProduction) {
     if (!database.url) {

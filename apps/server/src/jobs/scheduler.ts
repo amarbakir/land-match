@@ -2,16 +2,17 @@ import cron from 'node-cron';
 
 import { email } from '../config';
 import { deliverPendingAlerts } from '../services/alertDeliveryService';
+import { logger } from '../lib/logger';
 
 let deliveryJobRunning = false;
 
 export function startScheduler(): void {
   // Email delivery cron — always starts, no-ops if no pending alerts
-  console.log(`[scheduler] Starting email delivery cron: ${email.deliveryCronSchedule}`);
+  logger.info({ schedule: email.deliveryCronSchedule }, 'starting email delivery cron');
 
   cron.schedule(email.deliveryCronSchedule, async () => {
     if (deliveryJobRunning) {
-      console.log('[scheduler] Skipping delivery — previous run still in progress');
+      logger.info('skipping delivery — previous run still in progress');
       return;
     }
 
@@ -20,26 +21,21 @@ export function startScheduler(): void {
 
     try {
       const result = await deliverPendingAlerts();
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
       if (!result.ok) {
-        console.error(`[scheduler] Email delivery failed in ${elapsed}s:`, result.error);
+        logger.error({ durationMs: Date.now() - startTime, err: result.error }, 'email delivery failed');
         return;
       }
 
       if (result.data.emailsSent > 0 || result.data.errors.length > 0) {
-        console.log(
-          `[scheduler] Email delivery complete in ${elapsed}s: ` +
-          `emails=${result.data.emailsSent} alerts=${result.data.alertsProcessed} ` +
-          `errors=${result.data.errors.length}`,
-        );
+        logger.info({ durationMs: Date.now() - startTime, emails: result.data.emailsSent, alerts: result.data.alertsProcessed, errors: result.data.errors.length }, 'email delivery complete');
       }
 
       if (result.data.errors.length > 0) {
-        console.warn('[scheduler] Delivery errors:', result.data.errors.slice(0, 10));
+        logger.warn({ errors: result.data.errors.slice(0, 10) }, 'delivery errors');
       }
     } catch (error) {
-      console.error('[scheduler] Email delivery failed:', error);
+      logger.error({ err: error }, 'email delivery failed');
     } finally {
       deliveryJobRunning = false;
     }
