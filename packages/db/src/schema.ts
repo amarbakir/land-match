@@ -1,8 +1,9 @@
+import { sql } from 'drizzle-orm';
 import { boolean, doublePrecision, index, jsonb, pgTable, text, timestamp, integer, real, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
-  email: text('email').notNull().unique(),
+  email: text('email').notNull(),
   name: text('name'),
   phone: text('phone'),
   authProvider: text('auth_provider').notNull().default('email'),
@@ -11,7 +12,11 @@ export const users = pgTable('users', {
   notificationPrefs: jsonb('notification_prefs'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => [
+  // Case-insensitive uniqueness: prevents case-variant duplicate accounts and
+  // makes the lower(email)=$1 lookup in userRepo.findByEmail index-backed.
+  uniqueIndex('users_email_lower_idx').on(sql`lower(${table.email})`),
+]);
 
 export const searchProfiles = pgTable('search_profiles', {
   id: text('id').primaryKey(),
