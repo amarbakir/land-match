@@ -1,4 +1,4 @@
-import type { EnrichmentResult } from '@landmatch/enrichment';
+import type { EnrichmentResult } from '@landmatch/api';
 import type { EnrichmentData, EnrichmentRow } from './types';
 
 export function mapEnrichmentRow(row: EnrichmentRow | null | undefined): EnrichmentData {

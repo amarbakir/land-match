@@ -13,8 +13,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
-    "@landmatch/api": "workspace:*",
-    "@landmatch/enrichment": "workspace:*"
+    "@landmatch/api": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

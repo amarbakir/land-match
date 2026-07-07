@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EnrichmentResult } from '@landmatch/enrichment';
+import type { EnrichmentResult } from '@landmatch/api';
 import { mapEnrichmentResult, mapEnrichmentRow } from '../mapEnrichment';
 import type { EnrichmentRow } from '../types';
 

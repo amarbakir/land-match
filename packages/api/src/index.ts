@@ -11,6 +11,16 @@ export {
 export { ErrorCode, ErrorMessage, type ErrorCodeType } from './errors';
 export { EnrichListingRequest, EnrichListingResponse, HomesteadComponent, ListingByUrlQuery, SaveListingResponse, SavedListingItem, PaginatedSavedListings, SavedListingsFilters } from './listings';
 export { err, ok, type Result } from './result';
+export type {
+  EnrichmentResult,
+  SoilData,
+  FloodData,
+  ParcelData,
+  ClimateData,
+  ClimateNormalsData,
+  ElevationData,
+  WetlandsData,
+} from './enrichment';
 export {
   CreateSearchProfile,
   SearchCriteria,
