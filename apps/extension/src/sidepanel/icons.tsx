@@ -3,7 +3,7 @@ import { h, type VNode } from 'preact';
 export interface IconProps {
   size?: number;
   class?: string;
-  style?: string | Record<string, string>;
+  style?: string | Record<string, string | number>;
 }
 
 function _ic(paths: VNode | VNode[]) {
