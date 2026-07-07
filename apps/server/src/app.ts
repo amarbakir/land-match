@@ -6,7 +6,8 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { server } from './config';
 import { pool } from './db/client';
 import { registerGeodataAdapters } from './lib/geodataAdapters';
-import { generateRequestId } from './middleware/logging';
+import { logger } from './lib/logger';
+import { requestLogging } from './middleware/requestLogging';
 import { optionalAuth, requireAuth } from './middleware/auth';
 import { rateLimit } from './middleware/rateLimit';
 import authRouter from './routes/auth';
@@ -25,13 +26,8 @@ export function createApp() {
   // CORS
   app.use('*', cors({ origin: server.corsOrigin }));
 
-  // Request ID + timing
-  app.use('*', async (c, next) => {
-    const requestId = generateRequestId(c.req.header('x-request-id'));
-    c.set('requestId', requestId);
-    c.set('startTime', Date.now());
-    await next();
-  });
+  // Request ID + child logger + access log
+  app.use('*', requestLogging(logger));
 
   // Error handler
   app.onError((err, c) => {
@@ -39,7 +35,7 @@ export function createApp() {
       return err.getResponse();
     }
     const statusCode = 500 as ContentfulStatusCode;
-    console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err);
+    (c.get('logger') ?? logger).error({ err }, `unhandled error: ${c.req.method} ${c.req.path}`);
     return c.json({ ok: false, code: 'INTERNAL_ERROR', error: err.message || 'Internal server error' }, statusCode);
   });
 
