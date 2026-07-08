@@ -89,7 +89,6 @@ describe('register', () => {
 describe('login', () => {
   it('returns tokens when password matches', async () => {
     // Create a real hash we can verify against
-    const bcrypt = await import('bcrypt');
     const realHash = await bcrypt.hash('correctpassword', 4); // low cost for speed
     mockUserRepo.findByEmail.mockResolvedValue({ ...STORED_USER, passwordHash: realHash });
 
@@ -112,7 +111,6 @@ describe('login', () => {
   });
 
   it('rejects wrong password without leaking whether email exists', async () => {
-    const bcrypt = await import('bcrypt');
     const realHash = await bcrypt.hash('correctpassword', 4);
     mockUserRepo.findByEmail.mockResolvedValue({ ...STORED_USER, passwordHash: realHash });
 
