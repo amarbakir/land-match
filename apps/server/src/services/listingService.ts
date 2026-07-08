@@ -161,8 +161,8 @@ export async function enrichAndPersist(
   }
 }
 
-// Listings without an owner (feed pipeline) are visible to everyone; listings
-// created via /enrich are visible only to the user who enriched them.
+// Lookups only see ownerless (feed) listings or the caller's own — see
+// listingRepo.visibleTo for the policy.
 export async function getByUrl(url: string, userId: string): Promise<Result<EnrichListingResponse>> {
   const result = await listingRepo.findByUrl(url, userId);
   if (!result) return err('NOT_FOUND');

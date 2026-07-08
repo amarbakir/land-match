@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { requireAuth } from '../middleware/auth';
@@ -10,11 +9,11 @@ vi.mock('../lib/jwt');
 
 const mockJwt = vi.mocked(jwt);
 
-/** Build a tiny app with the given middleware and a route that echoes userId. */
-function buildApp(middleware: MiddlewareHandler<Env>) {
+/** Build a tiny app behind requireAuth with a route that echoes userId. */
+function buildApp() {
   const app = new Hono<Env>();
-  app.use('/*', middleware);
-  app.get('/protected', (c) => c.json({ userId: c.get('userId') ?? null }));
+  app.use('/*', requireAuth);
+  app.get('/protected', (c) => c.json({ userId: c.get('userId') }));
   return app;
 }
 
@@ -23,7 +22,7 @@ beforeEach(() => {
 });
 
 describe('requireAuth', () => {
-  const app = buildApp(requireAuth);
+  const app = buildApp();
 
   it('returns 401 with structured error when no Authorization header is present', async () => {
     const res = await app.request('/protected');

@@ -1,4 +1,4 @@
-import { eq, inArray, and, or, isNull, desc, asc, sql, count as countFn } from 'drizzle-orm';
+import { eq, inArray, and, or, isNull, desc, asc, sql, count as countFn, type SQL } from 'drizzle-orm';
 import { listings, enrichments, savedListings, scores } from '@landmatch/db';
 import type { EnrichmentResult } from '@landmatch/enrichment';
 
@@ -45,20 +45,26 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
   return row;
 }
 
-// Scoped to rows the caller may see: ownerless (global feed) listings or their own.
-export async function findByUrl(url: string, userId: string, tx?: Tx) {
+// Visibility policy: ownerless (global feed) listings are visible to everyone;
+// owned listings only to their owner.
+export function visibleTo(userId: string) {
+  return or(isNull(listings.userId), eq(listings.userId, userId));
+}
+
+async function findOneWithEnrichment(where: SQL | undefined, tx?: Tx) {
   const rows = await (tx ?? db)
     .select()
     .from(listings)
     .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
-    .where(and(
-      eq(listings.url, url),
-      or(isNull(listings.userId), eq(listings.userId, userId)),
-    ))
+    .where(where)
     .limit(1);
 
   if (rows.length === 0) return null;
   return { listing: rows[0].listings, enrichment: rows[0].enrichments };
+}
+
+export async function findByUrl(url: string, userId: string, tx?: Tx) {
+  return findOneWithEnrichment(and(eq(listings.url, url), visibleTo(userId)), tx);
 }
 
 export async function saveListing(userId: string, listingId: string, tx?: Tx) {
@@ -142,16 +148,7 @@ export async function findByIds(ids: string[], tx?: Tx) {
 }
 
 export async function findListingWithEnrichment(id: string, tx?: Tx) {
-  const rows = await (tx ?? db)
-    .select()
-    .from(listings)
-    .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
-    .where(eq(listings.id, id))
-    .limit(1);
-
-  if (rows.length === 0) return null;
-
-  return { listing: rows[0].listings, enrichment: rows[0].enrichments };
+  return findOneWithEnrichment(eq(listings.id, id), tx);
 }
 
 export interface SavedListingsQuery {

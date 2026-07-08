@@ -49,20 +49,21 @@ async function registerUser(email: string): Promise<string> {
   return body.data.accessToken;
 }
 
+function authHeaders(token?: string): Record<string, string> {
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
 function postEnrich(body: unknown, token?: string) {
   return createApp().request('/api/v1/listings/enrich', {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
+    headers: { 'content-type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify(body),
   });
 }
 
 function getByUrl(url: string, token?: string) {
   return createApp().request(`/api/v1/listings/by-url?url=${encodeURIComponent(url)}`, {
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: authHeaders(token),
   });
 }
 
@@ -143,8 +144,10 @@ describe('by-url visibility (integration)', () => {
   const LISTING_URL = 'https://landwatch.example.com/listing/42';
 
   it("returns the caller's own enriched listing but hides other users' listings", async () => {
-    const ownerToken = await registerUser('owner@example.com');
-    const otherToken = await registerUser('other@example.com');
+    const [ownerToken, otherToken] = await Promise.all([
+      registerUser('owner@example.com'),
+      registerUser('other@example.com'),
+    ]);
 
     const enriched = await postEnrich({ address: '123 Rural Rd, MO', url: LISTING_URL }, ownerToken);
     expect(enriched.status).toBe(201);
@@ -160,12 +163,14 @@ describe('by-url visibility (integration)', () => {
 
   it('returns ownerless (feed) listings to any authenticated user', async () => {
     const token = await registerUser('reader@example.com');
-    // Feed-pipeline listings have no owner and are global by design.
-    await pool.query(
-      `INSERT INTO listings (id, source, address, latitude, longitude, url, enrichment_status, first_seen_at, last_seen_at)
-       VALUES ('lst-feed-1', 'feed', '789 Feed Rd, MO', 36.1, -92.5, $1, 'enriched', now(), now())`,
-      [LISTING_URL],
-    );
+    // Feed-pipeline listings have no owner (no userId) and are global by design.
+    await listingRepo.insertListing({
+      address: '789 Feed Rd, MO',
+      latitude: 36.1,
+      longitude: -92.5,
+      url: LISTING_URL,
+      source: 'feed',
+    });
 
     // Bug this catches: over-tightening the scope to userId = caller only,
     // which would hide every feed listing from every user.
