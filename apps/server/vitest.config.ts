@@ -12,7 +12,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
-    exclude: ['src/routes/__tests__/integration/**', 'src/repos/__tests__/**/*.integration.test.ts', 'node_modules', 'dist'],
+    exclude: ['src/routes/__tests__/integration/**', 'src/**/*.integration.test.ts', 'node_modules', 'dist'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

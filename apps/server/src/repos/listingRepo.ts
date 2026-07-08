@@ -187,7 +187,9 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
     .from(scores)
     .innerJoin(searchProfiles, eq(scores.searchProfileId, searchProfiles.id))
     .where(eq(searchProfiles.userId, userId))
-    .orderBy(scores.listingId, desc(scores.overallScore))
+    // scores.id tie-breaker: without it, equal top scores from two profiles
+    // make the returned profile name flip nondeterministically across requests.
+    .orderBy(scores.listingId, desc(scores.overallScore), asc(scores.id))
     .as('best_score_sq');
 
   const [rows, totalResult] = await Promise.all([

@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/routes/__tests__/integration/**/*.integration.test.ts', 'src/repos/__tests__/**/*.integration.test.ts'],
+    include: ['src/**/*.integration.test.ts'],
     globalSetup: ['src/routes/__tests__/integration/globalSetup.ts'],
     setupFiles: ['src/routes/__tests__/integration/setup.ts'],
     // Point the app's DB client at the dedicated test database (see globalSetup).

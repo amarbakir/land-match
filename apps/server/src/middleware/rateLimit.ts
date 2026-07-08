@@ -4,50 +4,18 @@ import type { ApiErrorEnvelopeType } from '@landmatch/api';
 import { ErrorCode, ErrorMessage } from '@landmatch/api';
 
 import { captureError } from '../lib/captureError';
+import { InMemoryRateLimitStore, type RateLimitStore, type RateLimitWindow } from '../lib/rateLimitStore';
 
-export interface RateLimitWindow {
-  count: number;
-  resetAt: number; // epoch ms
-}
+/** The slice of the hono/aws-lambda binding this middleware reads. Test
+ *  helpers fabricate this exact type so shape drift is a compile error. */
+export type LambdaRequestEnv = {
+  event?: { requestContext?: { http?: { sourceIp?: string } } };
+};
 
-export interface RateLimitStore {
-  /** Record one hit against the key, opening a fresh window if the current one expired. */
-  increment(key: string, windowMs: number): Promise<RateLimitWindow>;
-}
-
-// Sweep expired entries once the map grows past this size, so long-running
-// processes don't accumulate one entry per client IP forever.
-const SWEEP_THRESHOLD = 10_000;
-
-/** Per-process store. Fine for a single instance and unit tests; horizontally
- *  scaled deployments must use a shared store or limits multiply per instance. */
-export class InMemoryRateLimitStore implements RateLimitStore {
-  private windows = new Map<string, RateLimitWindow>();
-
-  async increment(key: string, windowMs: number): Promise<RateLimitWindow> {
-    const now = Date.now();
-
-    let entry = this.windows.get(key);
-    if (!entry || now >= entry.resetAt) {
-      if (this.windows.size >= SWEEP_THRESHOLD) {
-        for (const [k, v] of this.windows) {
-          if (now >= v.resetAt) this.windows.delete(k);
-        }
-      }
-      entry = { count: 0, resetAt: now + windowMs };
-      this.windows.set(key, entry);
-    }
-
-    entry.count++;
-    return entry;
-  }
-}
-
-// hono/aws-lambda puts the Function URL / API Gateway event on c.env; its
-// sourceIp is stamped by AWS and cannot be forged by the caller.
+// The Function URL / API Gateway event's sourceIp is stamped by AWS and
+// cannot be forged by the caller.
 function lambdaSourceIp(c: Context): string | undefined {
-  const env = c.env as { event?: { requestContext?: { http?: { sourceIp?: string } } } } | undefined;
-  return env?.event?.requestContext?.http?.sourceIp;
+  return (c.env as LambdaRequestEnv | undefined)?.event?.requestContext?.http?.sourceIp;
 }
 
 function socketAddress(c: Context): string | undefined {
@@ -100,7 +68,8 @@ export function rateLimit({ windowMs, max, scope, store, trustProxy = false }: R
   // Degraded mode for shared-store outages: per-instance limiting is weaker
   // than shared limiting, but "no limiting at all" would strip brute-force
   // protection from credential endpoints exactly when the DB is struggling.
-  const fallback = new InMemoryRateLimitStore();
+  // (The default in-memory backing never throws, so it needs no fallback.)
+  const fallback = store ? new InMemoryRateLimitStore() : backing;
 
   return async (c, next) => {
     const key = `${scope}:${resolveClientIp(c, trustProxy)}`;

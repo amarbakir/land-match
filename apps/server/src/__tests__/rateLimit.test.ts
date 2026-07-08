@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { InMemoryRateLimitStore, rateLimit, type RateLimitOptions } from '../middleware/rateLimit';
+import { rateLimit, type RateLimitOptions } from '../middleware/rateLimit';
+import { InMemoryRateLimitStore } from '../lib/rateLimitStore';
 import { lambdaEnv } from './lambdaEnv';
 
 function buildApp(opts: Partial<RateLimitOptions> & Pick<RateLimitOptions, 'windowMs' | 'max'>) {

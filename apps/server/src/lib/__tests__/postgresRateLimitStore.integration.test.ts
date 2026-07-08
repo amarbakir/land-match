@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { PostgresRateLimitStore } from '../rateLimitRepo';
+import { PostgresRateLimitStore } from '../postgresRateLimitStore';
 
 const WINDOW = 60_000;
 
