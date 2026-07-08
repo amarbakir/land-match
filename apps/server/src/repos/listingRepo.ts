@@ -1,5 +1,5 @@
 import { eq, inArray, and, or, isNull, desc, asc, sql, count as countFn, type SQL } from 'drizzle-orm';
-import { listings, enrichments, savedListings, scores } from '@landmatch/db';
+import { listings, enrichments, savedListings, scores, searchProfiles } from '@landmatch/db';
 import type { EnrichmentResult } from '@landmatch/enrichment';
 
 import { db, type Tx } from '../db/client';
@@ -174,19 +174,24 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
     : sort === 'acreage' ? listings.acreage
     : savedListings.savedAt; // 'date' and 'homestead' both default to savedAt (homestead sorted in service layer)
 
-  // Subquery: highest score per listing with the corresponding profile name
+  // Subquery: highest score per listing with the corresponding profile name.
+  // Scoped to the caller's own profiles — listings are global, so without the
+  // user_id filter this would surface other users' private profile names and
+  // scores.
   const bestScoreSq = conn
     .select({
       listingId: scores.listingId,
       bestScore: sql<number>`max(${scores.overallScore})`.as('best_score'),
       profileName: sql<string>`(
-        SELECT sp.name FROM search_profiles sp
-        JOIN scores s2 ON s2.search_profile_id = sp.id
-        WHERE s2.listing_id = ${scores.listingId}
+        SELECT sp2.name FROM search_profiles sp2
+        JOIN scores s2 ON s2.search_profile_id = sp2.id
+        WHERE s2.listing_id = ${scores.listingId} AND sp2.user_id = ${userId}
         ORDER BY s2.overall_score DESC LIMIT 1
       )`.as('profile_name'),
     })
     .from(scores)
+    .innerJoin(searchProfiles, eq(scores.searchProfileId, searchProfiles.id))
+    .where(eq(searchProfiles.userId, userId))
     .groupBy(scores.listingId)
     .as('best_score_sq');
 

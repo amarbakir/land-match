@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import * as listingRepo from '../listingRepo';
+import * as scoreRepo from '../scoreRepo';
+import * as searchProfileRepo from '../searchProfileRepo';
 import * as userRepo from '../userRepo';
 
 async function seedUser(email: string) {
@@ -11,6 +13,23 @@ async function seedUser(email: string) {
 async function seedListing(address: string, price: number, acreage: number) {
   const row = await listingRepo.insertListing({ address, latitude: 36.6, longitude: -92.1, price, acreage });
   return row.id;
+}
+
+async function seedScoredProfile(userId: string, name: string, listingId: string, overallScore: number) {
+  const profile = await searchProfileRepo.insert({
+    userId,
+    name,
+    alertFrequency: 'daily',
+    alertThreshold: 70,
+    criteria: {},
+    isActive: true,
+  });
+  await scoreRepo.insert({
+    listingId,
+    searchProfileId: profile.id,
+    overallScore,
+    componentScores: { soil: overallScore },
+  });
 }
 
 describe('findSavedListings (integration)', () => {
@@ -30,6 +49,45 @@ describe('findSavedListings (integration)', () => {
     expect(forA.total).toBe(2);
     expect(forB.total).toBe(1);
     expect(forB.rows.map((r) => r.listingId)).toEqual([l1]);
+  });
+
+  it("bestScore never surfaces another user's profile name or score", async () => {
+    // Bug this catches: listings are global, so an unscoped max(overall_score)
+    // subquery leaks user A's private profile name (e.g. "Retirement land
+    // near mom's") and score into user B's saved-listings response.
+    const [userA, userB] = await Promise.all([seedUser('a@example.com'), seedUser('b@example.com')]);
+    const listing = await seedListing('1 Rd', 30000, 10);
+    await Promise.all([
+      listingRepo.saveListing(userA, listing),
+      listingRepo.saveListing(userB, listing),
+      seedScoredProfile(userA, "Retirement land near mom's", listing, 95),
+    ]);
+
+    const forB = await listingRepo.findSavedListings(userB);
+    expect(forB.rows[0].bestScoreValue).toBeNull();
+    expect(forB.rows[0].bestScoreProfileName).toBeNull();
+
+    const forA = await listingRepo.findSavedListings(userA);
+    expect(forA.rows[0].bestScoreValue).toBe(95);
+    expect(forA.rows[0].bestScoreProfileName).toBe("Retirement land near mom's");
+  });
+
+  it("bestScore picks the caller's own highest-scoring profile when both users scored the listing", async () => {
+    // Bug this catches: scoping only the aggregate but not the name-lookup
+    // subquery (or vice versa) — B would see their own score paired with A's
+    // higher-scoring profile name.
+    const [userA, userB] = await Promise.all([seedUser('a@example.com'), seedUser('b@example.com')]);
+    const listing = await seedListing('1 Rd', 30000, 10);
+    await Promise.all([
+      listingRepo.saveListing(userB, listing),
+      seedScoredProfile(userA, 'A private profile', listing, 99),
+      seedScoredProfile(userB, 'B low', listing, 40),
+      seedScoredProfile(userB, 'B high', listing, 80),
+    ]);
+
+    const forB = await listingRepo.findSavedListings(userB);
+    expect(forB.rows[0].bestScoreValue).toBe(80);
+    expect(forB.rows[0].bestScoreProfileName).toBe('B high');
   });
 
   it('paginates with a correct total independent of the page window', async () => {
