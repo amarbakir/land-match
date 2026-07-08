@@ -95,7 +95,9 @@ describe('floodAdapter.enrich', () => {
     expect(url.searchParams.get('f')).toBe('json');
   });
 
-  it('handles missing FLD_ZONE attribute by defaulting to X', async () => {
+  it('fails closed when a feature is missing FLD_ZONE', async () => {
+    // Bug this catches: defaulting a malformed feature to zone X records
+    // "minimal risk" for a parcel whose actual zone we never received.
     fetchSpy.mockResolvedValueOnce(
       Response.json({
         features: [{ attributes: {} }],
@@ -104,9 +106,37 @@ describe('floodAdapter.enrich', () => {
 
     const result = await floodAdapter.enrich({ lat: 37.0, lng: -93.0 });
 
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data.zone).toBe('X');
+    expect(result.ok).toBe(false);
+  });
+
+  it('fails closed on an ArcGIS HTTP-200 error body (throttling/layer offline)', async () => {
+    // Bug this catches: ArcGIS reports throttling and layer-offline as HTTP 200
+    // with {error}. That body has no features array, so pre-fix code returned
+    // zone X = minimal risk — a FEMA hiccup persisted as a passing flood score
+    // that bypasses the floodZoneExclude hard filter on floodplain parcels.
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        error: { code: 503, message: 'Service unavailable', details: [] },
+      }),
+    );
+
+    const result = await floodAdapter.enrich({ lat: 37.0, lng: -93.0 });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain('503');
+      expect(result.error).toContain('Service unavailable');
+    }
+  });
+
+  it('fails closed when the response shape is not an NFHL query result', async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ html: '<title>maintenance</title>' }));
+
+    const result = await floodAdapter.enrich({ lat: 37.0, lng: -93.0 });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain('unexpected response shape');
     }
   });
 });

@@ -1,4 +1,5 @@
 import { err, ok } from '@landmatch/api';
+import { z } from 'zod';
 
 import type { EnrichmentAdapter, FloodData, LatLng, Result } from './types';
 
@@ -18,6 +19,23 @@ const ZONE_DESCRIPTIONS: Record<string, string> = {
   C: 'Minimal risk — area outside the 0.2% annual chance floodplain',
   D: 'Undetermined risk — possible but undetermined flood hazards',
 };
+
+const NfhlErrorResponse = z.object({
+  error: z.object({
+    code: z.number().optional(),
+    message: z.string().optional(),
+  }),
+});
+
+// FLD_ZONE is required: we explicitly request it via outFields, so a feature
+// without it is a malformed response, not a zone-less area.
+const NfhlQueryResponse = z.object({
+  features: z.array(
+    z.object({
+      attributes: z.looseObject({ FLD_ZONE: z.string() }),
+    }),
+  ),
+});
 
 export const floodAdapter: EnrichmentAdapter<FloodData> = {
   name: 'fema-nfhl',
@@ -44,17 +62,32 @@ export const floodAdapter: EnrichmentAdapter<FloodData> = {
         return err(`FEMA NFHL HTTP ${res.status}`);
       }
 
-      const json = (await res.json()) as { features?: Array<{ attributes?: Record<string, unknown> }> };
-      const features = json?.features;
+      const json: unknown = await res.json();
 
-      if (!Array.isArray(features) || features.length === 0) {
+      // ArcGIS reports throttling, bad params, and layer-offline as HTTP 200
+      // with an {error} body. Treating that as "no flood zone" would persist
+      // minimal risk for a floodplain parcel — fail closed instead.
+      const errorBody = NfhlErrorResponse.safeParse(json);
+      if (errorBody.success) {
+        const { code, message } = errorBody.data.error;
+        return err(`FEMA NFHL error ${code ?? 'unknown'}: ${message ?? 'no message'}`);
+      }
+
+      const parsed = NfhlQueryResponse.safeParse(json);
+      if (!parsed.success) {
+        return err('FEMA NFHL unexpected response shape');
+      }
+
+      // A valid response with zero intersecting polygons means the point is
+      // outside every mapped flood zone — the only case that may return X.
+      if (parsed.data.features.length === 0) {
         return ok({
           zone: 'X',
           description: 'Area not mapped by FEMA NFHL',
         });
       }
 
-      const zone = String(features[0].attributes?.FLD_ZONE ?? 'X');
+      const zone = parsed.data.features[0].attributes.FLD_ZONE;
       const description = ZONE_DESCRIPTIONS[zone] ?? `Flood zone ${zone}`;
 
       return ok({ zone, description });
