@@ -2,7 +2,12 @@ import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
-import { type ErrorCodeType, ErrorMessage } from '@landmatch/api';
+import {
+  type ApiErrorEnvelopeType,
+  type ApiSuccessEnvelopeType,
+  type ErrorCodeType,
+  ErrorMessage,
+} from '@landmatch/api';
 
 import type { Env } from '../types/env';
 import { ERR } from './errors';
@@ -14,7 +19,8 @@ function isErrorCode(value: string): value is ErrorCodeType {
 }
 
 function jsonError(status: number, code: string, message: string) {
-  return new Response(JSON.stringify({ ok: false, code, error: message }), {
+  const body = { ok: false, code, error: message } satisfies ApiErrorEnvelopeType;
+  return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
@@ -79,7 +85,8 @@ export function conflict(message: string): never {
 
 /** Returns a successful JSON response. Default status 200; pass 201 for created. */
 export function okResponse<T>(c: Context<Env>, data: T, status?: 200 | 201) {
-  return c.json({ ok: true, data }, status ?? 200);
+  const body = { ok: true, data } satisfies ApiSuccessEnvelopeType;
+  return c.json(body, status ?? 200);
 }
 
 /** Default error code → HTTP status mapping. Override per-project. */
