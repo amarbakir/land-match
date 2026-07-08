@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { createApp } from '../app';
-
-// Simulate distinct clients the way production sees them: via the trusted
+// Distinct clients are simulated the way production sees them: via the trusted
 // Lambda event sourceIp (X-Forwarded-For is client-controlled and ignored).
-function lambdaEnv(sourceIp: string) {
-  return { event: { requestContext: { http: { sourceIp } } } };
-}
+import { lambdaEnv } from './lambdaEnv';
 
 function login(app: ReturnType<typeof createApp>, ip: string) {
   return app.request('/api/v1/auth/login', {

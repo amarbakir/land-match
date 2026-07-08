@@ -174,25 +174,20 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
     : sort === 'acreage' ? listings.acreage
     : savedListings.savedAt; // 'date' and 'homestead' both default to savedAt (homestead sorted in service layer)
 
-  // Subquery: highest score per listing with the corresponding profile name.
-  // Scoped to the caller's own profiles — listings are global, so without the
-  // user_id filter this would surface other users' private profile names and
-  // scores.
+  // Subquery: the caller's single highest score per listing with its profile
+  // name. Scoped to the caller's own profiles — listings are global, so
+  // without the user_id filter this would surface other users' private
+  // profile names and scores.
   const bestScoreSq = conn
-    .select({
+    .selectDistinctOn([scores.listingId], {
       listingId: scores.listingId,
-      bestScore: sql<number>`max(${scores.overallScore})`.as('best_score'),
-      profileName: sql<string>`(
-        SELECT sp2.name FROM search_profiles sp2
-        JOIN scores s2 ON s2.search_profile_id = sp2.id
-        WHERE s2.listing_id = ${scores.listingId} AND sp2.user_id = ${userId}
-        ORDER BY s2.overall_score DESC LIMIT 1
-      )`.as('profile_name'),
+      bestScore: scores.overallScore,
+      profileName: searchProfiles.name,
     })
     .from(scores)
     .innerJoin(searchProfiles, eq(scores.searchProfileId, searchProfiles.id))
     .where(eq(searchProfiles.userId, userId))
-    .groupBy(scores.listingId)
+    .orderBy(scores.listingId, desc(scores.overallScore))
     .as('best_score_sq');
 
   const [rows, totalResult] = await Promise.all([

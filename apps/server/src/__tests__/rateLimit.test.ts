@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
-import { afterEach, describe, expect, it } from 'vitest';
-import { vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { InMemoryRateLimitStore, rateLimit, type RateLimitOptions } from '../middleware/rateLimit';
+import { lambdaEnv } from './lambdaEnv';
 
-function buildApp(opts: Omit<RateLimitOptions, 'scope'> & { scope?: string }) {
+function buildApp(opts: Partial<RateLimitOptions> & Pick<RateLimitOptions, 'windowMs' | 'max'>) {
   const app = new Hono();
   app.use('/*', rateLimit({ scope: 'test', ...opts }));
   app.get('/resource', (c) => c.json({ ok: true }));
@@ -13,9 +13,7 @@ function buildApp(opts: Omit<RateLimitOptions, 'scope'> & { scope?: string }) {
 
 /** Simulates a Lambda Function URL request: sourceIp comes from the AWS event. */
 function lambdaRequest(app: Hono, sourceIp: string, headers: Record<string, string> = {}) {
-  return app.request('/resource', { headers }, {
-    event: { requestContext: { http: { sourceIp } } },
-  });
+  return app.request('/resource', { headers }, lambdaEnv(sourceIp));
 }
 
 afterEach(() => {
@@ -115,11 +113,14 @@ describe('rateLimit', () => {
     expect((await lambdaRequest(authApp, '1.2.3.4')).status).toBe(429);
   });
 
-  it('fails open when the store throws — an outage must not take the endpoint down', async () => {
+  it('degrades to in-memory limiting when the shared store throws', async () => {
+    // Bug this catches: failing fully open on store errors — a rate_limits
+    // table hiccup would strip brute-force protection from login exactly when
+    // the DB is struggling. Requests must still be served AND still limited.
     const store = { increment: () => Promise.reject(new Error('store down')) };
     const app = buildApp({ windowMs: 60_000, max: 1, store });
 
-    expect((await lambdaRequest(app, '1.2.3.4')).status).toBe(200);
-    expect((await lambdaRequest(app, '1.2.3.4')).status).toBe(200);
+    expect((await lambdaRequest(app, '1.2.3.4')).status).toBe(200); // still served
+    expect((await lambdaRequest(app, '1.2.3.4')).status).toBe(429); // still limited
   });
 });

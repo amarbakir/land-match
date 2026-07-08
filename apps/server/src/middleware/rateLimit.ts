@@ -65,7 +65,7 @@ function socketAddress(c: Context): string | undefined {
  * X-Forwarded-For entries: an attacker rotating the header must not get a
  * fresh rate-limit window per request.
  */
-export function resolveClientIp(c: Context, trustProxy: boolean): string {
+function resolveClientIp(c: Context, trustProxy: boolean): string {
   const fromLambda = lambdaSourceIp(c);
   if (fromLambda) return fromLambda;
 
@@ -97,6 +97,10 @@ export interface RateLimitOptions {
  */
 export function rateLimit({ windowMs, max, scope, store, trustProxy = false }: RateLimitOptions): MiddlewareHandler {
   const backing = store ?? new InMemoryRateLimitStore();
+  // Degraded mode for shared-store outages: per-instance limiting is weaker
+  // than shared limiting, but "no limiting at all" would strip brute-force
+  // protection from credential endpoints exactly when the DB is struggling.
+  const fallback = new InMemoryRateLimitStore();
 
   return async (c, next) => {
     const key = `${scope}:${resolveClientIp(c, trustProxy)}`;
@@ -105,10 +109,8 @@ export function rateLimit({ windowMs, max, scope, store, trustProxy = false }: R
     try {
       entry = await backing.increment(key, windowMs);
     } catch (e) {
-      // Fail open: a store outage must not take the endpoint down with it.
-      captureError(e, 'rateLimit: store increment failed');
-      await next();
-      return;
+      captureError(e, 'rateLimit: store increment failed, using in-memory fallback');
+      entry = await fallback.increment(key, windowMs);
     }
 
     if (entry.count > max) {

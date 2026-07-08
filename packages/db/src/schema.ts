@@ -148,4 +148,7 @@ export const rateLimits = pgTable('rate_limits', {
   key: text('key').primaryKey(), // "<scope>:<client ip>"
   count: integer('count').notNull(),
   resetAt: timestamp('reset_at', { withTimezone: true, mode: 'date' }).notNull(),
-});
+}, (table) => [
+  // Backs the expired-window sweep DELETE
+  index('rate_limits_reset_at_idx').on(table.resetAt),
+]);

@@ -1,8 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { rateLimits } from '@landmatch/db';
 
+import { captureError } from '../lib/captureError';
 import { db } from '../db/client';
 import type { RateLimitStore, RateLimitWindow } from '../middleware/rateLimit';
+
+const SWEEP_INTERVAL_MS = 60_000;
 
 /**
  * Shared fixed-window counters in Postgres: one atomic upsert per hit, so
@@ -10,6 +13,8 @@ import type { RateLimitStore, RateLimitWindow } from '../middleware/rateLimit';
  * multiplying with instance concurrency.
  */
 export class PostgresRateLimitStore implements RateLimitStore {
+  private lastSweepAt = 0;
+
   async increment(key: string, windowMs: number): Promise<RateLimitWindow> {
     const [row] = await db
       .insert(rateLimits)
@@ -23,13 +28,17 @@ export class PostgresRateLimitStore implements RateLimitStore {
       })
       .returning();
 
-    // Opportunistic sweep when a window opens, mirroring the in-memory store:
-    // without it the table grows by one row per client IP forever.
-    if (row.count === 1) {
+    // Opportunistic sweep (at most once a minute per process): without it the
+    // table grows by one row per client IP forever. Done here rather than in
+    // the cron scheduler because the Lambda stages — the ones that need this
+    // store — never run the scheduler.
+    const now = Date.now();
+    if (now - this.lastSweepAt >= SWEEP_INTERVAL_MS) {
+      this.lastSweepAt = now;
       void db
         .delete(rateLimits)
         .where(sql`${rateLimits.resetAt} <= now() - interval '1 hour'`)
-        .catch(() => { /* best-effort cleanup */ });
+        .catch((e) => captureError(e, 'rateLimitRepo: expired-window sweep failed'));
     }
 
     return { count: row.count, resetAt: row.resetAt.getTime() };
