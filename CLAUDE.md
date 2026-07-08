@@ -10,7 +10,7 @@ LandMatch — intelligent property search tool for back-to-land buyers (homestea
 
 - **Frontend**: Expo + React Native Web, Expo Router, Tamagui, React Query, TypeScript
 - **Server**: Hono 4 on Node/TypeScript, Zod validation
-- **Shared**: `@landmatch/api` (Zod schemas/types), `@landmatch/db` (Drizzle ORM), `@landmatch/config`, `@landmatch/enrichment` (data source adapters), `@landmatch/scoring` (scoring engine)
+- **Shared**: `@landmatch/api` (Zod schemas/types), `@landmatch/db` (Drizzle ORM), `@landmatch/api-client` (shared auth/API client), `@landmatch/enrichment` (data source adapters), `@landmatch/scoring` (scoring engine)
 - **Tooling**: pnpm workspaces, TypeScript 5.9, ESLint 9, Vitest, Drizzle Kit
 
 ## Monorepo map
@@ -22,6 +22,7 @@ LandMatch — intelligent property search tool for back-to-land buyers (homestea
 | `apps/server/`         | Hono API — routes in `src/routes/`, services in `src/services/`, repos in `src/repos/`   |
 | `apps/extension/`      | Chrome extension — content extractors, side panel, its own auth + API client             |
 | `packages/api/`        | Zod schemas — single source of truth for API contracts                                   |
+| `packages/api-client/` | Shared auth + API client used by frontend and extension (token storage, 401 refresh/retry)  |
 | `packages/db/`         | Drizzle schema (`src/schema.ts`) + migrations (`drizzle/`) + drizzle config              |
 | `packages/enrichment/` | Data source adapters: soil (USDA), flood (FEMA), parcel (Regrid), climate (First Street) |
 | `packages/geodata/`    | Geodata ETL + PostGIS helpers (PRISM climate normals, wetlands, elevation)               |

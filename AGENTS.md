@@ -37,7 +37,7 @@ Rules for Claude sessions running autonomously (background agents, worktree agen
 
 Background agents **must** use git worktrees for isolation:
 
-1. Create worktree: `git worktree add .claude/worktrees/<branch-name> -b <branch-name>`
+1. Create worktree: `git worktree add .worktrees/<branch-name> -b <branch-name>`
 2. Work entirely within the worktree directory
 3. Commit with conventional format: `type(scope): description`
 4. Push branch and create draft PR when work is complete
@@ -61,7 +61,7 @@ If any gate fails, fix the issue. Do not create PRs with known failures.
 Format: `type(scope): short description`
 
 Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
-Scopes: `frontend`, `server`, `enrichment`, `scoring`, `api`, `db`, `config`
+Scopes: `frontend`, `server`, `enrichment`, `scoring`, `api`, `db`, `api-client`, `extension`
 
 Examples:
 
