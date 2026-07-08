@@ -46,25 +46,32 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
 }
 
 // Visibility policy: ownerless (global feed) listings are visible to everyone;
-// owned listings only to their owner.
-export function visibleTo(userId: string) {
+// owned listings only to their owner. Module-private for now — export it when
+// other read paths adopt the policy (land-match-9vs).
+function visibleTo(userId: string) {
   return or(isNull(listings.userId), eq(listings.userId, userId));
 }
 
-async function findOneWithEnrichment(where: SQL | undefined, tx?: Tx) {
-  const rows = await (tx ?? db)
+async function findOneWithEnrichment(where: SQL | undefined, tx?: Tx, orderBy?: SQL) {
+  const query = (tx ?? db)
     .select()
     .from(listings)
     .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
-    .where(where)
-    .limit(1);
+    .where(where);
+  const rows = await (orderBy ? query.orderBy(orderBy) : query).limit(1);
 
   if (rows.length === 0) return null;
   return { listing: rows[0].listings, enrichment: rows[0].enrichments };
 }
 
 export async function findByUrl(url: string, userId: string, tx?: Tx) {
-  return findOneWithEnrichment(and(eq(listings.url, url), visibleTo(userId)), tx);
+  return findOneWithEnrichment(
+    and(eq(listings.url, url), visibleTo(userId)),
+    tx,
+    // Multiple visible rows can share a URL (the caller's own + an ownerless
+    // feed row). Prefer the caller's own listing, then the newest.
+    sql`${listings.userId} IS NULL, ${listings.firstSeenAt} DESC`,
+  );
 }
 
 export async function saveListing(userId: string, listingId: string, tx?: Tx) {
