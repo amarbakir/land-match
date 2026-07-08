@@ -95,7 +95,7 @@ export function ReportHero({ match }: ReportHeroProps) {
 
         {/* Action buttons */}
         <XStack gap={8} flexWrap="wrap" marginTop={4}>
-          <Pressable onPress={() => match.url && isHttpUrl(match.url) && Linking.openURL(match.url)}>
+          <Pressable onPress={() => isHttpUrl(match.url) && Linking.openURL(match.url)}>
             <View
               paddingHorizontal={14}
               paddingVertical={7}

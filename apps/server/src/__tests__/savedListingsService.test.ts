@@ -72,6 +72,23 @@ describe('getSavedListings', () => {
     }
   });
 
+  it('nulls out a stored non-web listing URL before it reaches clients', async () => {
+    // Bug this catches: SavedView renders item.url via window.open; a stored
+    // javascript: URL that predates schema validation must be dropped
+    // server-side, not just at each render site.
+    mockFindSaved.mockResolvedValue({
+      rows: [makeSavedRow({ url: 'javascript:alert(document.cookie)' })],
+      total: 1,
+    });
+
+    const result = await getSavedListings('user-1', { sort: 'date', sortDir: 'desc', limit: 20, offset: 0 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.items[0].url).toBeNull();
+    }
+  });
+
   it('computes homesteadScore for each listing from enrichment data', async () => {
     // Bug this catches: if homesteadScore computation is skipped or broken,
     // the saved view shows no score rings — the primary visual indicator

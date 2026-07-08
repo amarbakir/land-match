@@ -22,8 +22,8 @@ const ZONE_DESCRIPTIONS: Record<string, string> = {
 
 const NfhlErrorResponse = z.object({
   error: z.object({
-    code: z.number().optional(),
-    message: z.string().optional(),
+    code: z.number(),
+    message: z.string(),
   }),
 });
 
@@ -32,7 +32,7 @@ const NfhlErrorResponse = z.object({
 const NfhlQueryResponse = z.object({
   features: z.array(
     z.object({
-      attributes: z.looseObject({ FLD_ZONE: z.string() }),
+      attributes: z.object({ FLD_ZONE: z.string() }),
     }),
   ),
 });
@@ -70,7 +70,7 @@ export const floodAdapter: EnrichmentAdapter<FloodData> = {
       const errorBody = NfhlErrorResponse.safeParse(json);
       if (errorBody.success) {
         const { code, message } = errorBody.data.error;
-        return err(`FEMA NFHL error ${code ?? 'unknown'}: ${message ?? 'no message'}`);
+        return err(`FEMA NFHL error ${code}: ${message}`);
       }
 
       const parsed = NfhlQueryResponse.safeParse(json);

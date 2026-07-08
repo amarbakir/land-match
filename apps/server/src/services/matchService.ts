@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@landmatch/api';
+import { err, isHttpUrl, ok, type Result } from '@landmatch/api';
 import type { MatchItem, MatchDetail, PaginatedMatches, MatchFilters, ProfileCounts, UpdateMatchStatus } from '@landmatch/api';
 
 import { captureError } from '../lib/captureError';
@@ -28,7 +28,9 @@ function toMatchItem(row: MatchRow): MatchItem {
     price: row.price ?? null,
     acreage: row.acreage ?? null,
     source: row.source ?? null,
-    url: row.url ?? null,
+    // Stored non-web URLs (javascript:, data:) must never reach clients, which
+    // render this as a link target.
+    url: isHttpUrl(row.url) ? row.url : null,
     lat: row.lat ?? null,
     lng: row.lng ?? null,
     soilClass,

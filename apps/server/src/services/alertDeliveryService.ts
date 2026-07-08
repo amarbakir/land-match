@@ -127,7 +127,7 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
               // Never let a stored non-web URL (javascript:, data:) become an
               // email link — schema validation guards new writes, this guards
               // whatever is already in the DB.
-              listingUrl: listing.url && isHttpUrl(listing.url) ? listing.url : '#',
+              listingUrl: isHttpUrl(listing.url) ? listing.url : '#',
               price: listing.price,
               acreage: listing.acreage,
               location: buildLocation(listing),

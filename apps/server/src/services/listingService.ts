@@ -1,4 +1,4 @@
-import { err, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
+import { err, isHttpUrl, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
 import { enrichListing, type EnrichmentResult } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
@@ -204,7 +204,8 @@ export async function getSavedListings(
         price: row.price,
         acreage: row.acreage,
         source: row.source,
-        url: row.url,
+        // Same policy as matches: never hand a non-web URL to link renderers.
+        url: isHttpUrl(row.url) ? row.url : null,
         lat: row.lat,
         lng: row.lng,
         soilClass: row.soilClass,

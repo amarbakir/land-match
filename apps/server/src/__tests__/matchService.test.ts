@@ -113,6 +113,24 @@ describe('matchService', () => {
       expect(mockScoreRepo.findMatchesByProfile).not.toHaveBeenCalled();
     });
 
+    it('nulls out a stored non-web listing URL before it reaches clients', async () => {
+      // Bug this catches: clients render match.url as a link target
+      // (Linking.openURL / window.open); a stored javascript: URL that predates
+      // schema validation must be dropped server-side, not just at each render.
+      mockProfileRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
+      mockScoreRepo.findMatchesByProfile.mockResolvedValueOnce({
+        rows: [{ ...MATCH_ROW, url: 'javascript:alert(document.cookie)' }],
+        total: 1,
+      });
+
+      const result = await matchService.getMatches('user-1', 'profile-1', DEFAULT_FILTERS);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.items[0].url).toBeNull();
+      }
+    });
+
     it('correctly derives soilClassLabel from soilClass integer', async () => {
       const rows = [
         { ...MATCH_ROW, soilClass: 1 },

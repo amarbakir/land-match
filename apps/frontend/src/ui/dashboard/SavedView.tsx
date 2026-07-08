@@ -211,7 +211,7 @@ function SavedDetail({ item, onUnsave }: { item: SavedListingItem; onUnsave: () 
 
         {/* Actions */}
         <XStack gap={12}>
-          {item.url && isHttpUrl(item.url) && (
+          {isHttpUrl(item.url) && (
             <Pressable
               onPress={() => {
                 if (typeof window !== 'undefined') window.open(item.url!, '_blank');
