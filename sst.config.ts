@@ -55,6 +55,9 @@ export default $config({
       const api = new sst.aws.Function('Api', {
         handler: 'apps/server/src/lambda.handler',
         runtime: 'nodejs22.x',
+        // bcrypt is a native addon — install it into the Lambda bundle instead
+        // of letting esbuild try (and fail) to inline the .node binary
+        nodejs: { install: ['bcrypt'] },
         memory: '512 MB',
         timeout: '30 seconds',
         link: allSecrets,

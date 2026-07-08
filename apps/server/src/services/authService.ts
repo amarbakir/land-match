@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import { ok, err, type Result, type AuthTokenResponseType } from '@landmatch/api';
 
 import { captureError } from '../lib/captureError';
