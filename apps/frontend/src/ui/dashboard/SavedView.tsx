@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
-import type { SavedListingItem } from '@landmatch/api';
+import { isHttpUrl, type SavedListingItem } from '@landmatch/api';
 import { Spinner, Text, XStack, YStack } from 'tamagui';
 
 import { useSavedListings, useUnsaveListing } from '@/src/api/hooks';
@@ -211,7 +211,7 @@ function SavedDetail({ item, onUnsave }: { item: SavedListingItem; onUnsave: () 
 
         {/* Actions */}
         <XStack gap={12}>
-          {item.url && (
+          {item.url && isHttpUrl(item.url) && (
             <Pressable
               onPress={() => {
                 if (typeof window !== 'undefined') window.open(item.url!, '_blank');

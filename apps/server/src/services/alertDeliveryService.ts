@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@landmatch/api';
+import { err, isHttpUrl, ok, type Result } from '@landmatch/api';
 
 import { captureError } from '../lib/captureError';
 import * as alertRepo from '../repos/alertRepo';
@@ -124,7 +124,10 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
 
             return {
               listingTitle: listing.title ?? listing.address ?? 'Untitled Property',
-              listingUrl: listing.url ?? '#',
+              // Never let a stored non-web URL (javascript:, data:) become an
+              // email link — schema validation guards new writes, this guards
+              // whatever is already in the DB.
+              listingUrl: listing.url && isHttpUrl(listing.url) ? listing.url : '#',
               price: listing.price,
               acreage: listing.acreage,
               location: buildLocation(listing),

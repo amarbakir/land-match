@@ -126,6 +126,27 @@ describe('deliverPendingAlerts', () => {
     expect(mockEmail.sendEmail).toHaveBeenCalledOnce();
   });
 
+  it('replaces a stored non-web listing URL with # in the email payload', async () => {
+    // Bug this catches: a javascript: URL that predates schema validation (or
+    // slips past it) must never reach the email template as a clickable href —
+    // clicking it in a webmail client that honors the scheme executes script.
+    mockAlertRepo.findPendingWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ alertFrequency: 'instant' }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([
+      { ...LISTING, url: 'javascript:alert(document.cookie)' },
+    ]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
+
+    const result = await deliverPendingAlerts();
+
+    expect(result.ok).toBe(true);
+    expect(mockRender.renderAlertEmail).toHaveBeenCalledOnce();
+    const { alerts } = mockRender.renderAlertEmail.mock.calls[0][0];
+    expect(alerts[0].listingUrl).toBe('#');
+  });
+
   it('marks alerts as failed and captures error on Resend failure', async () => {
     mockAlertRepo.findPendingWithDetails.mockResolvedValueOnce([
       makePendingAlert({ alertFrequency: 'instant' }),

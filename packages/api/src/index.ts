@@ -50,3 +50,4 @@ export {
   NotificationPrefs,
   getAlertChannels,
 } from './notifications';
+export { HttpUrl, isHttpUrl } from './url';

@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
+import { HttpUrl } from './url';
+
 export const EnrichListingRequest = z.object({
   address: z.string().min(1),
   price: z.number().positive().optional(),
   acreage: z.number().positive().optional(),
-  url: z.string().url().optional(),
+  url: HttpUrl.optional(),
   title: z.string().optional(),
   source: z.string().optional(),
   externalId: z.string().optional(),
@@ -53,7 +55,7 @@ export const EnrichListingResponse = z.object({
 export type EnrichListingResponse = z.infer<typeof EnrichListingResponse>;
 
 export const ListingByUrlQuery = z.object({
-  url: z.string().url(),
+  url: HttpUrl,
 });
 
 export type ListingByUrlQuery = z.infer<typeof ListingByUrlQuery>;
