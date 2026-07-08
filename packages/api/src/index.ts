@@ -10,7 +10,15 @@ export {
 } from './auth';
 export { ErrorCode, ErrorMessage, type ErrorCodeType } from './errors';
 export { EnrichListingRequest, EnrichListingResponse, HomesteadComponent, ListingByUrlQuery, SaveListingResponse, SavedListingItem, PaginatedSavedListings, SavedListingsFilters } from './listings';
-export { err, ok, type Result } from './result';
+export {
+  ApiErrorEnvelope,
+  ApiSuccessEnvelope,
+  err,
+  ok,
+  type ApiErrorEnvelopeType,
+  type ApiSuccessEnvelopeType,
+  type Result,
+} from './result';
 export type {
   EnrichmentResult,
   SoilData,
