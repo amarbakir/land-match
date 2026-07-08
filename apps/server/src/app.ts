@@ -5,6 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import * as Sentry from '@sentry/node';
 
+import type { ApiErrorEnvelopeType } from '@landmatch/api';
 import { server } from './config';
 import { pool } from './db/client';
 import { registerEnrichmentMetrics } from './lib/enrichmentMetrics';
@@ -44,7 +45,8 @@ export function createApp() {
     const statusCode = 500 as ContentfulStatusCode;
     Sentry.captureException(err);
     (c.get('logger') ?? logger).error({ err }, `unhandled error: ${c.req.method} ${c.req.path}`);
-    return c.json({ ok: false, code: 'INTERNAL_ERROR', error: err.message || 'Internal server error' }, statusCode);
+    const body = { ok: false, code: 'INTERNAL_ERROR', error: err.message || 'Internal server error' } satisfies ApiErrorEnvelopeType;
+    return c.json(body, statusCode);
   });
 
   // Health check (liveness)

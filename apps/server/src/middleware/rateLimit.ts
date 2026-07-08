@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
+import type { ApiErrorEnvelopeType } from '@landmatch/api';
 import { ErrorCode, ErrorMessage } from '@landmatch/api';
 
 interface RateLimitOptions {
@@ -44,10 +45,8 @@ export function rateLimit({ windowMs, max }: RateLimitOptions): MiddlewareHandle
     entry.count++;
     if (entry.count > max) {
       c.header('Retry-After', String(Math.max(1, Math.ceil((entry.resetAt - now) / 1000))));
-      return c.json(
-        { ok: false, code: ErrorCode.RATE_LIMITED, error: ErrorMessage.RATE_LIMITED },
-        429,
-      );
+      const body = { ok: false, code: ErrorCode.RATE_LIMITED, error: ErrorMessage.RATE_LIMITED } satisfies ApiErrorEnvelopeType;
+      return c.json(body, 429);
     }
 
     await next();
