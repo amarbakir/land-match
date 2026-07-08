@@ -1,50 +1,118 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
+import { getConnInfo } from '@hono/node-server/conninfo';
 import type { ApiErrorEnvelopeType } from '@landmatch/api';
 import { ErrorCode, ErrorMessage } from '@landmatch/api';
 
-interface RateLimitOptions {
-  windowMs: number;
-  max: number;
+import { captureError } from '../lib/captureError';
+
+export interface RateLimitWindow {
+  count: number;
+  resetAt: number; // epoch ms
 }
 
-interface WindowEntry {
-  count: number;
-  resetAt: number;
+export interface RateLimitStore {
+  /** Record one hit against the key, opening a fresh window if the current one expired. */
+  increment(key: string, windowMs: number): Promise<RateLimitWindow>;
 }
 
 // Sweep expired entries once the map grows past this size, so long-running
 // processes don't accumulate one entry per client IP forever.
 const SWEEP_THRESHOLD = 10_000;
 
-function clientKey(forwardedFor: string | undefined, realIp: string | undefined): string {
-  return forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown';
-}
+/** Per-process store. Fine for a single instance and unit tests; horizontally
+ *  scaled deployments must use a shared store or limits multiply per instance. */
+export class InMemoryRateLimitStore implements RateLimitStore {
+  private windows = new Map<string, RateLimitWindow>();
 
-/**
- * Fixed-window in-memory rate limiter keyed by client IP.
- * Per-process state — sufficient for a single-instance deployment.
- */
-export function rateLimit({ windowMs, max }: RateLimitOptions): MiddlewareHandler {
-  const windows = new Map<string, WindowEntry>();
-
-  return async (c, next) => {
-    const key = clientKey(c.req.header('x-forwarded-for'), c.req.header('x-real-ip'));
+  async increment(key: string, windowMs: number): Promise<RateLimitWindow> {
     const now = Date.now();
 
-    let entry = windows.get(key);
+    let entry = this.windows.get(key);
     if (!entry || now >= entry.resetAt) {
-      if (windows.size >= SWEEP_THRESHOLD) {
-        for (const [k, v] of windows) {
-          if (now >= v.resetAt) windows.delete(k);
+      if (this.windows.size >= SWEEP_THRESHOLD) {
+        for (const [k, v] of this.windows) {
+          if (now >= v.resetAt) this.windows.delete(k);
         }
       }
       entry = { count: 0, resetAt: now + windowMs };
-      windows.set(key, entry);
+      this.windows.set(key, entry);
     }
 
     entry.count++;
+    return entry;
+  }
+}
+
+// hono/aws-lambda puts the Function URL / API Gateway event on c.env; its
+// sourceIp is stamped by AWS and cannot be forged by the caller.
+function lambdaSourceIp(c: Context): string | undefined {
+  const env = c.env as { event?: { requestContext?: { http?: { sourceIp?: string } } } } | undefined;
+  return env?.event?.requestContext?.http?.sourceIp;
+}
+
+function socketAddress(c: Context): string | undefined {
+  try {
+    // Cast: @hono/node-server resolves its own hono copy, so its Context type
+    // is not identical to ours even though the runtime shape is.
+    return getConnInfo(c as unknown as Parameters<typeof getConnInfo>[0]).remote.address;
+  } catch {
+    return undefined; // not running under @hono/node-server
+  }
+}
+
+/**
+ * Resolve a client IP the caller cannot control. Never trusts client-supplied
+ * X-Forwarded-For entries: an attacker rotating the header must not get a
+ * fresh rate-limit window per request.
+ */
+export function resolveClientIp(c: Context, trustProxy: boolean): string {
+  const fromLambda = lambdaSourceIp(c);
+  if (fromLambda) return fromLambda;
+
+  if (trustProxy) {
+    // Behind the ALB (Fargate stages) the rightmost X-Forwarded-For entry is
+    // the one hop the load balancer itself appended; everything left of it is
+    // client-controlled.
+    const xff = c.req.header('x-forwarded-for');
+    const rightmost = xff?.split(',').pop()?.trim();
+    if (rightmost) return rightmost;
+  }
+
+  return socketAddress(c) ?? 'unknown';
+}
+
+export interface RateLimitOptions {
+  windowMs: number;
+  max: number;
+  /** Keyspace prefix so limiters sharing one store never collide (e.g. 'auth', 'enrich'). */
+  scope: string;
+  /** Defaults to a per-limiter in-memory store. */
+  store?: RateLimitStore;
+  /** Trust the rightmost X-Forwarded-For hop (set when behind the ALB). */
+  trustProxy?: boolean;
+}
+
+/**
+ * Fixed-window rate limiter keyed by trusted client IP.
+ */
+export function rateLimit({ windowMs, max, scope, store, trustProxy = false }: RateLimitOptions): MiddlewareHandler {
+  const backing = store ?? new InMemoryRateLimitStore();
+
+  return async (c, next) => {
+    const key = `${scope}:${resolveClientIp(c, trustProxy)}`;
+
+    let entry: RateLimitWindow;
+    try {
+      entry = await backing.increment(key, windowMs);
+    } catch (e) {
+      // Fail open: a store outage must not take the endpoint down with it.
+      captureError(e, 'rateLimit: store increment failed');
+      await next();
+      return;
+    }
+
     if (entry.count > max) {
-      c.header('Retry-After', String(Math.max(1, Math.ceil((entry.resetAt - now) / 1000))));
+      c.header('Retry-After', String(Math.max(1, Math.ceil((entry.resetAt - Date.now()) / 1000))));
       const body = { ok: false, code: ErrorCode.RATE_LIMITED, error: ErrorMessage.RATE_LIMITED } satisfies ApiErrorEnvelopeType;
       return c.json(body, 429);
     }

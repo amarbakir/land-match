@@ -13,7 +13,8 @@ import { registerGeodataAdapters } from './lib/geodataAdapters';
 import { logger } from './lib/logger';
 import { requestLogging } from './middleware/requestLogging';
 import { requireAuth } from './middleware/auth';
-import { rateLimit } from './middleware/rateLimit';
+import { InMemoryRateLimitStore, rateLimit } from './middleware/rateLimit';
+import { PostgresRateLimitStore } from './repos/rateLimitRepo';
 import authRouter from './routes/auth';
 import listingsRouter from './routes/listings';
 import searchProfilesRouter from './routes/searchProfiles';
@@ -68,8 +69,12 @@ export function createApp() {
 
   // Rate limits: strict on credential endpoints, looser on enrichment
   // (which fans out to external APIs and must not be hammered)
-  app.use('/api/v1/auth/*', rateLimit({ windowMs: 60_000, max: 10 }));
-  app.use('/api/v1/listings/enrich', rateLimit({ windowMs: 60_000, max: 20 }));
+  const rateLimitStore = server.rateLimitStore === 'postgres'
+    ? new PostgresRateLimitStore()
+    : new InMemoryRateLimitStore();
+  const { trustProxy } = server;
+  app.use('/api/v1/auth/*', rateLimit({ windowMs: 60_000, max: 10, scope: 'auth', store: rateLimitStore, trustProxy }));
+  app.use('/api/v1/listings/enrich', rateLimit({ windowMs: 60_000, max: 20, scope: 'enrich', store: rateLimitStore, trustProxy }));
 
   // Mount API routes
   app.route('/api/v1/auth', authRouter);

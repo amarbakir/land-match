@@ -47,6 +47,10 @@ export default $config({
           DIRECT_URL: directUrl.value,
           CORS_ORIGIN: corsOrigin.value,
           JWT_SECRET: jwtSecret.value,
+          // Behind the ALB: client IP is the rightmost X-Forwarded-For hop
+          TRUST_PROXY: 'true',
+          // Windows must be shared across tasks or limits multiply with scale
+          RATE_LIMIT_STORE: 'postgres',
         },
       });
 
@@ -68,6 +72,9 @@ export default $config({
           DIRECT_URL: directUrl.value,
           CORS_ORIGIN: corsOrigin.value,
           JWT_SECRET: jwtSecret.value,
+          // Each Lambda container has its own memory — share windows in Postgres
+          // (client IP comes from the Function URL event's sourceIp, no proxy trust needed)
+          RATE_LIMIT_STORE: 'postgres',
         },
       });
 

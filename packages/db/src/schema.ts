@@ -141,3 +141,11 @@ export const alerts = pgTable('alerts', {
   index('alerts_status_idx').on(table.status),
   index('alerts_user_profile_status_idx').on(table.userId, table.searchProfileId, table.status),
 ]);
+
+// Fixed-window rate-limit counters, shared across server instances (Fargate
+// tasks, Lambda containers) so limits don't multiply with concurrency.
+export const rateLimits = pgTable('rate_limits', {
+  key: text('key').primaryKey(), // "<scope>:<client ip>"
+  count: integer('count').notNull(),
+  resetAt: timestamp('reset_at', { withTimezone: true, mode: 'date' }).notNull(),
+});

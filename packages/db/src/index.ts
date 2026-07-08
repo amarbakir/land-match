@@ -1,1 +1,1 @@
-export { users, searchProfiles, listings, enrichments, scores, alerts, savedListings } from './schema';
+export { users, searchProfiles, listings, enrichments, scores, alerts, savedListings, rateLimits } from './schema';

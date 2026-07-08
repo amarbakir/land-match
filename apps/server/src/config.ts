@@ -90,11 +90,24 @@ function resolveCorsOrigin(): string | string[] {
   return origins.length === 1 ? origins[0] : origins;
 }
 
+function resolveRateLimitStore(): 'memory' | 'postgres' {
+  const value = optional('RATE_LIMIT_STORE', 'memory');
+  if (value !== 'memory' && value !== 'postgres') {
+    throw new Error(`RATE_LIMIT_STORE must be 'memory' or 'postgres', got '${value}'`);
+  }
+  return value;
+}
+
 export const server = {
   port: parseInt(optional('PORT', '3000'), 10),
   nodeEnv: NODE_ENV,
   isProduction,
   corsOrigin: resolveCorsOrigin(),
+  // Trust the rightmost X-Forwarded-For hop for client IPs (behind the ALB).
+  trustProxy: featureFlag('TRUST_PROXY', false),
+  // 'postgres' shares rate-limit windows across instances; required whenever
+  // more than one server process handles traffic (Fargate scale-out, Lambda).
+  rateLimitStore: resolveRateLimitStore(),
 } as const;
 
 /**
