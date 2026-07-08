@@ -1,4 +1,4 @@
-import { eq, inArray, and, desc, asc, sql, count as countFn } from 'drizzle-orm';
+import { eq, inArray, and, or, isNull, desc, asc, sql, count as countFn } from 'drizzle-orm';
 import { listings, enrichments, savedListings, scores } from '@landmatch/db';
 import type { EnrichmentResult } from '@landmatch/enrichment';
 
@@ -45,12 +45,16 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
   return row;
 }
 
-export async function findByUrl(url: string, tx?: Tx) {
+// Scoped to rows the caller may see: ownerless (global feed) listings or their own.
+export async function findByUrl(url: string, userId: string, tx?: Tx) {
   const rows = await (tx ?? db)
     .select()
     .from(listings)
     .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
-    .where(eq(listings.url, url))
+    .where(and(
+      eq(listings.url, url),
+      or(isNull(listings.userId), eq(listings.userId, userId)),
+    ))
     .limit(1);
 
   if (rows.length === 0) return null;

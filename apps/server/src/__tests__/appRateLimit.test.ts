@@ -35,7 +35,9 @@ describe('app rate limiting', () => {
         headers: { 'content-type': 'application/json', 'x-forwarded-for': '7.7.7.7' },
         body: JSON.stringify({}),
       });
-      expect(res.status).toBe(400);
+      // Anonymous requests are rejected by requireAuth, but must still count
+      // against the rate limit window (limiter runs before auth).
+      expect(res.status).toBe(401);
     }
 
     const blocked = await app.request('/api/v1/listings/enrich', {

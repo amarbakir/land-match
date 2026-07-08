@@ -19,14 +19,3 @@ export const requireAuth: MiddlewareHandler<Env> = async (c, next) => {
   c.set('userId', payload.sub);
   await next();
 };
-
-export const optionalAuth: MiddlewareHandler<Env> = async (c, next) => {
-  const token = extractBearerToken(c.req.header('authorization'));
-  if (token) {
-    const payload = await verifyToken(token, 'access');
-    if (payload) {
-      c.set('userId', payload.sub);
-    }
-  }
-  await next();
-};

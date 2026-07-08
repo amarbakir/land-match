@@ -132,7 +132,7 @@ describe('enrichAndPersist', () => {
       error: 'Geocode failed: no match for address',
     });
 
-    const result = await enrichAndPersist({ address: 'nonsense address xyz' });
+    const result = await enrichAndPersist({ address: 'nonsense address xyz' }, 'user-1');
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -147,7 +147,7 @@ describe('enrichAndPersist', () => {
     // instead of the geocode result would place the listing in the wrong location
     mockEnrichListing.mockResolvedValue(makeEnrichResult());
 
-    const result = await enrichAndPersist({ address: '123 Rural Rd, MO', price: 50000 });
+    const result = await enrichAndPersist({ address: '123 Rural Rd, MO', price: 50000 }, 'user-1');
 
     expect(result.ok).toBe(true);
     expect(mockInsertListing).toHaveBeenCalledWith(
@@ -164,7 +164,7 @@ describe('enrichAndPersist', () => {
     // tx contexts (or no tx), a failure in the second leaves an orphaned listing
     mockEnrichListing.mockResolvedValue(makeEnrichResult());
 
-    await enrichAndPersist({ address: '123 Rural Rd, MO' });
+    await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
     // Both repo calls receive the same tx object
     // insertListing(input, tx) — tx at index 1
@@ -181,7 +181,7 @@ describe('enrichAndPersist', () => {
     const errors = [{ source: 'fema', error: 'timeout after 10s' }];
     mockEnrichListing.mockResolvedValue(makeEnrichResult({ errors }));
 
-    const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+    const result = await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -195,7 +195,7 @@ describe('enrichAndPersist', () => {
     mockEnrichListing.mockResolvedValue(makeEnrichResult());
     mockInsertEnrichment.mockResolvedValue({ ...enrichmentRow, sourcesUsed: null });
 
-    const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+    const result = await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -210,7 +210,7 @@ describe('enrichAndPersist', () => {
     mockEnrichListing.mockResolvedValue(makeEnrichResult());
     mockTransaction.mockRejectedValue(new Error('connection terminated'));
 
-    const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+    const result = await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -218,7 +218,7 @@ describe('enrichAndPersist', () => {
     }
   });
 
-  it('passes userId to insertListing when provided', async () => {
+  it('passes userId to insertListing', async () => {
     // Bug this catches: if the userId is not forwarded from the route handler,
     // extension-submitted listings are never associated with the user, making
     // the "saved listings" feature silently broken
@@ -241,7 +241,7 @@ describe('enrichAndPersist', () => {
       address: '123 Rural Rd, MO',
       source: 'landwatch',
       externalId: 'lw-99887766',
-    });
+    }, 'user-1');
 
     expect(mockInsertListing).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -252,21 +252,10 @@ describe('enrichAndPersist', () => {
     );
   });
 
-  it('defaults userId to undefined when not provided', async () => {
-    // Bug this catches: if we accidentally set userId to empty string or "null"
-    // string instead of undefined, the FK constraint would fail
-    mockEnrichListing.mockResolvedValue(makeEnrichResult());
-
-    await enrichAndPersist({ address: '123 Rural Rd, MO' });
-
-    const input = mockInsertListing.mock.calls[0][0];
-    expect(input.userId).toBeUndefined();
-  });
-
   it('triggers matching against search profiles after persist', async () => {
     mockEnrichListing.mockResolvedValue(makeEnrichResult());
 
-    await enrichAndPersist({ address: '123 Rural Rd, MO' });
+    await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
     expect(mockMatchListing).toHaveBeenCalledWith('lst-001');
   });
@@ -275,7 +264,7 @@ describe('enrichAndPersist', () => {
     mockEnrichListing.mockResolvedValue(makeEnrichResult());
     mockMatchListing.mockRejectedValue(new Error('matching exploded'));
 
-    const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+    const result = await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
     expect(result.ok).toBe(true);
   });
@@ -286,7 +275,7 @@ describe('enrichAndPersist', () => {
       error: 'Geocode failed',
     });
 
-    await enrichAndPersist({ address: 'bad address' });
+    await enrichAndPersist({ address: 'bad address' }, 'user-1');
 
     expect(mockMatchListing).not.toHaveBeenCalled();
   });
@@ -296,7 +285,7 @@ describe('enrichAndPersist', () => {
     // nothing to read and silently falls back to per-request compute forever.
     mockEnrichListing.mockResolvedValue(makeEnrichResult());
 
-    await enrichAndPersist({ address: '123 Rural Rd, MO', price: 50000, acreage: 40 });
+    await enrichAndPersist({ address: '123 Rural Rd, MO', price: 50000, acreage: 40 }, 'user-1');
 
     expect(mockUpdateHomesteadScore).toHaveBeenCalledTimes(1);
     const [listingId, score, tx] = mockUpdateHomesteadScore.mock.calls[0];
@@ -312,7 +301,7 @@ describe('enrichAndPersist', () => {
       // full homestead breakdown
       mockEnrichListing.mockResolvedValue(makeEnrichResult());
 
-      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -329,7 +318,7 @@ describe('enrichAndPersist', () => {
       // the ScoreCard renders a gap in the bar list
       mockEnrichListing.mockResolvedValue(makeEnrichResult());
 
-      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -370,7 +359,7 @@ describe('enrichAndPersist', () => {
       mockEnrichListing.mockResolvedValue(makeEnrichResult());
       mockInsertEnrichment.mockResolvedValue(enrichedRow);
 
-      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -390,7 +379,7 @@ describe('enrichAndPersist', () => {
       mockEnrichListing.mockResolvedValue(makeEnrichResult());
       mockInsertEnrichment.mockResolvedValue(null as any);
 
-      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' });
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
       expect(result.ok).toBe(true);
       if (result.ok) {

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { requireAuth, optionalAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 import * as jwt from '../lib/jwt';
 import type { Env } from '../types/env';
 
@@ -74,56 +74,5 @@ describe('requireAuth', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as Record<string, unknown>;
     expect(body.userId).toBe('user-42');
-  });
-});
-
-describe('optionalAuth', () => {
-  const app = buildApp(optionalAuth);
-
-  it('sets userId when valid token is provided', async () => {
-    mockJwt.verifyToken.mockResolvedValue({ sub: 'user-7' });
-
-    const res = await app.request('/protected', {
-      headers: { authorization: 'Bearer valid-token' },
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json() as Record<string, unknown>;
-    expect(body.userId).toBe('user-7');
-  });
-
-  // Bug: optionalAuth that rejects unauthenticated requests instead of passing through
-  it('returns 200 without userId when no Authorization header', async () => {
-    const res = await app.request('/protected');
-
-    expect(res.status).toBe(200);
-    const body = await res.json() as Record<string, unknown>;
-    expect(body.userId).toBeNull();
-  });
-
-  // Bug: optionalAuth that throws on expired/invalid tokens instead of continuing anonymously
-  it('returns 200 without userId for invalid token', async () => {
-    mockJwt.verifyToken.mockResolvedValue(null);
-
-    const res = await app.request('/protected', {
-      headers: { authorization: 'Bearer bad-token' },
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json() as Record<string, unknown>;
-    expect(body.userId).toBeNull();
-    expect(mockJwt.verifyToken).toHaveBeenCalled();
-  });
-
-  // Bug: extractBearerToken crash on non-Bearer format breaking anonymous access
-  it('returns 200 without userId for non-Bearer scheme', async () => {
-    const res = await app.request('/protected', {
-      headers: { authorization: 'Basic dXNlcjpwYXNz' },
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json() as Record<string, unknown>;
-    expect(body.userId).toBeNull();
-    expect(mockJwt.verifyToken).not.toHaveBeenCalled();
   });
 });

@@ -113,7 +113,7 @@ function toEnrichListingResponse(
 
 export async function enrichAndPersist(
   input: EnrichListingRequest,
-  userId?: string,
+  userId: string,
 ): Promise<Result<EnrichListingResponse>> {
   try {
     // 1. Geocode + enrich via pipeline
@@ -161,8 +161,10 @@ export async function enrichAndPersist(
   }
 }
 
-export async function getByUrl(url: string): Promise<Result<EnrichListingResponse>> {
-  const result = await listingRepo.findByUrl(url);
+// Listings without an owner (feed pipeline) are visible to everyone; listings
+// created via /enrich are visible only to the user who enriched them.
+export async function getByUrl(url: string, userId: string): Promise<Result<EnrichListingResponse>> {
+  const result = await listingRepo.findByUrl(url, userId);
   if (!result) return err('NOT_FOUND');
   return ok(toEnrichListingResponse(result.listing, result.enrichment));
 }

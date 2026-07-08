@@ -12,7 +12,7 @@ import { registerEnrichmentMetrics } from './lib/enrichmentMetrics';
 import { registerGeodataAdapters } from './lib/geodataAdapters';
 import { logger } from './lib/logger';
 import { requestLogging } from './middleware/requestLogging';
-import { optionalAuth, requireAuth } from './middleware/auth';
+import { requireAuth } from './middleware/auth';
 import { rateLimit } from './middleware/rateLimit';
 import authRouter from './routes/auth';
 import listingsRouter from './routes/listings';
@@ -73,7 +73,7 @@ export function createApp() {
 
   // Mount API routes
   app.route('/api/v1/auth', authRouter);
-  app.use('/api/v1/listings/*', optionalAuth);
+  app.use('/api/v1/listings/*', requireAuth);
   app.route('/api/v1/listings', listingsRouter);
   app.use('/api/v1/search-profiles/*', requireAuth);
   app.route('/api/v1/search-profiles', searchProfilesRouter);
