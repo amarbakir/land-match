@@ -128,6 +128,36 @@ describe('request basics', () => {
 
     await expect(client.delete('/listings/abc/save')).resolves.toBeUndefined();
   });
+
+  // Bug guard: 2xx with a garbage body previously escaped as a raw SyntaxError
+  it('throws ApiError for a 200 response with a non-JSON body', async () => {
+    const storage = makeStorage(null);
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(new Response('<html>oops</html>', { status: 200 }));
+
+    const err = await client.get('/items').catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).message).toBe('Malformed response body');
+    expect((err as ApiError).status).toBe(200);
+  });
+
+  it('throws ApiError for a 200 response without the success envelope', async () => {
+    const storage = makeStorage(null);
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { items: [] }));
+
+    await expect(client.get('/items')).rejects.toThrow('Malformed response body');
+  });
+
+  // Schema guard: a non-string error field can no longer become the ApiError message
+  it('falls back to the generic message when the error field is not a string', async () => {
+    const storage = makeStorage(null);
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(jsonResponse(400, { ok: false, error: { detail: 'bad' } }));
+
+    await expect(client.get('/items')).rejects.toThrow('Request failed (400)');
+  });
 });
 
 describe('401 refresh flow', () => {
@@ -260,5 +290,25 @@ describe('401 refresh flow', () => {
     await Promise.all([client.get('/items'), client.get('/users')]);
 
     expect(refreshCallCount).toBe(1);
+  });
+
+  // Schema guard: refresh 200 with a valid envelope but invalid token payload
+  it('treats a refresh payload failing schema validation as a failed refresh', async () => {
+    const storage = makeStorage({ accessToken: 'expired', refreshToken: 'refresh-1' });
+    const onAuthFailure = vi.fn();
+    const client = createApiClient({ baseUrl: BASE_URL, storage, onAuthFailure });
+
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(401, { ok: false, error: 'expired' }))
+      // Valid success envelope, but payload lacks expiresIn → AuthTokenResponse rejects
+      .mockResolvedValueOnce(
+        jsonResponse(200, { ok: true, data: { accessToken: 'fresh', refreshToken: 'refresh-2' } }),
+      );
+
+    await expect(client.get('/items')).rejects.toThrow('expired');
+
+    expect(storage.setTokens).not.toHaveBeenCalled();
+    expect(storage.clearTokens).toHaveBeenCalled();
+    expect(onAuthFailure).toHaveBeenCalled();
   });
 });

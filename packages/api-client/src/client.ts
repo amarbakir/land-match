@@ -1,4 +1,4 @@
-import type { AuthTokenResponseType } from '@landmatch/api';
+import { ApiErrorEnvelope, ApiSuccessEnvelope, AuthTokenResponse } from '@landmatch/api';
 
 export interface Tokens {
   accessToken: string;
@@ -43,8 +43,8 @@ export interface ApiClient {
 
 function parseApiError(text: string, status: number): ApiError {
   try {
-    const parsed = JSON.parse(text);
-    if (parsed.error) return new ApiError(parsed.error, status, parsed.code);
+    const parsed = ApiErrorEnvelope.safeParse(JSON.parse(text));
+    if (parsed.success) return new ApiError(parsed.data.error, status, parsed.data.code);
   } catch {
     // non-JSON error body
   }
@@ -73,12 +73,12 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         });
         if (!response.ok) return null;
 
-        const json = (await response.json()) as { data: AuthTokenResponseType };
-        const data = json.data;
-        // A malformed body (data null/missing fields) throws here and is
-        // caught below — treated as a failed refresh.
-        const next = { accessToken: data.accessToken, refreshToken: data.refreshToken };
-        if (!next.accessToken || !next.refreshToken) return null;
+        const envelope = ApiSuccessEnvelope.safeParse(await response.json());
+        if (!envelope.success) return null;
+        const parsed = AuthTokenResponse.safeParse(envelope.data.data);
+        if (!parsed.success) return null;
+
+        const next = { accessToken: parsed.data.accessToken, refreshToken: parsed.data.refreshToken };
         await storage.setTokens(next);
         return next;
       } catch {
@@ -138,8 +138,17 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       return undefined as TRes;
     }
 
-    const json = (await response.json()) as { data: TRes };
-    return json.data;
+    let json: unknown;
+    try {
+      json = await response.json();
+    } catch {
+      throw new ApiError('Malformed response body', response.status);
+    }
+    const envelope = ApiSuccessEnvelope.safeParse(json);
+    if (!envelope.success) {
+      throw new ApiError('Malformed response body', response.status);
+    }
+    return envelope.data.data as TRes;
   }
 
   return {
