@@ -8,13 +8,13 @@ describe('RegisterRequest password validation', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects passwords longer than 72 characters (bcrypt truncation limit)', () => {
-    const result = RegisterRequest.safeParse({ email: 'a@b.com', password: 'x'.repeat(73) });
+  it('rejects passwords longer than 128 characters (bounds hashing work per request)', () => {
+    const result = RegisterRequest.safeParse({ email: 'a@b.com', password: 'x'.repeat(129) });
     expect(result.success).toBe(false);
   });
 
-  it('accepts a 72-character password', () => {
-    const result = RegisterRequest.safeParse({ email: 'a@b.com', password: 'x'.repeat(72) });
+  it('accepts a 128-character password', () => {
+    const result = RegisterRequest.safeParse({ email: 'a@b.com', password: 'x'.repeat(128) });
     expect(result.success).toBe(true);
   });
 });

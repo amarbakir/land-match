@@ -6,8 +6,8 @@ const email = z.string().trim().toLowerCase().email();
 
 export const RegisterRequest = z.object({
   email,
-  // bcrypt truncates beyond 72 bytes, so longer passwords must be rejected
-  password: z.string().min(8).max(72),
+  // argon2 has no truncation limit; the cap just bounds hashing work per request
+  password: z.string().min(8).max(128),
   name: z.string().optional(),
 });
 

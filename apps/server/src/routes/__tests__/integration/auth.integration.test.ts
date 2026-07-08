@@ -19,7 +19,7 @@ async function register(email: string, password = 'password123', name?: string) 
 }
 
 describe('auth flow (integration)', () => {
-  it('registers a user, stores a bcrypt hash (never plaintext), and returns tokens', async () => {
+  it('registers a user, stores an argon2id hash (never plaintext), and returns tokens', async () => {
     const { res, body } = await register('new@example.com', 'password123', 'New Person');
 
     expect(res.status).toBe(201);
@@ -31,7 +31,7 @@ describe('auth flow (integration)', () => {
     expect(rows).toHaveLength(1);
     // Bug this catches: storing the raw password, or a reversible encoding.
     expect(rows[0].password_hash).not.toBe('password123');
-    expect(rows[0].password_hash).toMatch(/^\$2[aby]\$/);
+    expect(rows[0].password_hash).toMatch(/^\$argon2id\$/);
   });
 
   it('rejects a duplicate registration with 409 (real unique constraint)', async () => {
