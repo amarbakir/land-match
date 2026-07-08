@@ -22,7 +22,7 @@ All endpoints return `{ ok: true, data }` or `{ ok: false, code, error }`.
 ## Request handling
 
 - Validate via Zod schemas from `@landmatch/api` — no ad-hoc shape checks
-- `requireAuth` / `optionalAuth` middleware set `userId` on context
+- `requireAuth` middleware sets `userId` on context
 
 ## File organization
 

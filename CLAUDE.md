@@ -16,19 +16,19 @@ LandMatch — intelligent property search tool for back-to-land buyers (homestea
 ## Monorepo map
 
 
-| Path                   | Purpose                                                                                  |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| `apps/frontend/`       | Expo app — file-based routes, UI components, API client                                  |
-| `apps/server/`         | Hono API — routes in `src/routes/`, services in `src/services/`, repos in `src/repos/`   |
-| `apps/extension/`      | Chrome extension — content extractors, side panel, its own auth + API client             |
-| `packages/api/`        | Zod schemas — single source of truth for API contracts                                   |
-| `packages/api-client/` | Shared auth + API client used by frontend and extension (token storage, 401 refresh/retry)  |
-| `packages/db/`         | Drizzle schema (`src/schema.ts`) + migrations (`drizzle/`) + drizzle config              |
-| `packages/enrichment/` | Data source adapters: soil (USDA), flood (FEMA), parcel (Regrid), climate (First Street) |
-| `packages/geodata/`    | Geodata ETL + PostGIS helpers (PRISM climate normals, wetlands, elevation)               |
-| `packages/scoring/`    | Deterministic scoring engine + LLM summary generation                                    |
-| `docs/`                | Design specs, implementation plans                                                       |
-| `infra/`               | Deploy scripts, SST helpers                                                              |
+| Path                   | Purpose                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| `apps/frontend/`       | Expo app — file-based routes, UI components, API client                                    |
+| `apps/server/`         | Hono API — routes in `src/routes/`, services in `src/services/`, repos in `src/repos/`     |
+| `apps/extension/`      | Chrome extension — content extractors, side panel, its own auth + API client               |
+| `packages/api/`        | Zod schemas — single source of truth for API contracts                                     |
+| `packages/api-client/` | Shared auth + API client used by frontend and extension (token storage, 401 refresh/retry) |
+| `packages/db/`         | Drizzle schema (`src/schema.ts`) + migrations (`drizzle/`) + drizzle config                |
+| `packages/enrichment/` | Data source adapters: soil (USDA), flood (FEMA), parcel (Regrid), climate (First Street)   |
+| `packages/geodata/`    | Geodata ETL + PostGIS helpers (PRISM climate normals, wetlands, elevation)                 |
+| `packages/scoring/`    | Deterministic scoring engine + LLM summary generation                                      |
+| `docs/`                | Design specs, implementation plans                                                         |
+| `infra/`               | Deploy scripts, SST helpers                                                                |
 
 
 ## Commands (from repo root)
