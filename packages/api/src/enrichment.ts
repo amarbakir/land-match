@@ -24,7 +24,10 @@ export interface SoilData {
 }
 
 export interface FloodData {
-  zone: string; // X, A, AE, VE, etc.
+  // X, A, AE, VE, etc. null = the point has no digital FIRM coverage (FEMA has
+  // never assessed it) — deliberately distinct from zone X (assessed, minimal
+  // risk) so unmapped parcels are not recorded as low-risk.
+  zone: string | null;
   description: string;
 }
 

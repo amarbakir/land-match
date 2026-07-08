@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { EnrichListingRequest, HttpUrl, ListingByUrlQuery } from '../index';
+import { EnrichListingRequest, HttpUrl, isHttpUrl, ListingByUrlQuery } from '../index';
 
 describe('HttpUrl', () => {
   it.each([
@@ -21,6 +21,27 @@ describe('HttpUrl', () => {
     'vbscript:msgbox(1)',
   ])('rejects non-web scheme %s', (url) => {
     expect(HttpUrl.safeParse(url).success).toBe(false);
+  });
+});
+
+describe('isHttpUrl', () => {
+  // Bug this catches: the read-side sanitizer diverging from the write-side
+  // schema — a URL accepted at write time must never be stripped at read time,
+  // and vice versa. isHttpUrl is derived from HttpUrl to guarantee this.
+  it('agrees with HttpUrl for stored values', () => {
+    for (const value of [
+      'https://www.landwatch.com/listing/123',
+      'javascript:alert(1)',
+      'http:/www.landwatch.com/listing/123',
+      'not a url',
+    ]) {
+      expect(isHttpUrl(value)).toBe(HttpUrl.safeParse(value).success);
+    }
+  });
+
+  it('rejects null and undefined (nullable DB columns)', () => {
+    expect(isHttpUrl(null)).toBe(false);
+    expect(isHttpUrl(undefined)).toBe(false);
   });
 });
 

@@ -95,18 +95,20 @@ export function ReportHero({ match }: ReportHeroProps) {
 
         {/* Action buttons */}
         <XStack gap={8} flexWrap="wrap" marginTop={4}>
-          <Pressable onPress={() => isHttpUrl(match.url) && Linking.openURL(match.url)}>
-            <View
-              paddingHorizontal={14}
-              paddingVertical={7}
-              borderRadius={8}
-              backgroundColor={colors.accent}
-            >
-              <Text fontSize={12.5} color={colors.backgroundDeep} fontWeight="600">
-                Open on {match.source ?? 'source'}
-              </Text>
-            </View>
-          </Pressable>
+          {isHttpUrl(match.url) && (
+            <Pressable onPress={() => Linking.openURL(match.url!)}>
+              <View
+                paddingHorizontal={14}
+                paddingVertical={7}
+                borderRadius={8}
+                backgroundColor={colors.accent}
+              >
+                <Text fontSize={12.5} color={colors.backgroundDeep} fontWeight="600">
+                  Open on {match.source ?? 'source'}
+                </Text>
+              </View>
+            </Pressable>
+          )}
           <GhostButton
             label={isShortlisted ? 'Shortlisted' : 'Shortlist'}
             active={isShortlisted}

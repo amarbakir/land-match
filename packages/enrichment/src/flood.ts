@@ -27,14 +27,16 @@ const NfhlErrorResponse = z.object({
   }),
 });
 
-// FLD_ZONE is required: we explicitly request it via outFields, so a feature
-// without it is a malformed response, not a zone-less area.
 const NfhlQueryResponse = z.object({
-  features: z.array(
-    z.object({
-      attributes: z.object({ FLD_ZONE: z.string() }),
-    }),
-  ),
+  features: z.array(z.unknown()),
+});
+
+// FLD_ZONE is required: we explicitly request it via outFields, so a feature
+// without it is a malformed response, not a zone-less area. Validated only on
+// the first feature — the one we consume — so a degenerate polygon later in
+// the array can't discard an otherwise usable result.
+const NfhlFeature = z.object({
+  attributes: z.object({ FLD_ZONE: z.string() }),
 });
 
 export const floodAdapter: EnrichmentAdapter<FloodData> = {
@@ -78,16 +80,23 @@ export const floodAdapter: EnrichmentAdapter<FloodData> = {
         return err('FEMA NFHL unexpected response shape');
       }
 
-      // A valid response with zero intersecting polygons means the point is
-      // outside every mapped flood zone — the only case that may return X.
+      // Zero intersecting polygons means the point has no digital FIRM
+      // coverage — FEMA never assessed it. Zone X areas are themselves
+      // polygons in the layer, so this must NOT be recorded as zone X
+      // (minimal risk); a null zone marks the parcel as unassessed.
       if (parsed.data.features.length === 0) {
         return ok({
-          zone: 'X',
+          zone: null,
           description: 'Area not mapped by FEMA NFHL',
         });
       }
 
-      const zone = parsed.data.features[0].attributes.FLD_ZONE;
+      const feature = NfhlFeature.safeParse(parsed.data.features[0]);
+      if (!feature.success) {
+        return err('FEMA NFHL unexpected response shape');
+      }
+
+      const zone = feature.data.attributes.FLD_ZONE;
       const description = ZONE_DESCRIPTIONS[zone] ?? `Flood zone ${zone}`;
 
       return ok({ zone, description });

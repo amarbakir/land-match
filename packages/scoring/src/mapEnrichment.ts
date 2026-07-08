@@ -28,7 +28,7 @@ export function mapEnrichmentResult(result: EnrichmentResult): EnrichmentData {
     soilCapabilityClass: result.soil?.capabilityClass,
     soilDrainageClass: result.soil?.drainageClass,
     soilTexture: result.soil?.texture,
-    floodZone: result.flood?.zone,
+    floodZone: result.flood?.zone ?? undefined,
     zoningCode: result.parcel?.zoningCode,
     fireRiskScore: result.climate?.fireRiskScore,
     floodRiskScore: result.climate?.floodRiskScore,

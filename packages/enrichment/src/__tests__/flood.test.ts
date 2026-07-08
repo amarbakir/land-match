@@ -31,7 +31,11 @@ describe('floodAdapter.enrich', () => {
     });
   });
 
-  it('defaults to Zone X with unmapped description when no features returned', async () => {
+  it('returns a null zone (not X) when the point has no FIRM coverage', async () => {
+    // Bug this catches: zone X areas are themselves polygons in the NFHL
+    // layer, so zero intersecting features means FEMA never assessed the
+    // point. Recording it as zone X would show "minimal flood risk" for an
+    // unassessed parcel and let it pass floodZoneExclude hard filters.
     fetchSpy.mockResolvedValueOnce(Response.json({ features: [] }));
 
     const result = await floodAdapter.enrich({ lat: 40.0, lng: -90.0 });
@@ -39,10 +43,31 @@ describe('floodAdapter.enrich', () => {
     expect(result).toEqual({
       ok: true,
       data: {
-        zone: 'X',
+        zone: null,
         description: 'Area not mapped by FEMA NFHL',
       },
     });
+  });
+
+  it('uses the first feature even when a later feature in the array is malformed', async () => {
+    // Bug this catches: validating FLD_ZONE on every returned polygon would
+    // discard a usable zone when a degenerate second polygon (e.g. a FIRM
+    // panel-seam artifact with null FLD_ZONE) rides along in the response.
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        features: [
+          { attributes: { FLD_ZONE: 'AE', ZONE_SUBTY: null } },
+          { attributes: { FLD_ZONE: null } },
+        ],
+      }),
+    );
+
+    const result = await floodAdapter.enrich({ lat: 37.0, lng: -93.0 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.zone).toBe('AE');
+    }
   });
 
   it('returns error on network failure', async () => {

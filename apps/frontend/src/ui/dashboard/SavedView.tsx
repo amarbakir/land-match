@@ -214,7 +214,9 @@ function SavedDetail({ item, onUnsave }: { item: SavedListingItem; onUnsave: () 
           {isHttpUrl(item.url) && (
             <Pressable
               onPress={() => {
-                if (typeof window !== 'undefined') window.open(item.url!, '_blank');
+                // noopener: the listing site must not get a window.opener
+                // handle to the dashboard tab (reverse tabnabbing).
+                if (typeof window !== 'undefined') window.open(item.url!, '_blank', 'noopener,noreferrer');
               }}
             >
               <XStack
