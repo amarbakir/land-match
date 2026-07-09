@@ -312,3 +312,58 @@ describe('401 refresh flow', () => {
     expect(onAuthFailure).toHaveBeenCalled();
   });
 });
+
+describe('logout', () => {
+  it('revokes the refresh-token family on the server BEFORE clearing local tokens', async () => {
+    // Bug this catches: clients that only clear local storage — the signed-out
+    // device's refresh family stays live server-side for up to 30 days.
+    const storage = makeStorage({ accessToken: 'acc-1', refreshToken: 'ref-1' });
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await client.logout();
+
+    expect(mockFetch.mock.calls[0][0]).toBe('http://api.test/api/v1/auth/logout');
+    expect(JSON.parse(mockFetch.mock.calls[0][1]?.body as string)).toEqual({ refreshToken: 'ref-1' });
+    expect(storage.clearTokens).toHaveBeenCalled();
+    // Revoke must be attempted while the token is still readable
+    expect(mockFetch.mock.invocationCallOrder[0]).toBeLessThan(
+      storage.clearTokens.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('still clears local tokens when the revoke request fails (best-effort contract)', async () => {
+    // Bug this catches: a network error during revoke leaving the user unable
+    // to sign out locally.
+    const storage = makeStorage({ accessToken: 'acc-1', refreshToken: 'ref-1' });
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockRejectedValueOnce(new Error('Network request failed'));
+
+    await expect(client.logout()).resolves.toBeUndefined();
+
+    expect(storage.clearTokens).toHaveBeenCalled();
+  });
+
+  it('does not trigger the 401 refresh-retry machinery for the revoke call', async () => {
+    // A 401 from logout (token already revoked/expired) must not mint a fresh
+    // token pair for a user who is signing out.
+    const storage = makeStorage({ accessToken: 'expired', refreshToken: 'ref-1' });
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(jsonResponse(401, { ok: false, code: 'UNAUTHORIZED', error: 'x' }));
+
+    await client.logout();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1); // no /auth/refresh, no retry
+    expect(storage.clearTokens).toHaveBeenCalled();
+  });
+
+  it('skips the server call entirely when no tokens are stored', async () => {
+    const storage = makeStorage(null);
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+
+    await client.logout();
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(storage.clearTokens).toHaveBeenCalled();
+  });
+});

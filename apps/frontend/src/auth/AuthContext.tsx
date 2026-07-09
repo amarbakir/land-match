@@ -2,9 +2,9 @@ import type { AuthTokenResponseType, LoginRequestType, RegisterRequestType } fro
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { apiPost, setOnAuthFailure } from '../api/client';
+import { apiLogout, apiPost, setOnAuthFailure } from '../api/client';
 
-import { clearTokens, getTokens, setTokens } from './tokenStorage';
+import { getTokens, setTokens } from './tokenStorage';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -22,7 +22,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const logout = useCallback(async () => {
-    await clearTokens();
+    // Revokes the refresh-token family server-side (best-effort, never
+    // throws) and clears local tokens — without the revoke, a signed-out
+    // device's refresh family stays live for up to 30 days.
+    await apiLogout();
     setIsAuthenticated(false);
     queryClient.clear();
   }, [queryClient]);

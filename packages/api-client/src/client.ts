@@ -39,6 +39,8 @@ export interface ApiClient {
   patch<TReq, TRes>(path: string, body: TReq, options?: RequestOptions): Promise<TRes>;
   put<TReq, TRes>(path: string, body: TReq, options?: RequestOptions): Promise<TRes>;
   delete<TRes>(path: string, options?: RequestOptions): Promise<TRes>;
+  /** Best-effort server-side revoke of the refresh-token family, then clears local tokens. Never throws. */
+  logout(): Promise<void>;
 }
 
 function parseApiError(text: string, status: number): ApiError {
@@ -151,7 +153,31 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     return envelope.data.data as TRes;
   }
 
+  // Revoke the refresh-token family server-side, then clear local tokens.
+  // Raw fetch on purpose: a 401 here (token already revoked/expired) must not
+  // trigger the refresh-retry machinery and mint a fresh pair for a user who
+  // is signing out. Best-effort — local sign-out never blocks on the server.
+  async function logout(): Promise<void> {
+    try {
+      const tokens = await storage.getTokens();
+      if (tokens) {
+        await fetch(`${apiBase}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+          signal: AbortSignal.timeout(5_000),
+        });
+      }
+    } catch {
+      // swallow: revocation is best-effort, the local clear below is what
+      // signs the device out
+    } finally {
+      await storage.clearTokens();
+    }
+  }
+
   return {
+    logout,
     get: <TRes>(path: string, o?: RequestOptions) => request<TRes>('GET', path, undefined, o),
     post: <TReq, TRes>(path: string, body: TReq, o?: RequestOptions) =>
       request<TRes>('POST', path, body, o),

@@ -1,7 +1,7 @@
 import type { EnrichListingResponse } from '@landmatch/api';
 
 import * as apiClient from '../shared/api-client';
-import { getAuth, setAuth, clearAuth } from '../shared/auth';
+import { getAuth, setAuth } from '../shared/auth';
 import { getCached, setCached } from '../shared/cache';
 import { getOverallScore, getScoreColor } from '../shared/scoring';
 import type {
@@ -164,7 +164,9 @@ async function handleLogin(email: string, password: string): Promise<LoginResult
 }
 
 async function handleLogout(): Promise<AuthStatusMessage> {
-  await clearAuth();
+  // Best-effort server-side refresh-token revoke + local clear (never
+  // throws) — clearing storage alone left the family live for 30 days.
+  await apiClient.logout();
   chrome.action.setBadgeText({ text: '' });
   return { type: 'AUTH_STATUS', payload: { authenticated: false } };
 }

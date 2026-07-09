@@ -53,6 +53,14 @@ export function saveListing(listingId: string) {
   );
 }
 
+/**
+ * Best-effort server-side refresh-token revoke, then clears stored auth
+ * (tokenStorage.clearTokens maps to clearAuth). Never throws.
+ */
+export function logout() {
+  return client.logout();
+}
+
 export function login(email: string, password: string) {
   return toEnvelope(
     client.post<
