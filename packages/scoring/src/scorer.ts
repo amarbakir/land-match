@@ -9,8 +9,15 @@ export function scoreListing(listing: ListingData, enrichment: EnrichmentData, c
   // Check hard filters
   const failedFilters: string[] = [];
 
-  if (criteria.floodZoneExclude && enrichment.floodZone && criteria.floodZoneExclude.includes(enrichment.floodZone)) {
-    failedFilters.push('flood_zone_excluded');
+  if (criteria.floodZoneExclude && criteria.floodZoneExclude.length > 0) {
+    if (!enrichment.floodZone) {
+      // Zone unknown = adapter failed or FEMA never mapped the parcel. The
+      // user drew a hard line on flood risk — an unverified listing must not
+      // cross it (re-enrichment heals the zone and rescoring lifts this).
+      failedFilters.push('flood_zone_unverified');
+    } else if (criteria.floodZoneExclude.includes(enrichment.floodZone)) {
+      failedFilters.push('flood_zone_excluded');
+    }
   }
   if (criteria.price?.max && listing.price && listing.price > criteria.price.max * 1.5) {
     failedFilters.push('price_over_hard_limit');
