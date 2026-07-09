@@ -147,11 +147,27 @@ const databaseUrl = isProduction
   : optional('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/landmatch');
 const directUrl = optional('DIRECT_URL', databaseUrl);
 
+// Lambda containers each hold their own pool behind the Supabase pooler —
+// keep them tiny so concurrent invocations don't exhaust pooler slots. The
+// long-lived node server gets a normal-sized pool.
+function resolvePoolMax(): number {
+  const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+  const raw = optional('DB_POOL_MAX', isLambda ? '2' : '10');
+  const value = parseInt(raw, 10);
+  if (!Number.isInteger(value) || value <= 0) {
+    // NaN would defeat pg's pool-full check (count >= max is never true) and
+    // grow the pool unboundedly — fail loudly instead.
+    throw new Error(`DB_POOL_MAX must be a positive integer, got '${raw}'`);
+  }
+  return value;
+}
+
 export const database = {
   url: databaseUrl,
   connection: parseDatabaseUrl(databaseUrl),
   directUrl,
   directConnection: parseDatabaseUrl(directUrl),
+  poolMax: resolvePoolMax(),
 } as const;
 
 // Production DB traffic carries credentials, password hashes, and PII —

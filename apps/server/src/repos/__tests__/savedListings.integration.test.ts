@@ -128,17 +128,21 @@ describe('findSavedListings (integration)', () => {
     expect(asc.rows.map((r) => r.homesteadScore)).toEqual([20, 55, 90, null]);
   });
 
-  it('sorts by price in SQL (asc and desc)', async () => {
+  it('sorts by price in SQL (asc and desc) with null prices trailing', async () => {
     const userA = await seedUser('a@example.com');
     const cheap = await seedListing('cheap', 20000, 5);
     const mid = await seedListing('mid', 30000, 5);
     const dear = await seedListing('dear', 50000, 5);
-    for (const id of [mid, dear, cheap]) await listingRepo.saveListing(userA, id);
+    // Extension-extracted rural listings commonly lack a price. Bug this
+    // catches: Postgres DESC defaults to NULLS FIRST, so every blank-price
+    // listing led the 'most expensive first' view.
+    const unpriced = await seedListing('unpriced');
+    for (const id of [mid, dear, unpriced, cheap]) await listingRepo.saveListing(userA, id);
 
     const asc = await listingRepo.findSavedListings(userA, { sort: 'price', sortDir: 'asc' });
     const desc = await listingRepo.findSavedListings(userA, { sort: 'price', sortDir: 'desc' });
 
-    expect(asc.rows.map((r) => r.price)).toEqual([20000, 30000, 50000]);
-    expect(desc.rows.map((r) => r.price)).toEqual([50000, 30000, 20000]);
+    expect(asc.rows.map((r) => r.price)).toEqual([20000, 30000, 50000, null]);
+    expect(desc.rows.map((r) => r.price)).toEqual([50000, 30000, 20000, null]);
   });
 });

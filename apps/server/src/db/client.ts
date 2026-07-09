@@ -10,21 +10,15 @@ import * as schema from '@landmatch/db';
 import { database } from '../config';
 import { logger } from '../lib/logger';
 
-// Lambda containers each hold their own pool behind the Supabase pooler —
-// keep them tiny so concurrent invocations don't exhaust pooler slots. The
-// long-lived node server gets a normal-sized pool.
-const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
-const poolMax = parseInt(process.env.DB_POOL_MAX || (isLambda ? '2' : '10'), 10);
-
 export const pool = new Pool({
   ...database.connection,
-  max: poolMax,
+  max: database.poolMax,
   // Fail acquisition fast when the DB is unreachable instead of hanging requests
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 30_000,
-  // App queries are short; runaway statements must not pin a connection.
-  // (Migrations run on their own pool below, without this cap.)
-  statement_timeout: 30_000,
+  // No statement_timeout here: pg sends it as a startup-packet parameter,
+  // which transaction-mode poolers (Supabase Supavisor/pgbouncer) can reject —
+  // turning a hardening flag into a full connection outage.
 });
 
 // node-postgres emits 'error' on the pool when an idle client's backend dies

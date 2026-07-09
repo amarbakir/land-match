@@ -52,17 +52,16 @@ export async function matchListingAgainstProfiles(
       // must not leave a scored row whose alert is lost forever (the score's
       // existence is what suppresses future alert attempts).
       const written = await db.transaction(async (tx) => {
-        const scoreRow = alreadyScored
-          ? await scoreRepo.updateScoreValues(listingId, profile.id, {
-              overallScore: result.overallScore,
-              componentScores,
-            }, tx)
-          : await scoreRepo.insert({
-              listingId,
-              searchProfileId: profile.id,
-              overallScore: result.overallScore,
-              componentScores,
-            }, tx);
+        const values = { overallScore: result.overallScore, componentScores };
+        let scoreRow = alreadyScored
+          ? await scoreRepo.updateScoreValues(listingId, profile.id, values, tx)
+          : await scoreRepo.insert({ listingId, searchProfileId: profile.id, ...values }, tx);
+        if (!scoreRow && !alreadyScored && opts.rescore) {
+          // Rescore lost the insert race to a concurrent initial-match run —
+          // this run's values come from fresher enrichment, so refresh the
+          // winner's row rather than silently keeping its stale score.
+          scoreRow = await scoreRepo.updateScoreValues(listingId, profile.id, values, tx);
+        }
         // null: row deleted since the id set was read, or a concurrent run
         // won the insert race (unique index) — it owns the alerts too.
         if (!scoreRow) return null;
@@ -73,7 +72,9 @@ export async function matchListingAgainstProfiles(
         // fresh alert pointing at something the inbox no longer shows.
         if (result.overallScore >= profile.alertThreshold && !alertedProfileIds.has(profile.id) && scoreRow.status === 'inbox') {
           // TODO: cache by userId to avoid duplicate lookups when multiple profiles share a user
-          const user = await userRepo.findById(profile.userId);
+          // tx matters: reading on a second pool connection while this
+          // transaction pins one deadlocks a small (Lambda) pool.
+          const user = await userRepo.findById(profile.userId, tx);
           const channels = getAlertChannels(user?.notificationPrefs);
 
           for (const channel of channels) {

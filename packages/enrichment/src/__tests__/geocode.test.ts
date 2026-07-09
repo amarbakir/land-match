@@ -124,6 +124,33 @@ describe('geocode', () => {
     expect(hit.ok).toBe(true);
   });
 
+  it('fails fast when the Nominatim queue is saturated instead of queueing unbounded', async () => {
+    // Bug this catches: the 1 req/s throttle serializes a fallback that runs
+    // inside the user-facing save request — with an unbounded queue the Nth
+    // concurrent caller waits N seconds and times out at the gateway. Beyond
+    // the cap, callers must get an immediate error they can surface.
+    fetchSpy.mockImplementation(async (input: string | URL | Request) => {
+      if (String(input).includes('nominatim')) {
+        await new Promise((r) => setTimeout(r, 30));
+        return Response.json(NOMINATIM_RESPONSE);
+      }
+      return Response.json({ result: { addressMatches: [] } });
+    });
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, (_, i) => geocode(`${i} Distinct St`)),
+    );
+
+    const failed = results.filter((r) => !r.ok);
+    expect(failed.length).toBeGreaterThan(0);
+    for (const f of failed) {
+      if (!f.ok) expect(f.error).toContain('geocoder busy');
+    }
+    // The saturated callers failed without consuming Nominatim quota
+    const nominatimCalls = fetchSpy.mock.calls.filter((c: unknown[]) => String(c[0]).includes('nominatim'));
+    expect(nominatimCalls.length).toBeLessThan(8);
+  }, 15_000);
+
   it('never issues overlapping Nominatim requests and spaces them ~1s apart', async () => {
     // Bug this catches: 20 parallel enriches = 20 simultaneous Nominatim
     // hits — OSM's policy is max 1 req/s and violators get banned.

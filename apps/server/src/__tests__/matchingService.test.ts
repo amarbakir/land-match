@@ -443,6 +443,52 @@ describe('matchListingAgainstProfiles', () => {
     expect(mockScoreRepo.updateScoreValues).not.toHaveBeenCalled();
   });
 
+  it('rescore that loses the insert race updates the winner row instead of dropping fresh values', async () => {
+    // Bug this catches: a rescore run (fresh post-re-enrichment data) racing a
+    // concurrent initial-match run (stale data) — losing the insert race must
+    // not silently keep the stale score.
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 82,
+      componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+      hardFilterFailed: false,
+      failedFilters: [],
+    });
+
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set()); // read before the racing run committed
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+    mockScoreRepo.insert.mockResolvedValueOnce(null as any); // unique-index conflict
+    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({
+      id: 'score-winner',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 82,
+      componentScores: {},
+      llmSummary: null,
+      status: 'inbox',
+      readAt: null,
+      scoredAt: new Date(),
+    });
+    mockUserRepo.findById.mockResolvedValueOnce(USER);
+    mockAlertRepo.insert.mockResolvedValueOnce({} as any);
+
+    const result = await matchListingAgainstProfiles('listing-1', { rescore: true });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.scored).toBe(1);
+    expect(mockScoreRepo.updateScoreValues).toHaveBeenCalledWith(
+      'listing-1',
+      'profile-1',
+      expect.objectContaining({ overallScore: 82 }),
+      'fake-tx',
+    );
+  });
+
   it('skips alerting when the score insert loses a concurrent-insert race', async () => {
     // Bug this catches: check-then-insert with no constraint — two concurrent
     // enrichments of the same listing both read an empty scored set and both

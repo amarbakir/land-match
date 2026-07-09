@@ -20,17 +20,33 @@ function userAgent(): string {
 
 // --- Nominatim throttle: OSM policy is max 1 request/second per app. ---
 // Promise-chain limiter: concurrent callers queue up and requests are spaced
-// at least MIN_INTERVAL apart, process-wide.
+// at least MIN_INTERVAL apart, process-wide. Known limitation: on Lambda each
+// container throttles independently, so aggregate rate is (concurrency) req/s
+// — acceptable while concurrency is low; a shared limiter is the upgrade path
+// if geocode volume grows.
+// The queue is capped: this fallback runs inside the user-facing save request,
+// so a saturated queue must fail fast (clear error now) rather than hold the
+// request past gateway timeouts (opaque error in ~30s).
 const NOMINATIM_MIN_INTERVAL_MS = 1_100;
+const NOMINATIM_MAX_QUEUED = 3;
 let nominatimChain: Promise<unknown> = Promise.resolve();
 let nominatimLastAt = 0;
+let nominatimQueued = 0;
 
-function throttledNominatim<T>(fn: () => Promise<T>): Promise<T> {
+function throttledNominatim<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
+  if (nominatimQueued >= NOMINATIM_MAX_QUEUED) {
+    return Promise.resolve(err('Nominatim geocoder busy — try again shortly'));
+  }
+  nominatimQueued++;
   const run = nominatimChain.then(async () => {
     const wait = nominatimLastAt + NOMINATIM_MIN_INTERVAL_MS - Date.now();
     if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
     nominatimLastAt = Date.now();
-    return fn();
+    try {
+      return await fn();
+    } finally {
+      nominatimQueued--;
+    }
   });
   nominatimChain = run.then(
     () => undefined,
@@ -52,6 +68,7 @@ export function resetGeocoderForTests(): void {
   geocodeCache.clear();
   nominatimChain = Promise.resolve();
   nominatimLastAt = 0;
+  nominatimQueued = 0;
 }
 
 export async function geocode(address: string): Promise<Result<GeocodeData>> {

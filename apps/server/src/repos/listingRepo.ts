@@ -230,15 +230,20 @@ export interface SavedListingsQuery {
 export async function findSavedListings(userId: string, opts: SavedListingsQuery = {}, tx?: Tx) {
   const { sort = 'date', sortDir = 'desc', limit = 20, offset = 0 } = opts;
   const conn = tx ?? db;
-  const dir = sortDir === 'asc' ? asc : desc;
+  const dir = sortDir === 'asc' ? sql`ASC` : sql`DESC`;
 
-  // homestead_score is persisted (backfilled) — sort in SQL so pagination is
-  // globally ordered. NULLS LAST both directions: unscored rows trail rather
-  // than leading the ascending view. saved_at tiebreak keeps page windows
-  // stable when scores collide.
-  const orderBy = sort === 'homestead'
-    ? [sql`${enrichments.homesteadScore} ${sortDir === 'asc' ? sql`ASC` : sql`DESC`} NULLS LAST`, desc(savedListings.savedAt)]
-    : [dir(sort === 'price' ? listings.price : sort === 'acreage' ? listings.acreage : savedListings.savedAt)];
+  // Sortable value columns are nullable (unpriced feed listings, unscored
+  // enrichments) — NULLS LAST in both directions so blanks trail instead of
+  // leading (Postgres DESC defaults to NULLS FIRST). homestead_score is
+  // persisted (backfilled), so its sort in SQL keeps pagination globally
+  // ordered; saved_at tiebreak keeps page windows stable on value ties.
+  const sortColumn = sort === 'homestead' ? enrichments.homesteadScore
+    : sort === 'price' ? listings.price
+    : sort === 'acreage' ? listings.acreage
+    : null;
+  const orderBy = sortColumn
+    ? [sql`${sortColumn} ${dir} NULLS LAST`, desc(savedListings.savedAt)]
+    : [sortDir === 'asc' ? asc(savedListings.savedAt) : desc(savedListings.savedAt)];
 
   // Subquery: the caller's single highest score per listing with its profile
   // name. Scoped to the caller's own profiles — listings are global, so
