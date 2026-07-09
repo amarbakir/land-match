@@ -9,7 +9,7 @@ export {
   type AuthTokenResponseType,
 } from './auth';
 export { ErrorCode, ErrorMessage, type ErrorCodeType } from './errors';
-export { EnrichListingRequest, EnrichListingResponse, HomesteadComponent, ListingByUrlQuery, SaveListingResponse, SavedListingItem, PaginatedSavedListings, SavedListingsFilters } from './listings';
+export { EnrichListingRequest, EnrichListingResponse, HomesteadComponent, ListingByUrlQuery, ListingEnrichmentStatus, SaveListingResponse, SavedListingItem, PaginatedSavedListings, SavedListingsFilters } from './listings';
 export {
   ApiErrorEnvelope,
   ApiSuccessEnvelope,

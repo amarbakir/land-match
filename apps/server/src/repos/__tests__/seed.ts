@@ -9,7 +9,12 @@ export async function seedUser(email: string) {
   return user.id;
 }
 
-export async function seedListing(address: string, price?: number, acreage?: number) {
-  const row = await listingRepo.insertListing({ address, latitude: 36.6, longitude: -92.1, price, acreage });
+export async function seedListing(
+  address: string,
+  price?: number,
+  acreage?: number,
+  enrichmentStatus?: 'enriched' | 'partial' | 'failed',
+) {
+  const row = await listingRepo.insertListing({ address, latitude: 36.6, longitude: -92.1, price, acreage, enrichmentStatus });
   return row.id;
 }

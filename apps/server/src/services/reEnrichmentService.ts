@@ -50,14 +50,14 @@ export async function reEnrichPendingListings(
         const enrichment = await runEnrichmentPipeline({ lat: listing.latitude!, lng: listing.longitude! });
         result.processed++;
 
-        if (enrichment.sourcesUsed.length === 0) {
+        const status = deriveEnrichmentStatus(enrichment);
+        if (status === 'failed') {
           // Nothing gained — keep the existing row/status, consume retry budget
           await listingRepo.recordEnrichmentAttempt(listing.id, undefined);
           result.failed++;
           continue;
         }
 
-        const status = deriveEnrichmentStatus(enrichment);
         await db.transaction(async (tx) => {
           await persistEnrichment(listing, enrichment, tx);
           await listingRepo.recordEnrichmentAttempt(listing.id, status, tx);

@@ -39,7 +39,7 @@ const LISTING = {
   latitude: 42.25,
   longitude: -73.79,
   rawData: null,
-  enrichmentStatus: 'complete',
+  enrichmentStatus: 'enriched',
   enrichmentAttempts: 0,
   firstSeenAt: new Date(),
   lastSeenAt: new Date(),
@@ -312,19 +312,17 @@ describe('matchListingAgainstProfiles', () => {
     mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
     mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
     mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
-    const existingScore = {
+    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({
       id: 'score-existing',
       listingId: 'listing-1',
       searchProfileId: 'profile-1',
-      overallScore: 50,
+      overallScore: 80,
       componentScores: {},
       llmSummary: null,
       status: 'inbox',
       readAt: null,
       scoredAt: new Date(),
-    };
-    mockScoreRepo.findByListingAndProfile.mockResolvedValueOnce(existingScore);
-    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({ ...existingScore, overallScore: 80 });
+    });
     mockUserRepo.findById.mockResolvedValueOnce(USER);
     mockAlertRepo.insert.mockResolvedValueOnce({} as any);
 
@@ -336,7 +334,8 @@ describe('matchListingAgainstProfiles', () => {
     // Updates in place — never inserts a duplicate score row for the profile
     expect(mockScoreRepo.insert).not.toHaveBeenCalled();
     expect(mockScoreRepo.updateScoreValues).toHaveBeenCalledWith(
-      'score-existing',
+      'listing-1',
+      'profile-1',
       expect.objectContaining({ overallScore: 80 }),
     );
     // Newly above threshold and never alerted → alert fires now
@@ -358,18 +357,17 @@ describe('matchListingAgainstProfiles', () => {
     mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
     mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
     mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
-    mockScoreRepo.findByListingAndProfile.mockResolvedValueOnce({
+    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({
       id: 'score-existing',
       listingId: 'listing-1',
       searchProfileId: 'profile-1',
-      overallScore: 50,
+      overallScore: 90,
       componentScores: {},
       llmSummary: null,
       status: 'inbox',
       readAt: null,
       scoredAt: new Date(),
     });
-    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({} as any);
 
     const result = await matchListingAgainstProfiles('listing-1', { rescore: true });
 

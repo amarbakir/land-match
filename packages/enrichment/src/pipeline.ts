@@ -34,10 +34,11 @@ export function clearAdditionalAdapters(): void {
 const RETRY_BASE_DELAY_MS = 300;
 const RETRY_JITTER_MS = 400;
 
-// Transient vendor failures worth one retry: 5xx responses and
+// Transient vendor failures worth one retry: 5xx responses, throttling (429 —
+// ArcGIS reports it inside a 200 body, so only the message carries it), and
 // timeout/aborted/network errors. Adapters report errors as strings
 // (Result<T>), so classification is by message.
-const RETRYABLE_ERROR = /HTTP 5\d\d|timeout|timed out|aborted|network|fetch failed|socket|ECONNRESET|ETIMEDOUT/i;
+const RETRYABLE_ERROR = /HTTP 5\d\d|\b429\b|too many requests|throttl|timeout|timed out|aborted|network|fetch failed|socket|ECONNRESET|ETIMEDOUT/i;
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

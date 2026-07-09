@@ -48,6 +48,21 @@ describe('enrichWithRetry', () => {
     expect(enrich).toHaveBeenCalledTimes(2);
   });
 
+  it('retries throttling reported inside a 200 body (ArcGIS error 429)', async () => {
+    // ArcGIS delivers throttling as HTTP 200 with an {error} body, so the
+    // adapter's message is the only signal — the most retry-worthy case.
+    const { adapter, enrich } = adapterReturning([
+      { ok: false, error: 'FEMA NFHL error 429: Too many requests' },
+      okResult,
+    ]);
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    const result = await enrichWithRetry(adapter, COORDS, sleep);
+
+    expect(result).toEqual(okResult);
+    expect(enrich).toHaveBeenCalledTimes(2);
+  });
+
   it('does not retry non-transient failures', async () => {
     const { adapter, enrich } = adapterReturning([
       { ok: false, error: 'FEMA NFHL unexpected response shape' },

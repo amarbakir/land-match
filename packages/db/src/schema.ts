@@ -62,6 +62,10 @@ export const listings = pgTable('listings', {
 }, (table) => [
   uniqueIndex('listings_external_id_source_idx').on(table.externalId, table.source),
   index('listings_url_idx').on(table.url),
+  // Re-enrichment candidate scan: cost tracks the (small) unenriched set, not the table
+  index('listings_reenrich_idx')
+    .on(table.firstSeenAt)
+    .where(sql`${table.enrichmentStatus} <> 'enriched'`),
 ]);
 
 export const savedListings = pgTable('saved_listings', {

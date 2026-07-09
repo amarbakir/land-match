@@ -31,10 +31,13 @@ export async function insert(input: InsertScoreInput, tx?: Tx) {
   return row;
 }
 
-// Rescoring path (re-enrichment): refresh the score values in place, keeping
-// user state (status/readAt) and the row id that alerts reference.
+// Rescoring path (re-enrichment): refresh the score values in place, keyed on
+// the natural key so callers need no prior lookup. Keeps user state
+// (status/readAt) and the row id that alerts reference. Returns null when the
+// row no longer exists.
 export async function updateScoreValues(
-  id: string,
+  listingId: string,
+  searchProfileId: string,
   data: { overallScore: number; componentScores: Record<string, number> },
   tx?: Tx,
 ) {
@@ -45,7 +48,7 @@ export async function updateScoreValues(
       componentScores: data.componentScores,
       scoredAt: new Date(),
     })
-    .where(eq(scores.id, id))
+    .where(and(eq(scores.listingId, listingId), eq(scores.searchProfileId, searchProfileId)))
     .returning();
 
   return row ?? null;

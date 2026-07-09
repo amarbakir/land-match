@@ -47,24 +47,18 @@ export async function matchListingAgainstProfiles(
       const result = scoreListing(listingData, enrichmentData, criteria);
       const componentScores = result.componentScores as unknown as Record<string, number>;
 
-      let scoreRow;
-      const existing = alreadyScored
-        ? await scoreRepo.findByListingAndProfile(listingId, profile.id)
-        : null;
-      if (existing) {
-        scoreRow = await scoreRepo.updateScoreValues(existing.id, {
-          overallScore: result.overallScore,
-          componentScores,
-        });
-        if (!scoreRow) continue; // row deleted since lookup — nothing to alert on
-      } else {
-        scoreRow = await scoreRepo.insert({
-          listingId,
-          searchProfileId: profile.id,
-          overallScore: result.overallScore,
-          componentScores,
-        });
-      }
+      const scoreRow = alreadyScored
+        ? await scoreRepo.updateScoreValues(listingId, profile.id, {
+            overallScore: result.overallScore,
+            componentScores,
+          })
+        : await scoreRepo.insert({
+            listingId,
+            searchProfileId: profile.id,
+            overallScore: result.overallScore,
+            componentScores,
+          });
+      if (!scoreRow) continue; // score row deleted since the id set was read
       scored++;
 
       if (result.overallScore >= profile.alertThreshold && !alertedProfileIds.has(profile.id)) {

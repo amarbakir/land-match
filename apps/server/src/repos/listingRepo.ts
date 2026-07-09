@@ -16,7 +16,7 @@ export interface InsertListingInput {
   source?: string;
   externalId?: string;
   userId?: string;
-  enrichmentStatus?: EnrichmentStatus | 'pending';
+  enrichmentStatus?: EnrichmentStatus;
 }
 
 export async function insertListing(input: InsertListingInput, tx?: Tx) {
@@ -150,10 +150,17 @@ export async function updateHomesteadScore(
 
 // Candidates for the re-enrichment job: anything not fully enriched that still
 // has retry budget and coordinates to enrich with. Oldest first so a backlog
-// drains in FIFO order.
+// drains in FIFO order. Projects only what enrichment + homestead scoring
+// need — rows carry raw_data jsonb blobs not worth shipping.
 export async function findListingsNeedingEnrichment(limit: number, maxAttempts: number, tx?: Tx) {
   return (tx ?? db)
-    .select()
+    .select({
+      id: listings.id,
+      latitude: listings.latitude,
+      longitude: listings.longitude,
+      price: listings.price,
+      acreage: listings.acreage,
+    })
     .from(listings)
     .where(
       and(

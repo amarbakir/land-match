@@ -2,6 +2,13 @@ import { z } from 'zod';
 
 import { HttpUrl } from './url';
 
+// Full lifecycle of listings.enrichment_status — single owner of the
+// vocabulary. 'pending' = never enriched; the other three are run outcomes
+// (see deriveEnrichmentStatus in @landmatch/enrichment).
+export const ListingEnrichmentStatus = z.enum(['pending', 'enriched', 'partial', 'failed']);
+
+export type ListingEnrichmentStatus = z.infer<typeof ListingEnrichmentStatus>;
+
 export const EnrichListingRequest = z.object({
   address: z.string().min(1),
   price: z.number().positive().optional(),
@@ -30,7 +37,7 @@ export const EnrichListingResponse = z.object({
     price: z.number().nullable(),
     acreage: z.number().nullable(),
     title: z.string().nullable(),
-    enrichmentStatus: z.string(),
+    enrichmentStatus: ListingEnrichmentStatus,
   }),
   enrichment: z.object({
     soilCapabilityClass: z.number().nullable(),

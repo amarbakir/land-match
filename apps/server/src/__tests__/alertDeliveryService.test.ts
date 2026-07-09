@@ -55,7 +55,7 @@ const LISTING = {
   latitude: 42.25,
   longitude: -73.79,
   rawData: null,
-  enrichmentStatus: 'complete',
+  enrichmentStatus: 'enriched',
   enrichmentAttempts: 0,
   firstSeenAt: new Date(),
   lastSeenAt: new Date(),

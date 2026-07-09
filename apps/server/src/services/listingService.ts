@@ -1,4 +1,4 @@
-import { err, isHttpUrl, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
+import { err, isHttpUrl, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type ListingEnrichmentStatus, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
 import { deriveEnrichmentStatus, enrichListing, type EnrichmentResult } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
@@ -11,8 +11,11 @@ import { matchListingAgainstProfiles } from './matchingService';
 type DbListingRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findListingById>>>;
 type DbEnrichmentRow = NonNullable<Awaited<ReturnType<typeof listingRepo.findByUrl>>>['enrichment'];
 type SavedListingRow = Awaited<ReturnType<typeof listingRepo.findSavedListings>>['rows'][number];
+// Minimal listing shape scoring/persistence needs — full rows satisfy it, and
+// callers holding a projection (re-enrichment candidates) don't over-fetch.
+type ScorableListing = Pick<DbListingRow, 'id' | 'price' | 'acreage' | 'latitude' | 'longitude'>;
 
-export function computeHomestead(listing: DbListingRow, enrichment: DbEnrichmentRow) {
+export function computeHomestead(listing: ScorableListing, enrichment: DbEnrichmentRow) {
   try {
     const result = homesteadScore(mapListingRow(listing), mapEnrichmentRow(enrichment), {});
     const components: Record<string, { score: number; label: string }> = {};
@@ -31,7 +34,7 @@ export function computeHomestead(listing: DbListingRow, enrichment: DbEnrichment
 // enrich + feed pipeline) so no path leaves homestead_score unset. Returns the
 // inserted row and the computed score so callers can reuse it without recomputing.
 export async function persistEnrichment(
-  listing: DbListingRow,
+  listing: ScorableListing,
   enrichment: EnrichmentResult,
   tx?: Tx,
 ) {
@@ -90,7 +93,8 @@ function toEnrichListingResponse(
       price: listing.price,
       acreage: listing.acreage,
       title: listing.title ?? null,
-      enrichmentStatus: listing.enrichmentStatus,
+      // TEXT column, but every write path goes through the enum
+      enrichmentStatus: listing.enrichmentStatus as ListingEnrichmentStatus,
     },
     enrichment: {
       soilCapabilityClass: enrichment?.soilCapabilityClass ?? null,

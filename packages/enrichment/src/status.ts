@@ -1,6 +1,10 @@
+import type { ListingEnrichmentStatus } from '@landmatch/api';
+
 import type { EnrichmentResult } from './types';
 
-export type EnrichmentStatus = 'enriched' | 'partial' | 'failed';
+// The outcome subset of the listing lifecycle — 'pending' means no run
+// happened, so a run can never produce it.
+export type EnrichmentStatus = Exclude<ListingEnrichmentStatus, 'pending'>;
 
 // 'enriched' means every adapter that ran succeeded — not merely that the
 // pipeline completed. Rows left 'partial'/'failed' are picked up by the
