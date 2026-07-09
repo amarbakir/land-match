@@ -164,8 +164,7 @@ async function handleLogin(email: string, password: string): Promise<LoginResult
 }
 
 async function handleLogout(): Promise<AuthStatusMessage> {
-  // Best-effort server-side refresh-token revoke + local clear (never
-  // throws) — clearing storage alone left the family live for 30 days.
+  // Server-side revoke + local clear — see ApiClient.logout for the contract
   await apiClient.logout();
   chrome.action.setBadgeText({ text: '' });
   return { type: 'AUTH_STATUS', payload: { authenticated: false } };

@@ -53,10 +53,7 @@ export function saveListing(listingId: string) {
   );
 }
 
-/**
- * Best-effort server-side refresh-token revoke, then clears stored auth
- * (tokenStorage.clearTokens maps to clearAuth). Never throws.
- */
+/** Server-side revoke + stored-auth clear — see ApiClient.logout for the contract. */
 export function logout() {
   return client.logout();
 }

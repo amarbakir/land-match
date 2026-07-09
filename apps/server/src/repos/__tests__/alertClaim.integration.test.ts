@@ -138,3 +138,16 @@ describe('releaseForRetry (integration)', () => {
     expect(row.attempts).toBe(0);
   });
 });
+
+describe('retry-budget exhaustion at the claim boundary', () => {
+  it('never claims an alert whose retry budget is exhausted', async () => {
+    // Bug this catches: the exhaustion check living only in the delivery
+    // service's catch block — any other path that releases an exhausted alert
+    // back to pending would have it re-claimed and retried forever.
+    const spent = await seedPendingAlert(1);
+    const fresh = await seedPendingAlert(2);
+    await db.update(alerts).set({ attempts: 5 }).where(eq(alerts.id, spent));
+
+    expect(await alertRepo.claimPending()).toEqual([fresh]);
+  });
+});

@@ -22,9 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const logout = useCallback(async () => {
-    // Revokes the refresh-token family server-side (best-effort, never
-    // throws) and clears local tokens — without the revoke, a signed-out
-    // device's refresh family stays live for up to 30 days.
+    // Server-side revoke + local clear — see ApiClient.logout for the contract
     await apiLogout();
     setIsAuthenticated(false);
     queryClient.clear();

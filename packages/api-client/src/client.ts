@@ -13,6 +13,8 @@ export interface TokenStorage {
 
 export interface RequestOptions {
   noAuth?: boolean;
+  /** Abort the request after this many milliseconds. */
+  timeoutMs?: number;
 }
 
 export interface ApiClientOptions {
@@ -127,6 +129,9 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       init.headers = { 'Content-Type': 'application/json' };
       init.body = JSON.stringify(body);
     }
+    if (reqOptions?.timeoutMs !== undefined) {
+      init.signal = AbortSignal.timeout(reqOptions.timeoutMs);
+    }
 
     const response = reqOptions?.noAuth
       ? await fetch(`${apiBase}${path}`, init)
@@ -154,19 +159,14 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   }
 
   // Revoke the refresh-token family server-side, then clear local tokens.
-  // Raw fetch on purpose: a 401 here (token already revoked/expired) must not
-  // trigger the refresh-retry machinery and mint a fresh pair for a user who
-  // is signing out. Best-effort — local sign-out never blocks on the server.
+  // noAuth: a 401 here (token already revoked/expired) must not trigger the
+  // refresh-retry machinery and mint a fresh pair for a user who is signing
+  // out. Best-effort — local sign-out never blocks on the server.
   async function logout(): Promise<void> {
     try {
       const tokens = await storage.getTokens();
       if (tokens) {
-        await fetch(`${apiBase}/auth/logout`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken: tokens.refreshToken }),
-          signal: AbortSignal.timeout(5_000),
-        });
+        await request<void>('POST', '/auth/logout', { refreshToken: tokens.refreshToken }, { noAuth: true, timeoutMs: 5_000 });
       }
     } catch {
       // swallow: revocation is best-effort, the local clear below is what

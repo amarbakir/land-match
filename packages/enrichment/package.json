@@ -6,7 +6,8 @@
   "dependencies": {
     "@landmatch/api": "workspace:*",
     "pg": "^8.20.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@landmatch/db": "workspace:*"
   },
   "scripts": {
     "lint": "tsc --noEmit && eslint src/",

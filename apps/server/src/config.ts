@@ -72,11 +72,15 @@ function resolvePoolMax(): number {
   return value;
 }
 
+const connection = parseConnection(databaseUrl);
+
 export const database = {
   url: databaseUrl,
-  connection: parseConnection(databaseUrl),
+  connection,
   directUrl,
-  directConnection: parseConnection(directUrl),
+  // DIRECT_URL defaults to DATABASE_URL — don't re-parse (and re-log policy
+  // warnings for) the identical string.
+  directConnection: directUrl === databaseUrl ? connection : parseConnection(directUrl),
   poolMax: resolvePoolMax(),
 } as const;
 

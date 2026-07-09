@@ -16,6 +16,8 @@ export interface ParsedConnection {
   database: string;
   ssl: SslConfig;
   pgbouncer: boolean;
+  /** Raw sslmode query param, for consumers that hand the URL to libpq tools (psql). */
+  sslmode: string | null;
   /** Policy notes (e.g. verification disabled via no-verify) — log at the call site. */
   warnings: string[];
 }
@@ -124,6 +126,7 @@ export function parseDatabaseUrl(url: string): ParsedConnection {
     database,
     ssl: resolveSsl(host, params, warnings),
     pgbouncer: params.has('pgbouncer'),
+    sslmode: params.get('sslmode'),
     warnings,
   };
 }

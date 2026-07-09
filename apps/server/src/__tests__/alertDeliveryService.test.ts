@@ -175,7 +175,7 @@ describe('deliverPendingAlerts', () => {
     expect(result.data.errors).toHaveLength(1);
     expect(result.data.errors[0]).toContain('Resend rate limit');
     expect(mockAlertRepo.releaseForRetry).toHaveBeenCalledWith(['alert-1']);
-    expect(mockAlertRepo.markFailed).not.toHaveBeenCalled();
+    expect(mockAlertRepo.markFailed).toHaveBeenCalledWith([]); // nothing terminal
   });
 
   it('marks alerts terminally failed once retry budget is exhausted', async () => {
@@ -192,7 +192,7 @@ describe('deliverPendingAlerts', () => {
 
     expect(result.ok).toBe(true);
     expect(mockAlertRepo.markFailed).toHaveBeenCalledWith(['alert-1']);
-    expect(mockAlertRepo.releaseForRetry).not.toHaveBeenCalled();
+    expect(mockAlertRepo.releaseForRetry).toHaveBeenCalledWith([]); // nothing left to retry
   });
 
   it('fails immediately (no retry) when the group has no hydrated data', async () => {
@@ -209,7 +209,7 @@ describe('deliverPendingAlerts', () => {
 
     expect(result.ok).toBe(true);
     expect(mockAlertRepo.markFailed).toHaveBeenCalledWith(['alert-1']);
-    expect(mockAlertRepo.releaseForRetry).not.toHaveBeenCalled();
+    expect(mockAlertRepo.releaseForRetry).toHaveBeenCalledWith([]); // permanent — retry can never fix it
   });
 
   it('splits a mixed group: exhausted alerts fail, fresh ones retry', async () => {

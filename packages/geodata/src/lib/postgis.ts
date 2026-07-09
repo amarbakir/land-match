@@ -23,10 +23,10 @@ export function getPool(): Pool {
  * explicitly (with PGSSLROOTCERT when the provider CA isn't public).
  */
 export function psqlSafeUrl(url: string): string {
-  const { host } = parseDatabaseUrl(url);
+  const { host, sslmode } = parseDatabaseUrl(url);
   if (isLocalHost(host)) return url;
 
-  if (!/[?&]sslmode=verify-full(&|$)/.test(url)) {
+  if (sslmode !== 'verify-full') {
     throw new Error(
       `refusing to hand psql a remote database URL without sslmode=verify-full (host: ${host}); ` +
         'append ?sslmode=verify-full and set PGSSLROOTCERT if the provider CA is not publicly trusted',

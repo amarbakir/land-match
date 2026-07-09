@@ -367,3 +367,26 @@ describe('logout', () => {
     expect(storage.clearTokens).toHaveBeenCalled();
   });
 });
+
+describe('request timeout', () => {
+  it('aborts the request via an abort signal when timeoutMs is set', async () => {
+    const storage = makeStorage(null);
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { ok: true, data: {} }));
+
+    await client.get('/health', { noAuth: true, timeoutMs: 5_000 });
+
+    const init = mockFetch.mock.calls[0][1];
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('passes no signal when timeoutMs is not set', async () => {
+    const storage = makeStorage(null);
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { ok: true, data: {} }));
+
+    await client.get('/health', { noAuth: true });
+
+    expect(mockFetch.mock.calls[0][1]?.signal).toBeUndefined();
+  });
+});

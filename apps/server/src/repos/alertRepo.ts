@@ -1,4 +1,4 @@
-import { eq, and, or, inArray, desc, lte, sql } from 'drizzle-orm';
+import { eq, and, or, inArray, desc, lt, lte, sql } from 'drizzle-orm';
 import { alerts, users, searchProfiles } from '@landmatch/db';
 import type { AlertChannel } from '@landmatch/api';
 
@@ -65,6 +65,12 @@ const STALE_CLAIM_MS = 15 * 60_000;
 // STALE_CLAIM_MS, stalling delivery entirely.
 const CLAIM_BATCH_SIZE = 500;
 
+// Transient failures release back to pending with attempts+1; past this many
+// attempts an alert is terminally 'failed'. Enforced both where failures are
+// classified (delivery service) and here at the claim boundary, so an
+// exhausted alert can never re-enter delivery regardless of who released it.
+export const MAX_SEND_ATTEMPTS = 5;
+
 /**
  * Atomically claim every deliverable alert for this worker. FOR UPDATE SKIP
  * LOCKED means two workers running concurrently (scaled Fargate tasks,
@@ -80,6 +86,7 @@ export async function claimPending(tx?: Tx): Promise<string[]> {
         // The delivery service sends email only — claiming sms/push alerts
         // would email opted-out users and consume the alert for its real channel.
         eq(alerts.channel, 'email'),
+        lt(alerts.attempts, MAX_SEND_ATTEMPTS),
         or(
           eq(alerts.status, 'pending'),
           and(eq(alerts.status, 'processing'), lte(alerts.claimedAt, new Date(Date.now() - STALE_CLAIM_MS))),
@@ -175,6 +182,7 @@ export async function releaseForRetry(alertIds: string[], tx?: Tx) {
 }
 
 export async function markFailed(alertIds: string[], tx?: Tx) {
+  if (alertIds.length === 0) return;
   await (tx ?? db)
     .update(alerts)
     .set({ status: 'failed' })

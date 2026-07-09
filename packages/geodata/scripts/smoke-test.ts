@@ -9,7 +9,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '../../apps/server/.env' });
 
 import { Pool } from 'pg';
-import { getDbUrl } from '../src/lib/postgis';
+import { getPool } from '../src/lib/postgis';
 
 // Jamaica, VT — same test point used by enrichment smoke tests.
 // Falls within the northeast region and is surrounded by NWI wetlands.
@@ -221,7 +221,8 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 async function main() {
-  const pool = new Pool({ connectionString: getDbUrl() });
+  // getPool applies the shared TLS policy — a raw connectionString would go plaintext to a remote DB
+const pool = getPool();
 
   console.log(`Smoke-testing geodata ETL results (test coord: ${TEST_COORD.lat}, ${TEST_COORD.lng})\n`);
 

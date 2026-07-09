@@ -9,6 +9,7 @@
  * Env: DATABASE_URL (defaults to postgresql://postgres:postgres@localhost:5432/landmatch)
  */
 
+import { parseDatabaseUrl } from '@landmatch/db';
 import pg from 'pg';
 import {
   createClimateNormalsAdapter,
@@ -38,7 +39,10 @@ async function main() {
   const databaseUrl =
     process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/landmatch';
 
-  const pool = new pg.Pool({ connectionString: databaseUrl });
+  // Shared TLS policy — a raw connectionString would go plaintext to a remote DB
+  const { warnings, ...connection } = parseDatabaseUrl(databaseUrl);
+  for (const warning of warnings) console.warn(`[smoke-test] ${warning}`);
+  const pool = new pg.Pool(connection);
 
   // Verify connectivity before running checks
   try {

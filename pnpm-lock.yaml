@@ -272,6 +272,9 @@ importers:
       '@landmatch/api':
         specifier: workspace:*
         version: link:../api
+      '@landmatch/db':
+        specifier: workspace:*
+        version: link:../db
       pg:
         specifier: ^8.20.0
         version: 8.20.0

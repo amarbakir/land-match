@@ -21,7 +21,7 @@ const client = createApiClient({
   onAuthFailure: () => onAuthFailure?.(),
 });
 
-/** Best-effort server-side refresh-token revoke, then clears local tokens. */
+/** Server-side revoke + local clear — see ApiClient.logout for the contract. */
 export function apiLogout() {
   return client.logout();
 }
