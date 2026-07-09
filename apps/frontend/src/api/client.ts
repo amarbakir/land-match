@@ -5,6 +5,7 @@ import {
 } from '@landmatch/api-client';
 
 import { clearTokens, getTokens, setTokens } from '../auth/tokenStorage';
+import { resolveApiBaseUrl } from './baseUrl';
 
 const storage: TokenStorage = { getTokens, setTokens, clearTokens };
 
@@ -15,7 +16,7 @@ export function setOnAuthFailure(callback: () => void) {
 }
 
 const client = createApiClient({
-  baseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000',
+  baseUrl: resolveApiBaseUrl(),
   storage,
   onAuthFailure: () => onAuthFailure?.(),
 });
