@@ -28,7 +28,7 @@ export async function matchListingAgainstProfiles(
     if (!data.enrichment) return err('Listing not enriched');
 
     const [profiles, scoredProfileIds, alertedProfileIds] = await Promise.all([
-      searchProfileRepo.findActive(),
+      searchProfileRepo.findActive(data.listing.userId),
       scoreRepo.findScoredProfileIds(listingId),
       alertRepo.findAlertedProfileIds(listingId),
     ]);

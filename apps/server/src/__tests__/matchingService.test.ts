@@ -158,6 +158,38 @@ describe('matchListingAgainstProfiles', () => {
     );
   });
 
+  it('scopes the profile lookup to the owner for owned listings', async () => {
+    // Bug this catches: user A's manually-enriched listing (address/price/url)
+    // matching user B's profiles — leaking it to B via matches and alert emails.
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: { ...LISTING, userId: 'user-1' },
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockProfileRepo.findActive).toHaveBeenCalledWith('user-1');
+  });
+
+  it('matches ownerless (feed) listings against all users profiles', async () => {
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING, // userId: null
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockProfileRepo.findActive).toHaveBeenCalledWith(null);
+  });
+
   it('skips alert creation when score is below threshold', async () => {
     mockScoring.scoreListing.mockReturnValueOnce({
       overallScore: 40,

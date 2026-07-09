@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { searchProfiles } from '@landmatch/db';
 
 import { db, type Tx } from '../db/client';
@@ -47,9 +47,14 @@ export async function findByUserId(userId: string, tx?: Tx) {
   });
 }
 
-export async function findActive(tx?: Tx) {
+// listingOwnerId scopes matching to the visibility policy (listingRepo.visibleTo):
+// an owned listing only matches its owner's profiles; ownerless (feed) listings
+// match every user's (pass null).
+export async function findActive(listingOwnerId: string | null, tx?: Tx) {
   return (tx ?? db).query.searchProfiles.findMany({
-    where: eq(searchProfiles.isActive, true),
+    where: listingOwnerId === null
+      ? eq(searchProfiles.isActive, true)
+      : and(eq(searchProfiles.isActive, true), eq(searchProfiles.userId, listingOwnerId)),
   });
 }
 
