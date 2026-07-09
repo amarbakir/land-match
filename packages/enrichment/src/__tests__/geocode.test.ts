@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { geocode } from '../geocode';
+import { geocode, resetGeocoderForTests } from '../geocode';
 
 const CENSUS_RESPONSE = {
   result: {
@@ -29,6 +29,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  resetGeocoderForTests();
 });
 
 describe('geocode', () => {
@@ -61,17 +62,93 @@ describe('geocode', () => {
     }
   });
 
-  it('sends User-Agent header to Nominatim', async () => {
+  it('sends a User-Agent with contact info to Nominatim (OSM policy)', async () => {
+    // Bug this catches: OSM's usage policy requires an identifying UA with
+    // contact info — 'LandMatch/1.0' alone gets the app banned by UA/IP,
+    // silently killing the geocode fallback.
     fetchSpy
       .mockResolvedValueOnce(Response.json({ result: { addressMatches: [] } }))
       .mockResolvedValueOnce(Response.json(NOMINATIM_RESPONSE));
 
     await geocode('123 Main St');
 
-    const nominatimCall = fetchSpy.mock.calls[1];
-    const options = nominatimCall[1] as RequestInit;
-    expect((options.headers as Record<string, string>)['User-Agent']).toBe('LandMatch/1.0');
+    const options = fetchSpy.mock.calls[1][1] as RequestInit;
+    const ua = (options.headers as Record<string, string>)['User-Agent'];
+    expect(ua).toMatch(/^LandMatch\/1\.0 \(.+@.+\)$/);
   });
+
+  it('honors GEOCODER_CONTACT for the User-Agent contact info', async () => {
+    vi.stubEnv('GEOCODER_CONTACT', 'ops@landmatch.example');
+    fetchSpy
+      .mockResolvedValueOnce(Response.json({ result: { addressMatches: [] } }))
+      .mockResolvedValueOnce(Response.json(NOMINATIM_RESPONSE));
+
+    await geocode('123 Main St');
+
+    const options = fetchSpy.mock.calls[1][1] as RequestInit;
+    expect((options.headers as Record<string, string>)['User-Agent']).toBe('LandMatch/1.0 (ops@landmatch.example)');
+    vi.unstubAllEnvs();
+  });
+
+  it('identifies itself to the Census geocoder too', async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json(CENSUS_RESPONSE));
+
+    await geocode('123 Main St');
+
+    const options = fetchSpy.mock.calls[0][1] as RequestInit;
+    expect((options.headers as Record<string, string>)['User-Agent']).toMatch(/^LandMatch\/1\.0/);
+  });
+
+  it('serves repeat lookups of the same (normalized) address from cache', async () => {
+    // Bug this catches: the same listing address re-enriched or re-submitted
+    // re-hits the geocoders every time, burning Nominatim quota for nothing.
+    fetchSpy.mockResolvedValue(Response.json(CENSUS_RESPONSE));
+
+    const first = await geocode('123 Main St, Springfield MO');
+    const second = await geocode('  123 main st,   Springfield mo ');
+
+    expect(first).toEqual(second);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache failures', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(Response.json({ result: { addressMatches: [] } }))
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(Response.json(CENSUS_RESPONSE));
+
+    const miss = await geocode('999 Nowhere Ln');
+    const hit = await geocode('999 Nowhere Ln');
+
+    expect(miss.ok).toBe(false);
+    expect(hit.ok).toBe(true);
+  });
+
+  it('never issues overlapping Nominatim requests and spaces them ~1s apart', async () => {
+    // Bug this catches: 20 parallel enriches = 20 simultaneous Nominatim
+    // hits — OSM's policy is max 1 req/s and violators get banned.
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const startedAt: number[] = [];
+
+    fetchSpy.mockImplementation(async (input) => {
+      if (String(input).includes('nominatim')) {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        startedAt.push(Date.now());
+        await new Promise((r) => setTimeout(r, 20));
+        inFlight--;
+        return Response.json(NOMINATIM_RESPONSE);
+      }
+      return Response.json({ result: { addressMatches: [] } });
+    });
+
+    await Promise.all([geocode('1 First St'), geocode('2 Second St')]);
+
+    expect(maxInFlight).toBe(1);
+    expect(startedAt).toHaveLength(2);
+    expect(startedAt[1] - startedAt[0]).toBeGreaterThanOrEqual(1000);
+  }, 10_000);
 
   it('returns error when both providers fail', async () => {
     fetchSpy
