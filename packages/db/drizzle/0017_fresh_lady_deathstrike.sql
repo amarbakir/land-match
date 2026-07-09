@@ -1,0 +1,2 @@
+DROP INDEX "listings_reenrich_idx";--> statement-breakpoint
+CREATE INDEX "listings_reenrich_idx" ON "listings" USING btree ("first_seen_at") WHERE "listings"."enrichment_status" <> 'enriched' AND "listings"."enrichment_attempts" < 5 AND "listings"."latitude" IS NOT NULL AND "listings"."longitude" IS NOT NULL;

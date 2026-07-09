@@ -62,10 +62,13 @@ export const listings = pgTable('listings', {
 }, (table) => [
   uniqueIndex('listings_external_id_source_idx').on(table.externalId, table.source),
   index('listings_url_idx').on(table.url),
-  // Re-enrichment candidate scan: cost tracks the (small) unenriched set, not the table
+  // Re-enrichment candidate scan: cost tracks the (small) live-retryable set,
+  // not the table. Predicate mirrors findListingsNeedingEnrichment — capped
+  // (attempts >= 5, see MAX_ENRICHMENT_ATTEMPTS) and coordinate-less rows
+  // would otherwise accumulate at the front of the scan forever.
   index('listings_reenrich_idx')
     .on(table.firstSeenAt)
-    .where(sql`${table.enrichmentStatus} <> 'enriched'`),
+    .where(sql`${table.enrichmentStatus} <> 'enriched' AND ${table.enrichmentAttempts} < 5 AND ${table.latitude} IS NOT NULL AND ${table.longitude} IS NOT NULL`),
 ]);
 
 export const savedListings = pgTable('saved_listings', {

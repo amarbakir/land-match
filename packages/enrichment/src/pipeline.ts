@@ -69,18 +69,26 @@ export async function enrichWithRetry<T>(
   return enrichOnce(adapter, coords);
 }
 
-export async function runEnrichmentPipeline(coords: LatLng): Promise<EnrichmentResult> {
+export interface PipelineOptions {
+  // Retrying a timed-out adapter can double the pipeline's worst case
+  // (~15s -> ~31s), so it is reserved for background runs (re-enrichment
+  // job); interactive requests keep the single-attempt latency and rely on
+  // the job to heal partial results.
+  retry?: boolean;
+}
+
+export async function runEnrichmentPipeline(coords: LatLng, options: PipelineOptions = {}): Promise<EnrichmentResult> {
   const allAdapters = [...defaultAdapters, ...additionalAdapters];
   const available = allAdapters.filter((r) => r.adapter.isAvailable());
 
   const pipelineStart = performance.now();
-  // enrichWithRetry converts adapter throws into error results, so these
-  // promises never reject and one adapter can't abort the others.
+  // enrichOnce/enrichWithRetry convert adapter throws into error results, so
+  // these promises never reject and one adapter can't abort the others.
   const results = await Promise.all(
     available.map(async (r) => ({
       key: r.key,
       name: r.adapter.name,
-      result: await enrichWithRetry(r.adapter, coords),
+      result: options.retry ? await enrichWithRetry(r.adapter, coords) : await enrichOnce(r.adapter, coords),
     })),
   );
 

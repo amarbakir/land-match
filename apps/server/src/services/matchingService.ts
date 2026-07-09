@@ -61,7 +61,10 @@ export async function matchListingAgainstProfiles(
       if (!scoreRow) continue; // score row deleted since the id set was read
       scored++;
 
-      if (result.overallScore >= profile.alertThreshold && !alertedProfileIds.has(profile.id)) {
+      // 'inbox' guard: a rescored row keeps its user-facing status, so a
+      // dismissed/shortlisted match crossing the threshold must not fire a
+      // fresh alert pointing at something the inbox no longer shows.
+      if (result.overallScore >= profile.alertThreshold && !alertedProfileIds.has(profile.id) && scoreRow.status === 'inbox') {
         // TODO: cache by userId to avoid duplicate lookups when multiple profiles share a user
         const user = await userRepo.findById(profile.userId);
         const channels = getAlertChannels(user?.notificationPrefs);

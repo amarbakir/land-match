@@ -1,24 +1,11 @@
-export interface ComponentScores {
-  soil: number;
-  flood: number;
-  price: number;
-  acreage: number;
-  zoning: number;
-  geography: number;
-  infrastructure: number;
-  climate: number;
-}
+import type { ScoringComponent, SearchCriteria } from '@landmatch/api';
 
-export interface ScoringWeights {
-  soil: number;
-  flood: number;
-  price: number;
-  acreage: number;
-  zoning: number;
-  geography: number;
-  infrastructure: number;
-  climate: number;
-}
+// Component vocabulary is owned by @landmatch/api (ScoringComponent) — the
+// same enum validates user-supplied criteria weights, so a new component
+// added here is automatically accepted there and vice versa.
+export type ComponentScores = Record<ScoringComponent, number>;
+
+export type ScoringWeights = Record<ScoringComponent, number>;
 
 export const DEFAULT_WEIGHTS: ScoringWeights = {
   flood: 2.0,
@@ -37,8 +24,6 @@ export interface ScoringResult {
   hardFilterFailed: boolean;
   failedFilters: string[];
 }
-
-import type { SearchCriteria } from '@landmatch/api';
 
 export type { SearchCriteria };
 

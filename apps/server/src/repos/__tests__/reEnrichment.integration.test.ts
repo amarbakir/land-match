@@ -9,10 +9,12 @@ function insertCandidate(address: string, status: 'partial' | 'failed' | 'enrich
 }
 
 describe('re-enrichment repo queries (integration)', () => {
-  it('re-enriching a listing replaces its enrichment row instead of violating the unique constraint', async () => {
-    // Bug this catches: enrichments.listing_id is UNIQUE — a plain INSERT on
-    // the re-enrichment path would throw 23505 for every partial/failed row
-    // that already has an enrichment, making re-enrichment permanently broken.
+  it('re-enriching merges with the existing enrichment row instead of erasing prior data', async () => {
+    // Bugs this catches: (a) enrichments.listing_id is UNIQUE — a plain INSERT
+    // on the re-enrichment path would throw 23505 for every partial/failed row
+    // that already has an enrichment; (b) a wholesale overwrite would let a
+    // later partial run NULL out data an earlier run successfully fetched
+    // (alternating vendor outages permanently oscillate data away).
     const listing = await insertCandidate('1 Upsert Rd, MO', 'partial');
 
     await listingRepo.insertEnrichment(listing, {
@@ -20,7 +22,7 @@ describe('re-enrichment repo queries (integration)', () => {
       sourcesUsed: ['usda-soil'],
       errors: [{ source: 'fema-nfhl', error: 'HTTP 503' }],
     });
-    await listingRepo.insertEnrichment(listing, {
+    const merged = await listingRepo.insertEnrichment(listing, {
       flood: { zone: 'AE', description: 'High risk' },
       sourcesUsed: ['fema-nfhl'],
       errors: [{ source: 'usda-soil', error: 'HTTP 503' }],
@@ -31,10 +33,33 @@ describe('re-enrichment repo queries (integration)', () => {
       [listing],
     );
     expect(rows).toHaveLength(1);
-    // The fresh run wins wholesale — new data present, previous run's data replaced
+    // New data lands, previously-fetched data survives, sources accumulate
     expect(rows[0].fema_flood_zone).toBe('AE');
-    expect(rows[0].soil_capability_class).toBeNull();
-    expect(rows[0].sources_used).toEqual(['fema-nfhl']);
+    expect(rows[0].soil_capability_class).toBe(3);
+    expect([...rows[0].sources_used].sort()).toEqual(['fema-nfhl', 'usda-soil']);
+    // The returned row reflects the merge, so callers can derive status from it
+    expect([...(merged.sourcesUsed ?? [])].sort()).toEqual(['fema-nfhl', 'usda-soil']);
+  });
+
+  it('re-enriching prefers fresh values over stale ones for sources that succeeded again', async () => {
+    const listing = await insertCandidate('8 Fresh Rd, MO', 'partial');
+
+    await listingRepo.insertEnrichment(listing, {
+      flood: { zone: 'AE', description: 'High risk' },
+      sourcesUsed: ['fema-nfhl'],
+      errors: [],
+    });
+    await listingRepo.insertEnrichment(listing, {
+      flood: { zone: 'X', description: 'Minimal risk' },
+      sourcesUsed: ['fema-nfhl'],
+      errors: [],
+    });
+
+    const { rows } = await pool.query(
+      'SELECT fema_flood_zone FROM enrichments WHERE listing_id = $1',
+      [listing],
+    );
+    expect(rows[0].fema_flood_zone).toBe('X');
   });
 
   it('selects only non-enriched rows with retry budget, oldest first', async () => {

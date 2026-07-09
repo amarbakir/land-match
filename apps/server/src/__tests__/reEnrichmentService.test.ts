@@ -110,12 +110,38 @@ describe('reEnrichPendingListings', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.enriched).toBe(1);
-    expect(mockPipeline).toHaveBeenCalledWith({ lat: 36.6, lng: -92.1 });
+    // Background run: retries are safe here, unlike the interactive endpoint
+    expect(mockPipeline).toHaveBeenCalledWith({ lat: 36.6, lng: -92.1 }, { retry: true });
     expect(mockRepo.insertEnrichment).toHaveBeenCalledWith('lst-1', fullSuccess, 'fake-tx');
     // Status must come from the run outcome, and attempts must be consumed
     expect(mockRepo.recordEnrichmentAttempt).toHaveBeenCalledWith('lst-1', 'enriched', 'fake-tx');
     // Stale neutral scores get refreshed, not skipped
     expect(mockMatch).toHaveBeenCalledWith('lst-1', { rescore: true });
+  });
+
+  it("derives status from the MERGED row — a partial run completing coverage yields 'enriched'", async () => {
+    // Run 1 got soil, run 2 gets flood but soil times out. The merged row has
+    // both, so the listing must leave the retry loop instead of being
+    // re-selected (and burning vendor quota) forever.
+    mockRepo.findListingsNeedingEnrichment.mockResolvedValue([makeListing('lst-1')] as any);
+    mockPipeline.mockResolvedValue({
+      flood: { zone: 'X', description: 'Minimal flood hazard' },
+      sourcesUsed: ['fema-nfhl'],
+      errors: [{ source: 'usda-soil', error: 'timeout' }],
+    });
+    // insertEnrichment returns the merged row: soil (from run 1) + flood (run 2)
+    mockRepo.insertEnrichment.mockResolvedValue({
+      ...enrichmentRow,
+      sourcesUsed: ['usda-soil', 'fema-nfhl'],
+    } as any);
+
+    const result = await reEnrichPendingListings();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.enriched).toBe(1);
+    expect(result.data.partial).toBe(0);
+    expect(mockRepo.recordEnrichmentAttempt).toHaveBeenCalledWith('lst-1', 'enriched', 'fake-tx');
   });
 
   it('keeps the old enrichment row and status when the new run produces nothing', async () => {
@@ -154,6 +180,10 @@ describe('reEnrichPendingListings', () => {
     expect(result.data.enriched).toBe(1);
     expect(result.data.errors).toHaveLength(1);
     expect(mockPipeline).toHaveBeenCalledTimes(2);
+    // The failed listing still consumes retry budget — a poison listing that
+    // always throws on persist must not bypass the attempt cap and burn
+    // vendor quota on every cron run forever.
+    expect(mockRepo.recordEnrichmentAttempt).toHaveBeenCalledWith('lst-1', undefined);
   });
 
   it('stops processing when the deadline has passed', async () => {
@@ -168,6 +198,22 @@ describe('reEnrichPendingListings', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     // Nothing processed — the deadline check must come before vendor calls
+    expect(mockPipeline).not.toHaveBeenCalled();
+    expect(result.data.processed).toBe(0);
+  });
+
+  it('does not start a listing that cannot finish before the deadline', async () => {
+    // A single listing can legitimately take ~31s (15s adapter timeout,
+    // jittered sleep, 15s retry). Starting one with only a few seconds left
+    // gets the Lambda hard-killed mid-listing: transaction rolls back, no
+    // attempt is recorded, and the same slow listing leads the next run too.
+    mockRepo.findListingsNeedingEnrichment.mockResolvedValue([makeListing('lst-1')] as any);
+    mockPipeline.mockResolvedValue(fullSuccess);
+
+    const result = await reEnrichPendingListings({ deadlineAt: Date.now() + 10_000 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(mockPipeline).not.toHaveBeenCalled();
     expect(result.data.processed).toBe(0);
   });

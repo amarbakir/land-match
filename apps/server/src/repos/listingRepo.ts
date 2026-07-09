@@ -1,4 +1,4 @@
-import { eq, ne, lt, inArray, and, or, isNull, isNotNull, desc, asc, sql, count as countFn, type SQL } from 'drizzle-orm';
+import { eq, ne, lt, inArray, and, or, isNull, isNotNull, desc, asc, sql, getTableColumns, count as countFn, type SQL } from 'drizzle-orm';
 import { listings, enrichments, savedListings, scores, searchProfiles } from '@landmatch/db';
 import type { EnrichmentResult, EnrichmentStatus } from '@landmatch/enrichment';
 
@@ -125,13 +125,28 @@ export async function insertEnrichment(
     sourcesUsed: result.sourcesUsed,
   };
 
-  // listing_id is unique — re-enrichment replaces the previous row's data
-  // wholesale (fresh run wins; homestead_score is recomputed right after by
-  // persistEnrichment, so it isn't carried over here).
+  // listing_id is unique — re-enrichment MERGES into the previous row: fresh
+  // values win where this run produced data, previously-fetched values survive
+  // where it didn't (a partial run must not erase what an earlier run got).
+  // Deliberate trade-off: a source that now legitimately returns null (e.g.
+  // FEMA "not mapped") keeps the old value rather than clearing it.
+  // sources_used accumulates as a set; homestead_score is left for
+  // persistEnrichment to recompute from the merged row.
+  const { id: _id, listingId: _listingId, homesteadScore: _hs, ...dataColumns } = getTableColumns(enrichments);
+  const mergeSet = Object.fromEntries(
+    Object.entries(dataColumns).map(([key, col]) => {
+      if (key === 'sourcesUsed') {
+        return [key, sql`(SELECT array_agg(DISTINCT s) FROM unnest(coalesce(${enrichments.sourcesUsed}, '{}') || excluded.sources_used) AS s)`];
+      }
+      if (key === 'enrichedAt') return [key, sql`excluded.enriched_at`];
+      return [key, sql`coalesce(${sql.raw(`excluded.${col.name}`)}, ${col})`];
+    }),
+  );
+
   const [row] = await (tx ?? db)
     .insert(enrichments)
     .values({ id, listingId, ...values })
-    .onConflictDoUpdate({ target: enrichments.listingId, set: values })
+    .onConflictDoUpdate({ target: enrichments.listingId, set: mergeSet })
     .returning();
 
   return row;

@@ -377,6 +377,45 @@ describe('matchListingAgainstProfiles', () => {
     expect(mockAlertRepo.insert).not.toHaveBeenCalled();
   });
 
+  it('rescore does not alert on a match the user already dismissed', async () => {
+    // Phantom-alert bug: user dismissed the match at score 55; re-enrichment
+    // raises it to 75. An alert email would point at a match their inbox no
+    // longer shows.
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 75,
+      componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+      hardFilterFailed: false,
+      failedFilters: [],
+    });
+
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({
+      id: 'score-existing',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 75,
+      componentScores: {},
+      llmSummary: null,
+      status: 'dismissed',
+      readAt: new Date(),
+      scoredAt: new Date(),
+    });
+
+    const result = await matchListingAgainstProfiles('listing-1', { rescore: true });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.scored).toBe(1); // score still refreshed
+    expect(result.data.alertsCreated).toBe(0);
+    expect(mockAlertRepo.insert).not.toHaveBeenCalled();
+  });
+
   it('without rescore, already-scored profiles are still skipped', async () => {
     mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
       listing: LISTING,

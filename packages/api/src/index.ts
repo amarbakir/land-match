@@ -31,6 +31,7 @@ export type {
 } from './enrichment';
 export {
   CreateSearchProfile,
+  ScoringComponent,
   SearchCriteria,
   SearchProfileResponse,
   UpdateSearchProfile,
