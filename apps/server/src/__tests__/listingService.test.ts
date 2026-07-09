@@ -391,7 +391,10 @@ describe('enrichAndPersist', () => {
       // /enrich — that must reuse A's vendor data, not re-burn quota.
       mockFindByUrl.mockResolvedValue(null);
       mockFindEnrichmentSource.mockResolvedValue({
-        listing: { ...listingRow, url: URL, userId: 'user-a', latitude: 37.1, longitude: -91.5 },
+        listingId: 'lst-source',
+        latitude: 37.1,
+        longitude: -91.5,
+        enrichmentStatus: 'enriched',
         enrichment: enrichmentRow,
       });
       mockInsertEnrichmentCopy.mockResolvedValue({ ...enrichmentRow, id: 'enr-copy' });
@@ -434,7 +437,10 @@ describe('enrichAndPersist', () => {
       // candidate query filters on non-null coordinates).
       mockFindByUrl.mockResolvedValue(null);
       mockFindEnrichmentSource.mockResolvedValue({
-        listing: { ...listingRow, url: URL, userId: 'user-a', latitude: null, longitude: null },
+        listingId: 'lst-source',
+        latitude: null,
+        longitude: null,
+        enrichmentStatus: 'enriched',
         enrichment: enrichmentRow,
       });
       mockEnrichListing.mockResolvedValue(makeEnrichResult());

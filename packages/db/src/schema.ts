@@ -163,7 +163,10 @@ export const alerts = pgTable('alerts', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
   index('alerts_status_idx').on(table.status),
-  index('alerts_user_profile_status_idx').on(table.userId, table.searchProfileId, table.status),
+  // sent_at makes the claim query's sent-within-window probe and
+  // findLastSentAt's newest-sent lookup index-only on the time range —
+  // a group's sent history grows without bound.
+  index('alerts_user_profile_status_idx').on(table.userId, table.searchProfileId, table.status, table.sentAt),
   // One alert per score+channel — concurrent matching runs can't double-email
   uniqueIndex('alerts_score_channel_idx').on(table.scoreId, table.channel),
 ]);

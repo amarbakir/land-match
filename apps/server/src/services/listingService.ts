@@ -29,19 +29,33 @@ export function computeHomestead(listing: ScorableListing, enrichment: DbEnrichm
   }
 }
 
-// Single write path for enrichment: insert the enrichment row, then compute and
-// persist its homestead score. Used by every enrichment producer (interactive
-// enrich + feed pipeline) so no path leaves homestead_score unset. Returns the
-// inserted row and the computed score so callers can reuse it without recomputing.
+// Shared tail of every enrichment write path (fresh insert, re-enrichment
+// merge, dedupe copy): compute and persist the homestead score for a row that
+// was just written, so no path leaves homestead_score unset. Returns the row
+// and the score so callers can reuse them without recomputing.
+async function scoreEnrichmentRow(listing: ScorableListing, enrichmentRow: DbEnrichmentRow, tx?: Tx) {
+  const hs = computeHomestead(listing, enrichmentRow);
+  await listingRepo.updateHomesteadScore(listing.id, hs.homesteadScore, tx);
+  return { enrichmentRow, hs };
+}
+
+// Single write path for pipeline-produced enrichment (interactive enrich +
+// re-enrichment); the dedupe copy path shares the scoring tail via
+// scoreEnrichmentRow.
 export async function persistEnrichment(
   listing: ScorableListing,
   enrichment: EnrichmentResult,
   tx?: Tx,
 ) {
   const enrichmentRow = await listingRepo.insertEnrichment(listing.id, enrichment, tx);
-  const hs = computeHomestead(listing, enrichmentRow);
-  await listingRepo.updateHomesteadScore(listing.id, hs.homesteadScore, tx);
-  return { enrichmentRow, hs };
+  return scoreEnrichmentRow(listing, enrichmentRow, tx);
+}
+
+// Fire-and-forget: scoring/alerting must never block the enrich response.
+function startBackgroundMatching(listingId: string) {
+  matchListingAgainstProfiles(listingId).catch((e) =>
+    captureError(e, 'listingService: background matching failed'),
+  );
 }
 
 // Recompute the homestead score from a saved-listings projection row. Used as a
@@ -134,17 +148,16 @@ async function reuseExistingByUrl(
   // re-burning geocode + vendor quota. The caller's request fields win; the
   // geocode rides along from the source row.
   const source = await listingRepo.findEnrichmentSourceByUrl(input.url);
-  if (!source?.enrichment || source.listing.latitude == null || source.listing.longitude == null) {
+  if (!source || source.latitude == null || source.longitude == null) {
     return null; // nothing reusable (a coordinate-less copy could never be healed)
   }
-  const { listing: srcListing, enrichment: srcEnrichment } = source;
 
   const persisted = await db.transaction(async (tx) => {
     const listing = await listingRepo.insertListing(
       {
         address: input.address,
-        latitude: srcListing.latitude!,
-        longitude: srcListing.longitude!,
+        latitude: source.latitude!,
+        longitude: source.longitude!,
         price: input.price,
         acreage: input.acreage,
         url: input.url,
@@ -154,19 +167,16 @@ async function reuseExistingByUrl(
         userId,
         // Completeness travels with the copied data, keeping the copy in the
         // re-enrichment loop when the source was partial.
-        enrichmentStatus: srcListing.enrichmentStatus as EnrichmentStatus,
+        enrichmentStatus: source.enrichmentStatus as EnrichmentStatus,
       },
       tx,
     );
-    const enrichmentRow = await listingRepo.insertEnrichmentCopy(listing.id, srcEnrichment, tx);
-    const hs = computeHomestead(listing, enrichmentRow);
-    await listingRepo.updateHomesteadScore(listing.id, hs.homesteadScore, tx);
-    return { listing, enrichmentRow, hs };
+    const enrichmentRow = await listingRepo.insertEnrichmentCopy(listing.id, source.enrichment, tx);
+    const scored = await scoreEnrichmentRow(listing, enrichmentRow, tx);
+    return { listing, ...scored };
   });
 
-  matchListingAgainstProfiles(persisted.listing.id).catch((e) =>
-    captureError(e, 'listingService: background matching failed'),
-  );
+  startBackgroundMatching(persisted.listing.id);
 
   return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, [], persisted.hs));
 }
@@ -215,10 +225,8 @@ export async function enrichAndPersist(
       return { listing, enrichmentRow, hs };
     });
 
-    // 3. Score against active search profiles (fire-and-forget)
-    matchListingAgainstProfiles(persisted.listing.id).catch((e) =>
-      captureError(e, 'listingService: background matching failed'),
-    );
+    // 3. Score against active search profiles
+    startBackgroundMatching(persisted.listing.id);
 
     // 4. Build response (reuse the score computed during persistence)
     return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, enrichment.errors, persisted.hs));

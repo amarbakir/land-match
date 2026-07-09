@@ -1,6 +1,7 @@
 import { err, isHttpUrl, ok, type Result } from '@landmatch/api';
 
 import { captureError } from '../lib/captureError';
+import { FREQUENCY_WINDOW_HOURS } from '../lib/alertWindows';
 import * as alertRepo from '../repos/alertRepo';
 import * as listingRepo from '../repos/listingRepo';
 import * as scoreRepo from '../repos/scoreRepo';
@@ -30,18 +31,15 @@ interface AlertGroup {
   alerts: PendingAlert[];
 }
 
+// Race backstop only: the claim query (alertRepo.claimPending) already
+// filters not-yet-due groups against the same FREQUENCY_WINDOW_HOURS; this
+// re-check catches a group claimed just before another worker marked it sent.
 function isWindowElapsed(frequency: AlertFrequency, lastSentAt: Date | null): boolean {
-  if (frequency === 'instant') return true;
-  if (!lastSentAt) return true;
+  const windowHours = FREQUENCY_WINDOW_HOURS[frequency];
+  if (windowHours === undefined || !lastSentAt) return true; // instant/unknown: always due
 
-  const now = Date.now();
-  const elapsed = now - lastSentAt.getTime();
-  const hours = elapsed / (1000 * 60 * 60);
-
-  if (frequency === 'daily') return hours >= 24;
-  if (frequency === 'weekly') return hours >= 168;
-
-  return true;
+  const elapsedHours = (Date.now() - lastSentAt.getTime()) / (1000 * 60 * 60);
+  return elapsedHours >= windowHours;
 }
 
 function buildSubject(alerts: AlertItem[], profileName: string, frequency: AlertFrequency): string {

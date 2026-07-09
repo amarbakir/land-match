@@ -11,22 +11,20 @@ import { seedListing, seedProfile, seedUser } from './seed';
 interface AlertGroup {
   userId: string;
   profileId: string;
-  n: number;
-  alertCount: number;
 }
 
 // One user+profile — the unit the delivery service groups into a single email.
 async function seedGroup(n: number, alertFrequency: 'instant' | 'daily' | 'weekly' = 'instant'): Promise<AlertGroup> {
   const userId = await seedUser(`alerts-${n}@example.com`);
   const profileId = await seedProfile(userId, { name: `Profile ${n}`, alertFrequency });
-  return { userId, profileId, n, alertCount: 0 };
+  return { userId, profileId };
 }
 
-// Each alert gets its own listing+score (scores are unique per listing+profile).
-// sentAt backdates the alert to an already-delivered send for window tests.
+// Each alert gets its own fresh listing so each gets its own score row
+// (scores are unique per listing+profile). sentAt backdates the alert to an
+// already-delivered send for window tests.
 async function addAlert(group: AlertGroup, opts: { channel?: AlertChannel; sentAt?: Date } = {}) {
-  group.alertCount += 1;
-  const listingId = await seedListing(`${group.n}-${group.alertCount} Alert Rd, MO`);
+  const listingId = await seedListing('Alert Rd, MO');
   const score = await scoreRepo.insert({
     listingId,
     searchProfileId: group.profileId,

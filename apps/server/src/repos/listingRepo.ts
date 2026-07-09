@@ -91,13 +91,25 @@ export async function findByUrl(url: string, userId: string, tx?: Tx) {
 // Dedupe-source lookup for POST /enrich: the newest row for this URL that has
 // an enrichment row, ANY owner — deliberately bypasses visibleTo. Vendor-derived
 // enrichment isn't user-private; the caller copies it into a row it owns
-// (land-match-0jx.10) rather than surfacing this row to the user.
+// (land-match-0jx.10) rather than surfacing this row to the user. Projects
+// only what the copy needs from the listing side (rows carry raw_data jsonb
+// blobs not worth shipping).
 export async function findEnrichmentSourceByUrl(url: string, tx?: Tx) {
-  return findOneWithEnrichment(
-    and(eq(listings.url, url), isNotNull(enrichments.listingId)),
-    tx,
-    sql`${listings.firstSeenAt} DESC`,
-  );
+  const rows = await (tx ?? db)
+    .select({
+      listingId: listings.id,
+      latitude: listings.latitude,
+      longitude: listings.longitude,
+      enrichmentStatus: listings.enrichmentStatus,
+      enrichment: { ...getTableColumns(enrichments) },
+    })
+    .from(listings)
+    .innerJoin(enrichments, eq(enrichments.listingId, listings.id))
+    .where(eq(listings.url, url))
+    .orderBy(desc(listings.firstSeenAt))
+    .limit(1);
+
+  return rows.at(0) ?? null;
 }
 
 // Copy a source listing's enrichment verbatim onto another listing (fresh id).
@@ -109,11 +121,10 @@ export async function insertEnrichmentCopy(
   tx?: Tx,
 ) {
   const { id: _id, listingId: _listingId, ...data } = source;
-  const [row] = await (tx ?? db)
-    .insert(enrichments)
-    .values({ id: generateId(), listingId, ...data })
-    .returning();
-  return row;
+  const values = { id: generateId(), listingId, ...data };
+  // No .returning(): every column is caller-supplied, nothing to read back.
+  await (tx ?? db).insert(enrichments).values(values);
+  return values;
 }
 
 export async function saveListing(userId: string, listingId: string, tx?: Tx) {

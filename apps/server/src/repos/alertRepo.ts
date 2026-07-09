@@ -4,6 +4,7 @@ import { alerts, users, searchProfiles } from '@landmatch/db';
 import type { AlertChannel } from '@landmatch/api';
 
 import { db, type Tx } from '../db/client';
+import { FREQUENCY_WINDOW_HOURS } from '../lib/alertWindows';
 import { generateId } from '../lib/id';
 
 export interface InsertAlertInput {
@@ -103,25 +104,25 @@ export async function claimPending(tx?: Tx): Promise<string[]> {
     ),
   );
 
-  // No 'sent' alert for this group inside its frequency window. 'instant'
-  // short-circuits; unknown frequencies fall to interval '0' (always due),
-  // matching the service's isWindowElapsed.
+  // No 'sent' alert for this group inside its frequency window. Windows come
+  // from FREQUENCY_WINDOW_HOURS (shared with the service's isWindowElapsed
+  // backstop); 'instant' and unknown frequencies fall to a 0-hour window —
+  // always due. Kept as a bare top-level NOT EXISTS (no OR short-circuit for
+  // 'instant') so the planner can flatten it into an anti-join instead of a
+  // per-row SubPlan.
   const sentInWindow = alias(alerts, 'sent_in_window');
-  const windowElapsed = or(
-    eq(searchProfiles.alertFrequency, 'instant'),
-    notExists(
-      conn
-        .select({ one: sql`1` })
-        .from(sentInWindow)
-        .where(
-          and(
-            eq(sentInWindow.userId, alerts.userId),
-            eq(sentInWindow.searchProfileId, alerts.searchProfileId),
-            eq(sentInWindow.status, 'sent'),
-            sql`${sentInWindow.sentAt} > now() - (CASE ${searchProfiles.alertFrequency} WHEN 'daily' THEN interval '24 hours' WHEN 'weekly' THEN interval '7 days' ELSE interval '0' END)`,
-          ),
+  const windowElapsed = notExists(
+    conn
+      .select({ one: sql`1` })
+      .from(sentInWindow)
+      .where(
+        and(
+          eq(sentInWindow.userId, alerts.userId),
+          eq(sentInWindow.searchProfileId, alerts.searchProfileId),
+          eq(sentInWindow.status, 'sent'),
+          sql`${sentInWindow.sentAt} > now() - make_interval(hours => CASE ${searchProfiles.alertFrequency} WHEN 'daily' THEN ${FREQUENCY_WINDOW_HOURS.daily} WHEN 'weekly' THEN ${FREQUENCY_WINDOW_HOURS.weekly} ELSE 0 END::int)`,
         ),
-    ),
+      ),
   );
 
   // No live (non-stale) claim on any alert of this group by another worker.
