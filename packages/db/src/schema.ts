@@ -124,7 +124,9 @@ export const enrichments = pgTable('enrichments', {
 export const scores = pgTable('scores', {
   id: text('id').primaryKey(),
   listingId: text('listing_id').notNull().references(() => listings.id),
-  searchProfileId: text('search_profile_id').notNull().references(() => searchProfiles.id),
+  // Scores are derived artifacts of a profile — deleting the profile must not
+  // be blocked by them (every active profile gets scored automatically).
+  searchProfileId: text('search_profile_id').notNull().references(() => searchProfiles.id, { onDelete: 'cascade' }),
   overallScore: integer('overall_score').notNull(),
   componentScores: jsonb('component_scores').notNull(),
   llmSummary: text('llm_summary'),
@@ -139,9 +141,11 @@ export const scores = pgTable('scores', {
 export const alerts = pgTable('alerts', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
-  searchProfileId: text('search_profile_id').notNull().references(() => searchProfiles.id),
+  // Cascade with the profile (alerts are its derived artifacts), and with the
+  // score row so profile-cascade ordering can never trip the score_id FK.
+  searchProfileId: text('search_profile_id').notNull().references(() => searchProfiles.id, { onDelete: 'cascade' }),
   listingId: text('listing_id').notNull().references(() => listings.id),
-  scoreId: text('score_id').notNull().references(() => scores.id),
+  scoreId: text('score_id').notNull().references(() => scores.id, { onDelete: 'cascade' }),
   channel: text('channel').notNull(),
   status: text('status').notNull().default('pending'),
   sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }),
