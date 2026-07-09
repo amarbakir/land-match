@@ -201,6 +201,21 @@ describe('deliverPendingAlerts', () => {
     expect(mockEmail.sendEmail).toHaveBeenCalledTimes(2);
   });
 
+  it('releases everything unprocessed when the deadline has passed', async () => {
+    // Bug this catches: no deadline handling — a Lambda hard-kill mid-send
+    // leaves alerts frozen in 'processing' and risks a duplicate email after
+    // the stale-claim window.
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ alertFrequency: 'instant' }),
+    ]);
+
+    const result = await deliverPendingAlerts({ deadlineAt: Date.now() - 1 });
+
+    expect(result.ok).toBe(true);
+    expect(mockEmail.sendEmail).not.toHaveBeenCalled();
+    expect(mockAlertRepo.releaseClaims).toHaveBeenCalledWith(['alert-1']);
+  });
+
   it('returns success with zero counts when nothing is claimable', async () => {
     mockAlertRepo.claimPending.mockResolvedValue([]);
 

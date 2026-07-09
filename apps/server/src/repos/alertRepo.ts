@@ -71,11 +71,19 @@ export async function claimPending(tx?: Tx): Promise<string[]> {
     .select({ id: alerts.id })
     .from(alerts)
     .where(
-      or(
-        eq(alerts.status, 'pending'),
-        and(eq(alerts.status, 'processing'), lte(alerts.claimedAt, new Date(Date.now() - STALE_CLAIM_MS))),
+      and(
+        // The delivery service sends email only — claiming sms/push alerts
+        // would email opted-out users and consume the alert for its real channel.
+        eq(alerts.channel, 'email'),
+        or(
+          eq(alerts.status, 'pending'),
+          and(eq(alerts.status, 'processing'), lte(alerts.claimedAt, new Date(Date.now() - STALE_CLAIM_MS))),
+        ),
       ),
     )
+    // FIFO: without an order, a backlog bigger than the batch can starve old
+    // alerts indefinitely and split one user's digest across batches.
+    .orderBy(alerts.createdAt)
     .limit(CLAIM_BATCH_SIZE)
     .for('update', { skipLocked: true });
 
@@ -88,13 +96,18 @@ export async function claimPending(tx?: Tx): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
-/** Put claimed alerts back in the pending pool (e.g. digest window not yet elapsed). */
+/**
+ * Put claimed alerts back in the pending pool (e.g. digest window not yet
+ * elapsed). Guarded on status='processing': if this worker's stale claims were
+ * stolen and already delivered by another worker, an unguarded release would
+ * flip 'sent' back to 'pending' and queue a duplicate email.
+ */
 export async function releaseClaims(alertIds: string[], tx?: Tx) {
   if (alertIds.length === 0) return;
   await (tx ?? db)
     .update(alerts)
     .set({ status: 'pending', claimedAt: null })
-    .where(inArray(alerts.id, alertIds));
+    .where(and(inArray(alerts.id, alertIds), eq(alerts.status, 'processing')));
 }
 
 export async function findClaimedWithDetails(alertIds: string[], tx?: Tx) {
@@ -147,5 +160,7 @@ export async function markFailed(alertIds: string[], tx?: Tx) {
   await (tx ?? db)
     .update(alerts)
     .set({ status: 'failed' })
-    .where(inArray(alerts.id, alertIds));
+    // Same stolen-claim guard as releaseClaims: never overwrite a 'sent'
+    // record written by the worker that took over this claim.
+    .where(and(inArray(alerts.id, alertIds), eq(alerts.status, 'processing')));
 }

@@ -1,12 +1,15 @@
+import type { AlertChannel } from '@landmatch/api';
+import { alerts } from '@landmatch/db';
+import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 
-import { pool } from '../../db/client';
+import { db } from '../../db/client';
 import * as alertRepo from '../alertRepo';
 import * as scoreRepo from '../scoreRepo';
 import * as searchProfileRepo from '../searchProfileRepo';
 import { seedListing, seedUser } from './seed';
 
-async function seedPendingAlert(n: number) {
+async function seedPendingAlert(n: number, channel: AlertChannel = 'email') {
   const userId = await seedUser(`alerts-${n}@example.com`);
   const profile = await searchProfileRepo.insert({
     userId,
@@ -28,9 +31,13 @@ async function seedPendingAlert(n: number) {
     searchProfileId: profile.id,
     listingId,
     scoreId: score.id,
-    channel: 'email',
+    channel,
   });
   return alert.id;
+}
+
+function setClaimState(alertId: string, claimedAt: Date) {
+  return db.update(alerts).set({ status: 'processing', claimedAt }).where(eq(alerts.id, alertId));
 }
 
 describe('alert claiming (integration)', () => {
@@ -38,7 +45,7 @@ describe('alert claiming (integration)', () => {
     // Bug this catches: the double-send — two delivery workers (scaled Fargate
     // tasks or overlapping cron invocations) both reading the same pending
     // alerts and both emailing the user. FOR UPDATE SKIP LOCKED partitions.
-    const ids = await Promise.all([1, 2, 3, 4].map(seedPendingAlert));
+    const ids = await Promise.all([1, 2, 3, 4].map((n) => seedPendingAlert(n)));
 
     const [claimA, claimB] = await Promise.all([
       alertRepo.claimPending(),
@@ -50,17 +57,21 @@ describe('alert claiming (integration)', () => {
     expect([...union].sort()).toEqual([...ids].sort()); // nothing dropped
   });
 
+  it('claims only email alerts — sms/push alerts must not be consumed by the email path', async () => {
+    // Bug this catches: the delivery service is email-only; claiming an sms
+    // alert emails a user who opted out of email AND permanently consumes the
+    // alert for its real channel.
+    await seedPendingAlert(1, 'sms');
+    const emailId = await seedPendingAlert(2, 'email');
+
+    expect(await alertRepo.claimPending()).toEqual([emailId]);
+  });
+
   it('reclaims alerts stranded in processing by a crashed worker, but not fresh claims', async () => {
     const staleId = await seedPendingAlert(1);
     const freshId = await seedPendingAlert(2);
-    await pool.query(
-      `UPDATE alerts SET status = 'processing', claimed_at = now() - interval '20 minutes' WHERE id = $1`,
-      [staleId],
-    );
-    await pool.query(
-      `UPDATE alerts SET status = 'processing', claimed_at = now() WHERE id = $1`,
-      [freshId],
-    );
+    await setClaimState(staleId, new Date(Date.now() - 20 * 60_000));
+    await setClaimState(freshId, new Date());
 
     const claimed = await alertRepo.claimPending();
 
@@ -81,5 +92,18 @@ describe('alert claiming (integration)', () => {
     await alertRepo.releaseClaims([id]);
 
     expect(await alertRepo.claimPending()).toEqual([id]);
+  });
+
+  it('releaseClaims never regresses an alert another worker already sent', async () => {
+    // Bug this catches: a stalled worker whose stale claim was stolen and
+    // delivered calls releaseClaims afterwards — an unguarded release would
+    // flip 'sent' back to 'pending' and queue a duplicate email.
+    const id = await seedPendingAlert(1);
+    await alertRepo.claimPending();
+    await alertRepo.markSent([id]); // the stealing worker delivered
+
+    await alertRepo.releaseClaims([id]); // the stalled worker's late release
+
+    expect(await alertRepo.claimPending()).toEqual([]); // stays sent
   });
 });

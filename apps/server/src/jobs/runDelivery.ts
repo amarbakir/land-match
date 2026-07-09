@@ -1,6 +1,6 @@
 import type { Result } from '@landmatch/api';
 
-import { deliverPendingAlerts, type DeliveryResult } from '../services/alertDeliveryService';
+import { deliverPendingAlerts, type DeliveryOptions, type DeliveryResult } from '../services/alertDeliveryService';
 import { logger } from '../lib/logger';
 
 /**
@@ -9,9 +9,9 @@ import { logger } from '../lib/logger';
  * entrypoint keeps only its environment-specific escalation (Sentry.flush +
  * throw on Lambda, swallow-and-wait on node-cron).
  */
-export async function runDelivery(): Promise<Result<DeliveryResult>> {
+export async function runDelivery(options: DeliveryOptions = {}): Promise<Result<DeliveryResult>> {
   const startTime = Date.now();
-  const result = await deliverPendingAlerts();
+  const result = await deliverPendingAlerts(options);
   const durationMs = Date.now() - startTime;
 
   if (!result.ok) {

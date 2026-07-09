@@ -62,7 +62,17 @@ function buildLocation(listing: { city: string | null; state: string | null; add
   return 'Location unknown';
 }
 
-export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
+export interface DeliveryOptions {
+  /**
+   * Epoch ms after which no further groups are processed (remaining claims
+   * are released). Set by the Lambda entrypoint from its remaining execution
+   * time: a hard kill mid-send would leave alerts frozen in 'processing' and
+   * risk a duplicate email after the stale-claim window.
+   */
+  deadlineAt?: number;
+}
+
+export async function deliverPendingAlerts({ deadlineAt }: DeliveryOptions = {}): Promise<Result<DeliveryResult>> {
   try {
     // Claim first: concurrent delivery runs (scaled tasks, overlapping cron
     // invocations) partition the pending set instead of double-sending.
@@ -97,89 +107,104 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
     const errors: string[] = [];
     const toRelease: string[] = [];
 
-    // Process groups sequentially to respect Resend rate limits
-    for (const group of groups.values()) {
-      const alertIds = group.alerts.map((a) => a.alertId);
+    try {
+      // Process groups sequentially to respect Resend rate limits
+      for (const group of groups.values()) {
+        const alertIds = group.alerts.map((a) => a.alertId);
 
-      try {
-        // Check frequency window
-        const lastSentAt = await alertRepo.findLastSentAt(group.userId, group.searchProfileId);
-        if (!isWindowElapsed(group.alertFrequency, lastSentAt)) {
-          toRelease.push(...alertIds); // back to pending; released in one batch below
+        // Out of time: hand everything unprocessed back to the pending pool
+        // rather than getting killed mid-send.
+        if (deadlineAt !== undefined && Date.now() >= deadlineAt) {
+          toRelease.push(...alertIds);
           continue;
         }
 
-        // Batch-load listings and scores
-        const listingIds = [...new Set(group.alerts.map((a) => a.listingId))];
-        const scoreIds = [...new Set(group.alerts.map((a) => a.scoreId))];
+        try {
+          // Check frequency window
+          const lastSentAt = await alertRepo.findLastSentAt(group.userId, group.searchProfileId);
+          if (!isWindowElapsed(group.alertFrequency, lastSentAt)) {
+            toRelease.push(...alertIds); // back to pending; released in one batch below
+            continue;
+          }
 
-        const [listingsData, scoresData] = await Promise.all([
-          listingRepo.findByIds(listingIds),
-          scoreRepo.findByIds(scoreIds),
-        ]);
-
-        const listingMap = new Map(listingsData.map((l) => [l.id, l]));
-        const scoreMap = new Map(scoresData.map((s) => [s.id, s]));
-
-        // Build alert items
-        const alertItems: AlertItem[] = group.alerts
-          .map((alert) => {
-            const listing = listingMap.get(alert.listingId);
-            const score = scoreMap.get(alert.scoreId);
-            if (!listing || !score) return null;
-
-            return {
-              listingTitle: listing.title ?? listing.address ?? 'Untitled Property',
-              // Never let a stored non-web URL (javascript:, data:) become an
-              // email link — schema validation guards new writes, this guards
-              // whatever is already in the DB.
-              listingUrl: isHttpUrl(listing.url) ? listing.url : '#',
-              price: listing.price,
-              acreage: listing.acreage,
-              location: buildLocation(listing),
-              overallScore: score.overallScore,
-              componentScores: (score.componentScores ?? {}) as Record<string, number>,
-              mapUrl: buildMapUrl(listing.latitude, listing.longitude),
-            };
-          })
-          .filter((item): item is AlertItem => item !== null);
-
-        if (alertItems.length === 0) {
+          await deliverGroup(group, alertIds);
+          emailsSent++;
+          alertsProcessed += alertIds.length;
+        } catch (error) {
           await alertRepo.markFailed(alertIds);
-          errors.push(`No hydrated data for group ${group.userId}:${group.searchProfileId}`);
-          continue;
+          const message = error instanceof Error ? error.message : String(error);
+          errors.push(`Failed to deliver to ${group.userEmail}: ${message}`);
         }
-
-        const html = await renderAlertEmail({
-          userName: group.userName,
-          profileName: group.profileName,
-          alerts: alertItems,
-          frequency: group.alertFrequency,
-        });
-
-        const subject = buildSubject(alertItems, group.profileName, group.alertFrequency);
-
-        await sendEmail({
-          to: group.userEmail,
-          subject,
-          html,
-        });
-
-        await alertRepo.markSent(alertIds);
-        emailsSent++;
-        alertsProcessed += alertIds.length;
-      } catch (error) {
-        await alertRepo.markFailed(alertIds);
-        const message = error instanceof Error ? error.message : String(error);
-        errors.push(`Failed to deliver to ${group.userEmail}: ${message}`);
       }
+    } finally {
+      // Runs even when a markFailed throws mid-loop (transient DB blip):
+      // anything still claimed but unprocessed must go back to 'pending' or
+      // it sits invisible until the stale-claim timeout.
+      await alertRepo.releaseClaims(toRelease);
     }
-
-    await alertRepo.releaseClaims(toRelease);
 
     return ok({ emailsSent, alertsProcessed, errors });
   } catch (error) {
     captureError(error, 'alertDeliveryService.deliverPendingAlerts');
     return err('INTERNAL_ERROR');
   }
+}
+
+/** Hydrate, render, send, and mark one user+profile group. Throws on any failure. */
+async function deliverGroup(group: AlertGroup, alertIds: string[]): Promise<void> {
+  // Batch-load listings and scores
+  const listingIds = [...new Set(group.alerts.map((a) => a.listingId))];
+  const scoreIds = [...new Set(group.alerts.map((a) => a.scoreId))];
+
+  const [listingsData, scoresData] = await Promise.all([
+    listingRepo.findByIds(listingIds),
+    scoreRepo.findByIds(scoreIds),
+  ]);
+
+  const listingMap = new Map(listingsData.map((l) => [l.id, l]));
+  const scoreMap = new Map(scoresData.map((s) => [s.id, s]));
+
+  // Build alert items
+  const alertItems: AlertItem[] = group.alerts
+    .map((alert) => {
+      const listing = listingMap.get(alert.listingId);
+      const score = scoreMap.get(alert.scoreId);
+      if (!listing || !score) return null;
+
+      return {
+        listingTitle: listing.title ?? listing.address ?? 'Untitled Property',
+        // Never let a stored non-web URL (javascript:, data:) become an
+        // email link — schema validation guards new writes, this guards
+        // whatever is already in the DB.
+        listingUrl: isHttpUrl(listing.url) ? listing.url : '#',
+        price: listing.price,
+        acreage: listing.acreage,
+        location: buildLocation(listing),
+        overallScore: score.overallScore,
+        componentScores: (score.componentScores ?? {}) as Record<string, number>,
+        mapUrl: buildMapUrl(listing.latitude, listing.longitude),
+      };
+    })
+    .filter((item): item is AlertItem => item !== null);
+
+  if (alertItems.length === 0) {
+    throw new Error(`no hydrated data for group ${group.userId}:${group.searchProfileId}`);
+  }
+
+  const html = await renderAlertEmail({
+    userName: group.userName,
+    profileName: group.profileName,
+    alerts: alertItems,
+    frequency: group.alertFrequency,
+  });
+
+  const subject = buildSubject(alertItems, group.profileName, group.alertFrequency);
+
+  await sendEmail({
+    to: group.userEmail,
+    subject,
+    html,
+  });
+
+  await alertRepo.markSent(alertIds);
 }
