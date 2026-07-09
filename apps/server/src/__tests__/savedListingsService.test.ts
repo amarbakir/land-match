@@ -295,7 +295,7 @@ describe('saveListing', () => {
     // Bug this catches: no visibility check on save — any authenticated user
     // who learned a listing id could save it and read its full row + enrichment
     // via GET /saved. Invisible must be indistinguishable from nonexistent.
-    mockFindVisible.mockResolvedValue(undefined);
+    mockFindVisible.mockResolvedValue(null);
 
     const result = await saveListing('user-b', 'lst-owned-by-a');
 

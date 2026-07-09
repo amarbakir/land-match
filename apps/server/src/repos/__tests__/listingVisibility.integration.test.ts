@@ -16,8 +16,8 @@ describe('findVisibleListing (integration)', () => {
     const [owner, other] = await seedTwoUsers();
     const listingId = await seedOwnedListing('1 Private Rd', owner);
 
-    expect(await listingRepo.findVisibleListing(listingId, other)).toBeUndefined();
-    expect(await listingRepo.findVisibleListing('lst-nonexistent', other)).toBeUndefined();
+    expect(await listingRepo.findVisibleListing(listingId, other)).toBeNull();
+    expect(await listingRepo.findVisibleListing('lst-nonexistent', other)).toBeNull();
   });
 
   it('returns owned listings to their owner and ownerless listings to anyone', async () => {
@@ -27,6 +27,23 @@ describe('findVisibleListing (integration)', () => {
 
     expect((await listingRepo.findVisibleListing(ownedId, owner))?.id).toBe(ownedId);
     expect((await listingRepo.findVisibleListing(feedId, other))?.id).toBe(feedId);
+  });
+
+  it("findSavedListings hides another user's listing even when a saved row exists", async () => {
+    // Bug this catches: the save-time gate is forward-only — a saved_listings
+    // row created before the gate (or through any future ungated write) would
+    // keep serving the full listing + enrichment via GET /saved without this
+    // read-time visibleTo predicate.
+    const [owner, other] = await seedTwoUsers();
+    const ownedId = await seedOwnedListing('1 Private Rd', owner);
+    const feedId = await seedListing('2 Feed Rd');
+    await listingRepo.saveListing(other, ownedId); // repo primitive bypasses the service gate
+    await listingRepo.saveListing(other, feedId);
+
+    const forOther = await listingRepo.findSavedListings(other);
+
+    expect(forOther.rows.map((r) => r.listingId)).toEqual([feedId]);
+    expect(forOther.total).toBe(1);
   });
 });
 

@@ -2,21 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import * as listingRepo from '../listingRepo';
 import * as scoreRepo from '../scoreRepo';
-import * as searchProfileRepo from '../searchProfileRepo';
-import { seedListing, seedUser } from './seed';
+import { seedListing, seedProfile, seedUser } from './seed';
 
 async function seedScoredProfile(userId: string, name: string, listingId: string, overallScore: number) {
-  const profile = await searchProfileRepo.insert({
-    userId,
-    name,
-    alertFrequency: 'daily',
-    alertThreshold: 70,
-    criteria: {},
-    isActive: true,
-  });
+  const profileId = await seedProfile(userId, { name });
   await scoreRepo.insert({
     listingId,
-    searchProfileId: profile.id,
+    searchProfileId: profileId,
     overallScore,
     componentScores: { soil: overallScore },
   });

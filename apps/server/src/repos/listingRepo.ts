@@ -59,10 +59,11 @@ function visibleTo(userId: string) {
 // leak ids). Projects id only; widen if a caller ever needs the row (rows
 // carry raw_data jsonb blobs not worth shipping for a truthiness test).
 export async function findVisibleListing(id: string, userId: string, tx?: Tx) {
-  return (tx ?? db).query.listings.findFirst({
+  const row = await (tx ?? db).query.listings.findFirst({
     columns: { id: true },
     where: and(eq(listings.id, id), visibleTo(userId)),
   });
+  return row ?? null;
 }
 
 async function findOneWithEnrichment(where: SQL | undefined, tx?: Tx, orderBy?: SQL) {
@@ -316,14 +317,18 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
       .innerJoin(listings, eq(savedListings.listingId, listings.id))
       .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
       .leftJoin(bestScoreSq, eq(bestScoreSq.listingId, listings.id))
-      .where(eq(savedListings.userId, userId))
+      // visibleTo is a read-time backstop: the save path already gates on it,
+      // but rows written before that gate (or through any future ungated
+      // write) must not keep serving another user's listing + enrichment.
+      .where(and(eq(savedListings.userId, userId), visibleTo(userId)))
       .orderBy(...orderBy)
       .limit(limit)
       .offset(offset),
     conn
       .select({ count: countFn() })
       .from(savedListings)
-      .where(eq(savedListings.userId, userId)),
+      .innerJoin(listings, eq(savedListings.listingId, listings.id))
+      .where(and(eq(savedListings.userId, userId), visibleTo(userId))),
   ]);
 
   return { rows, total: Number(totalResult[0]?.count ?? 0) };
