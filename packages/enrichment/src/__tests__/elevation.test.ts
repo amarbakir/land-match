@@ -61,16 +61,15 @@ describe('createElevationAdapter', () => {
 });
 
 describe('partial raster coverage', () => {
-  it('errors when slope is null instead of fabricating a flat 0% slope', async () => {
-    // Bug this catches: only elevation_ft was null-checked — a null slope_pct
-    // (point at a raster tile edge) became slopePct: 0, i.e. "perfectly flat",
-    // which inflates building-suitability scores.
+  it('keeps a valid elevation when slope is null, reporting slope as unknown', async () => {
+    // Bugs this catches: (a) Number(null) === 0 fabricated a "perfectly flat"
+    // slope that inflates building-suitability scores; (b) rejecting the whole
+    // row would throw away a correct elevation reading the query did return.
     const pool = mockPool([{ elevation_ft: '901.4', slope_pct: null }]);
 
     const adapter = createElevationAdapter(pool);
     const result = await adapter.enrich({ lat: 43.1, lng: -72.78 });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain('levation');
+    expect(result).toEqual({ ok: true, data: { elevationFt: 901.4, slopePct: null } });
   });
 });

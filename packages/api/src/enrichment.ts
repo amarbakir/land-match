@@ -55,7 +55,9 @@ export interface ClimateNormalsData {
 
 export interface ElevationData {
   elevationFt: number;
-  slopePct: number;
+  // null: elevation raster covered the point but the slope neighborhood
+  // didn't (tile edge) — unknown, not flat
+  slopePct: number | null;
 }
 
 export interface WetlandsData {

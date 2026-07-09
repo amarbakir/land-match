@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { isValidLatLng } from './coords';
 import type { Result } from './types';
-import { boundedString } from './validate';
+import { boundedString, strictNumeric } from './validate';
 
 export interface GeocodeData {
   lat: number;
@@ -20,28 +20,31 @@ const TIMEOUT_MS = 10_000;
 // table), and display names are unbounded vendor text.
 const BoundedAddress = boundedString(500);
 
+// Envelope and first-match schemas are split (same pattern as flood.ts's
+// NfhlFeature): only matches[0] is consumed, so a degenerate later match
+// must not discard a usable response.
 const CensusResponse = z.object({
   result: z
     .object({
-      addressMatches: z
-        .array(
-          z.object({
-            matchedAddress: BoundedAddress,
-            coordinates: z.object({ x: z.number(), y: z.number() }),
-          }),
-        )
-        .optional(),
+      addressMatches: z.array(z.unknown()).optional(),
     })
     .optional(),
 });
 
-const NominatimResponse = z.array(
-  z.object({
-    lat: z.coerce.number(),
-    lon: z.coerce.number(),
-    display_name: BoundedAddress,
-  }),
-);
+const CensusMatch = z.object({
+  matchedAddress: BoundedAddress,
+  coordinates: z.object({ x: z.number(), y: z.number() }),
+});
+
+const NominatimResponse = z.array(z.unknown());
+
+// strictNumeric (not z.coerce.number()): null/'' must fail, not become 0 —
+// a "successful" geocode at (0, 0) pins the listing on the equator.
+const NominatimResult = z.object({
+  lat: strictNumeric,
+  lon: strictNumeric,
+  display_name: BoundedAddress,
+});
 
 // OSM's usage policy requires an identifying UA with contact info — a bare
 // product name gets banned by UA/IP, silently killing the geocode fallback.
@@ -156,11 +159,15 @@ async function geocodeCensus(address: string): Promise<Result<GeocodeData>> {
       return err('No address matches from Census Geocoder');
     }
 
-    const match = matches[0];
+    const match = CensusMatch.safeParse(matches[0]);
+    if (!match.success) {
+      return err('Census Geocoder unexpected response shape');
+    }
+
     return checkedGeocode('Census Geocoder', {
-      lat: match.coordinates.y,
-      lng: match.coordinates.x,
-      matchedAddress: match.matchedAddress,
+      lat: match.data.coordinates.y,
+      lng: match.data.coordinates.x,
+      matchedAddress: match.data.matchedAddress,
     });
   } catch (e) {
     return err(`Census Geocoder failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -192,11 +199,15 @@ async function geocodeNominatim(address: string): Promise<Result<GeocodeData>> {
       return err('No results from Nominatim');
     }
 
-    const result = parsed.data[0];
+    const result = NominatimResult.safeParse(parsed.data[0]);
+    if (!result.success) {
+      return err('Nominatim unexpected response shape');
+    }
+
     return checkedGeocode('Nominatim', {
-      lat: result.lat,
-      lng: result.lon,
-      matchedAddress: result.display_name,
+      lat: result.data.lat,
+      lng: result.data.lon,
+      matchedAddress: result.data.display_name,
     });
   } catch (e) {
     return err(`Nominatim failed: ${e instanceof Error ? e.message : String(e)}`);

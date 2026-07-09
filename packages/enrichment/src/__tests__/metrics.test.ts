@@ -97,6 +97,19 @@ describe('pipeline metrics', () => {
     ]);
   });
 
+  it('emits a pipeline metric when coordinates are rejected up front', async () => {
+    // Bug this catches: the invalid-coords early return skipping the pipeline
+    // metric — a geocoder/DB regression feeding NaN coords would fail every
+    // enrichment while dashboards built on pipeline metrics show nothing.
+    const events = collectMetrics();
+
+    await runEnrichmentPipeline({ lat: NaN, lng: -92.1 });
+
+    expect(events.filter((e) => e.type === 'pipeline')).toEqual([
+      { type: 'pipeline', ms: expect.any(Number), sourcesUsed: 0, errors: 1 },
+    ]);
+  });
+
   it('does not break enrichment when the sink throws', async () => {
     setMetricsSink(() => {
       throw new Error('sink exploded');

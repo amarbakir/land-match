@@ -3,13 +3,14 @@ import type { Pool } from 'pg';
 import { z } from 'zod';
 
 import type { ElevationData, EnrichmentAdapter, LatLng, Result } from './types';
-import { pgNumeric } from './validate';
+import { strictNumeric } from './validate';
 
-// A null slope (raster tile edge) must fail, not read as "perfectly flat"
-// and inflate building-suitability scores (see pgNumeric).
+// A null slope (raster tile edge) must not read as "perfectly flat" (see
+// strictNumeric) — but it also must not throw away a valid elevation reading:
+// slope is reported as unknown instead.
 const ElevationRow = z.object({
-  elevation_ft: pgNumeric,
-  slope_pct: pgNumeric,
+  elevation_ft: strictNumeric,
+  slope_pct: strictNumeric.nullable(),
 });
 
 export function createElevationAdapter(pool: Pool): EnrichmentAdapter<ElevationData> {

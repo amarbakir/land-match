@@ -80,8 +80,11 @@ export interface PipelineOptions {
 
 export async function runEnrichmentPipeline(coords: LatLng, options: PipelineOptions = {}): Promise<EnrichmentResult> {
   // Bad coordinates can't produce data from any vendor — refuse up front
-  // instead of burning quota on POINT(NaN NaN)-style requests.
+  // instead of burning quota on POINT(NaN NaN)-style requests. Still emits
+  // the pipeline metric: a regression feeding bad coords must show up on
+  // error-rate dashboards, not read as a traffic drop.
   if (!isValidLatLng(coords)) {
+    emitMetric({ type: 'pipeline', ms: 0, sourcesUsed: 0, errors: 1 });
     return {
       sourcesUsed: [],
       errors: [{ source: 'coordinates', error: `invalid coordinates (${coords.lat}, ${coords.lng})` }],

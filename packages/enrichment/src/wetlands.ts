@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import { z } from 'zod';
 
 import type { EnrichmentAdapter, LatLng, Result, WetlandsData } from './types';
-import { boundedString, pgNumeric } from './validate';
+import { boundedString, strictNumeric } from './validate';
 
 const BUFFER_FT = 1000;
 
@@ -11,7 +11,7 @@ const BUFFER_FT = 1000;
 const WetlandRow = z.object({
   wetland_type: boundedString(100).nullable(),
   attribute: boundedString(500).nullable(),
-  distance_ft: pgNumeric,
+  distance_ft: strictNumeric,
 });
 
 export function createWetlandsAdapter(pool: Pool): EnrichmentAdapter<WetlandsData> {

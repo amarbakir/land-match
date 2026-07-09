@@ -40,7 +40,8 @@ export function mapEnrichmentResult(result: EnrichmentResult): EnrichmentData {
     growingSeasonDays: result.climateNormals?.growingSeasonDays,
     // Elevation
     elevationFt: result.elevation?.elevationFt,
-    slopePct: result.elevation?.slopePct,
+    // null slope = raster tile edge — unknown to scoring, same as absent
+    slopePct: result.elevation?.slopePct ?? undefined,
     // Wetlands
     wetlandType: result.wetlands?.wetlandType,
     wetlandDistanceFt: result.wetlands?.distanceFt,

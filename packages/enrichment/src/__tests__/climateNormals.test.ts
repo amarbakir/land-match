@@ -111,6 +111,23 @@ describe('createClimateNormalsAdapter', () => {
 });
 
 describe('partial raster coverage', () => {
+  it('errors on empty-string numerics instead of coercing them to 0', async () => {
+    // Bug this catches: Number('') === 0 — a blank string from ETL'd data
+    // fabricates a 0 value just like null did.
+    const pool = mockPool([{
+      frost_free_days: 158,
+      annual_precip_in: '',
+      avg_min_temp_f: 28.1,
+      avg_max_temp_f: 72.5,
+      growing_season_days: 165,
+    }]);
+
+    const adapter = createClimateNormalsAdapter(pool);
+    const result = await adapter.enrich({ lat: 43.1, lng: -72.78 });
+
+    expect(result.ok).toBe(false);
+  });
+
   it('errors when any field is null instead of fabricating zeros', async () => {
     // Bug this catches: only frost_free_days was null-checked — a null precip
     // with non-null frost days became annualPrecipIn: 0 (Number(null) === 0),

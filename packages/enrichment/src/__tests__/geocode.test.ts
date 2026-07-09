@@ -238,6 +238,41 @@ describe('geocode', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('rejects Nominatim results with null or empty coordinates instead of coercing to 0', async () => {
+    // Bug this catches: z.coerce.number() turns null and '' into 0 — a
+    // "successful" geocode at (0, 0) pins the listing on the equator and runs
+    // every enrichment against the wrong point.
+    fetchSpy
+      .mockResolvedValueOnce(Response.json({ result: { addressMatches: [] } }))
+      .mockResolvedValueOnce(Response.json([{ lat: null, lon: '', display_name: 'x' }]));
+
+    const result = await geocode('123 Main St');
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('uses a valid first Census match even when a later match is malformed', async () => {
+    // Bug this catches: validating every element of addressMatches — only
+    // matches[0] is consumed, so a degenerate later match must not discard a
+    // usable response and burn throttled Nominatim quota for nothing.
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        result: {
+          addressMatches: [
+            { matchedAddress: '123 MAIN ST', coordinates: { x: -93.298, y: 37.215 } },
+            { matchedAddress: 42, coordinates: null },
+          ],
+        },
+      }),
+    );
+
+    const result = await geocode('123 Main St');
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.lat).toBe(37.215);
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // no Nominatim fallback
+  });
+
   it('rejects out-of-bounds coordinates from either provider', async () => {
     fetchSpy
       .mockResolvedValueOnce(

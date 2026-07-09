@@ -167,7 +167,10 @@ describe('floodAdapter.enrich', () => {
 });
 
 describe('inbound data caps', () => {
-  it('caps an unbounded FLD_ZONE string before it reaches storage', async () => {
+  it('rejects an absurdly long FLD_ZONE instead of persisting truncated garbage', async () => {
+    // Zone is a lookup code (<= 4 chars in practice), not free text — a
+    // 500-char value is malformed vendor data, and truncating it would store
+    // garbage as an authoritative flood-risk assessment. Fail closed.
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     fetchSpy.mockResolvedValueOnce(
       Response.json({ features: [{ attributes: { FLD_ZONE: 'Z'.repeat(500), ZONE_SUBTY: '' } }] }),
@@ -175,7 +178,7 @@ describe('inbound data caps', () => {
 
     const result = await floodAdapter.enrich({ lat: 36.6, lng: -92.1 });
 
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.zone!.length).toBeLessThanOrEqual(30);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('unexpected response shape');
   });
 });
