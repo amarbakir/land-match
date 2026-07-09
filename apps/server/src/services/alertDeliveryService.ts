@@ -7,7 +7,7 @@ import * as scoreRepo from '../repos/scoreRepo';
 import { sendEmail } from '../lib/email';
 import { renderAlertEmail, type AlertItem } from '../emails/renderAlert';
 
-interface DeliveryResult {
+export interface DeliveryResult {
   emailsSent: number;
   alertsProcessed: number;
   errors: string[];
@@ -15,7 +15,7 @@ interface DeliveryResult {
 
 type AlertFrequency = 'instant' | 'daily' | 'weekly';
 
-type PendingAlert = Awaited<ReturnType<typeof alertRepo.findPendingWithDetails>>[number];
+type PendingAlert = Awaited<ReturnType<typeof alertRepo.findClaimedWithDetails>>[number];
 
 interface AlertGroup {
   userId: string;
@@ -64,11 +64,15 @@ function buildLocation(listing: { city: string | null; state: string | null; add
 
 export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
   try {
-    const pendingAlerts = await alertRepo.findPendingWithDetails();
+    // Claim first: concurrent delivery runs (scaled tasks, overlapping cron
+    // invocations) partition the pending set instead of double-sending.
+    const claimedIds = await alertRepo.claimPending();
 
-    if (pendingAlerts.length === 0) {
+    if (claimedIds.length === 0) {
       return ok({ emailsSent: 0, alertsProcessed: 0, errors: [] });
     }
+
+    const pendingAlerts = await alertRepo.findClaimedWithDetails(claimedIds);
 
     // Group by userId:searchProfileId
     const groups = new Map<string, AlertGroup>();
@@ -100,7 +104,8 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
         // Check frequency window
         const lastSentAt = await alertRepo.findLastSentAt(group.userId, group.searchProfileId);
         if (!isWindowElapsed(group.alertFrequency, lastSentAt)) {
-          continue; // alerts stay pending for next run
+          await alertRepo.releaseClaims(alertIds); // back to pending for the next run
+          continue;
         }
 
         // Batch-load listings and scores

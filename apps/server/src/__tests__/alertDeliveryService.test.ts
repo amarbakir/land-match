@@ -78,11 +78,13 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockRender.renderAlertEmail.mockResolvedValue('<html>test</html>');
   mockEmail.sendEmail.mockResolvedValue({ id: 'email-1' } as any);
+  // Most tests exercise a single claimed alert; individual tests override.
+  mockAlertRepo.claimPending.mockResolvedValue(['alert-1']);
 });
 
 describe('deliverPendingAlerts', () => {
   it('sends digest for eligible daily alerts when window has elapsed', async () => {
-    mockAlertRepo.findPendingWithDetails.mockResolvedValueOnce([makePendingAlert()]);
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([makePendingAlert()]);
     mockAlertRepo.findLastSentAt.mockResolvedValueOnce(new Date(Date.now() - 25 * 60 * 60 * 1000)); // 25h ago
     mockListingRepo.findByIds.mockResolvedValueOnce([LISTING]);
     mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
@@ -97,8 +99,8 @@ describe('deliverPendingAlerts', () => {
     expect(mockAlertRepo.markSent).toHaveBeenCalledWith(['alert-1']);
   });
 
-  it('skips daily digest when window has not elapsed', async () => {
-    mockAlertRepo.findPendingWithDetails.mockResolvedValueOnce([makePendingAlert()]);
+  it('skips daily digest when window has not elapsed and releases the claim', async () => {
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([makePendingAlert()]);
     mockAlertRepo.findLastSentAt.mockResolvedValueOnce(new Date(Date.now() - 1 * 60 * 60 * 1000)); // 1h ago
 
     const result = await deliverPendingAlerts();
@@ -108,10 +110,14 @@ describe('deliverPendingAlerts', () => {
     expect(result.data.emailsSent).toBe(0);
     expect(mockEmail.sendEmail).not.toHaveBeenCalled();
     expect(mockAlertRepo.markSent).not.toHaveBeenCalled();
+    // Bug this catches: leaving skipped alerts in 'processing' — they'd be
+    // invisible to the next run until the stale-claim timeout, delaying the
+    // digest by up to 15 minutes per cycle.
+    expect(mockAlertRepo.releaseClaims).toHaveBeenCalledWith(['alert-1']);
   });
 
   it('sends instant alerts immediately regardless of lastSentAt', async () => {
-    mockAlertRepo.findPendingWithDetails.mockResolvedValueOnce([
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
       makePendingAlert({ alertFrequency: 'instant' }),
     ]);
     mockAlertRepo.findLastSentAt.mockResolvedValueOnce(new Date()); // just sent
@@ -130,7 +136,7 @@ describe('deliverPendingAlerts', () => {
     // Bug this catches: a javascript: URL that predates schema validation (or
     // slips past it) must never reach the email template as a clickable href —
     // clicking it in a webmail client that honors the scheme executes script.
-    mockAlertRepo.findPendingWithDetails.mockResolvedValueOnce([
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
       makePendingAlert({ alertFrequency: 'instant' }),
     ]);
     mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
@@ -148,7 +154,7 @@ describe('deliverPendingAlerts', () => {
   });
 
   it('marks alerts as failed and captures error on Resend failure', async () => {
-    mockAlertRepo.findPendingWithDetails.mockResolvedValueOnce([
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
       makePendingAlert({ alertFrequency: 'instant' }),
     ]);
     mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
@@ -167,7 +173,8 @@ describe('deliverPendingAlerts', () => {
   });
 
   it('groups correctly — 2 profiles for same user produce 2 emails', async () => {
-    mockAlertRepo.findPendingWithDetails.mockResolvedValueOnce([
+    mockAlertRepo.claimPending.mockResolvedValue(['alert-1', 'alert-2']);
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
       makePendingAlert({ alertFrequency: 'instant' }),
       makePendingAlert({
         alertId: 'alert-2',
@@ -194,8 +201,8 @@ describe('deliverPendingAlerts', () => {
     expect(mockEmail.sendEmail).toHaveBeenCalledTimes(2);
   });
 
-  it('returns success with zero counts when no pending alerts', async () => {
-    mockAlertRepo.findPendingWithDetails.mockResolvedValueOnce([]);
+  it('returns success with zero counts when nothing is claimable', async () => {
+    mockAlertRepo.claimPending.mockResolvedValue([]);
 
     const result = await deliverPendingAlerts();
 
@@ -204,5 +211,6 @@ describe('deliverPendingAlerts', () => {
     expect(result.data.emailsSent).toBe(0);
     expect(result.data.alertsProcessed).toBe(0);
     expect(result.data.errors).toHaveLength(0);
+    expect(mockAlertRepo.findClaimedWithDetails).not.toHaveBeenCalled();
   });
 });

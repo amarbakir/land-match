@@ -1,4 +1,4 @@
-import { eq, and, inArray, desc } from 'drizzle-orm';
+import { eq, and, or, inArray, desc, lte } from 'drizzle-orm';
 import { alerts, users, searchProfiles } from '@landmatch/db';
 import type { AlertChannel } from '@landmatch/api';
 
@@ -53,7 +53,48 @@ export async function findPendingByUser(userId: string, tx?: Tx) {
   });
 }
 
-export async function findPendingWithDetails(tx?: Tx) {
+// A crashed worker leaves its claims in 'processing'; after this long they
+// become claimable again.
+const STALE_CLAIM_MS = 15 * 60_000;
+
+/**
+ * Atomically claim every deliverable alert for this worker. FOR UPDATE SKIP
+ * LOCKED means two workers running concurrently (scaled Fargate tasks,
+ * overlapping cron invocations) partition the pending set instead of both
+ * claiming — and double-sending — the same alerts.
+ */
+export async function claimPending(tx?: Tx): Promise<string[]> {
+  const claimable = (tx ?? db)
+    .select({ id: alerts.id })
+    .from(alerts)
+    .where(
+      or(
+        eq(alerts.status, 'pending'),
+        and(eq(alerts.status, 'processing'), lte(alerts.claimedAt, new Date(Date.now() - STALE_CLAIM_MS))),
+      ),
+    )
+    .for('update', { skipLocked: true });
+
+  const rows = await (tx ?? db)
+    .update(alerts)
+    .set({ status: 'processing', claimedAt: new Date() })
+    .where(inArray(alerts.id, claimable))
+    .returning({ id: alerts.id });
+
+  return rows.map((r) => r.id);
+}
+
+/** Put claimed alerts back in the pending pool (e.g. digest window not yet elapsed). */
+export async function releaseClaims(alertIds: string[], tx?: Tx) {
+  if (alertIds.length === 0) return;
+  await (tx ?? db)
+    .update(alerts)
+    .set({ status: 'pending', claimedAt: null })
+    .where(inArray(alerts.id, alertIds));
+}
+
+export async function findClaimedWithDetails(alertIds: string[], tx?: Tx) {
+  if (alertIds.length === 0) return [];
   return (tx ?? db)
     .select({
       alertId: alerts.id,
@@ -70,7 +111,7 @@ export async function findPendingWithDetails(tx?: Tx) {
     .from(alerts)
     .innerJoin(users, eq(users.id, alerts.userId))
     .innerJoin(searchProfiles, eq(searchProfiles.id, alerts.searchProfileId))
-    .where(eq(alerts.status, 'pending'))
+    .where(inArray(alerts.id, alertIds))
     .orderBy(alerts.userId, alerts.searchProfileId, alerts.createdAt);
 }
 

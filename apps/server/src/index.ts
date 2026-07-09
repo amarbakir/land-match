@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/node';
 import { serve } from '@hono/node-server';
 
 import { createApp } from './app';
-import { server, validateConfig } from './config';
+import { email, server, validateConfig } from './config';
 import { runMigrations } from './db/client';
 import { startScheduler } from './jobs/scheduler';
 import { logger } from './lib/logger';
@@ -28,7 +28,11 @@ async function startServer() {
   const app = createApp();
   serve({ fetch: app.fetch, port: server.port });
   logger.info({ port: server.port }, 'Hono server running');
-  startScheduler();
+  if (email.inProcessCron) {
+    startScheduler();
+  } else {
+    logger.info('in-process email cron disabled — alert delivery runs via the AlertDelivery cron');
+  }
 }
 
 startServer().catch((error) => {

@@ -136,6 +136,10 @@ export const alerts = pgTable('alerts', {
   channel: text('channel').notNull(),
   status: text('status').notNull().default('pending'),
   sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }),
+  // Set when a delivery worker claims the alert (status 'processing') so
+  // concurrent workers never send the same alert twice; stale claims are
+  // re-claimable after a timeout.
+  claimedAt: timestamp('claimed_at', { withTimezone: true, mode: 'date' }),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
   index('alerts_status_idx').on(table.status),

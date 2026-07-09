@@ -259,6 +259,9 @@ export const email = {
   },
   fromAddress: optional('EMAIL_FROM', 'LandMatch <onboarding@resend.dev>'),
   deliveryCronSchedule: optional('EMAIL_CRON_SCHEDULE', '*/5 * * * *'),
+  // In-process node-cron delivery is for local dev; deployed stages run the
+  // sst.aws.Cron AlertDelivery job instead and set this to false.
+  inProcessCron: featureFlag('EMAIL_INPROCESS_CRON', true),
 } as const;
 
 /**
