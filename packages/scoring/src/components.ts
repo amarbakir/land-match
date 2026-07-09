@@ -20,7 +20,10 @@ export function scorePrice(price: number | undefined, criteria: SearchCriteria['
   const { min = 0, max } = criteria;
   if (!max) return 50;
   if (price < min) return 100; // under budget = bonus
-  if (price <= max) return Math.round(100 - ((price - min) / (max - min)) * 30);
+  if (price <= max) {
+    if (max === min) return 100; // degenerate range: exact budget match, avoid 0/0
+    return Math.round(100 - ((price - min) / (max - min)) * 30);
+  }
   // Over budget: steep penalty
   const overPercent = (price - max) / max;
   return Math.max(0, Math.round(70 - overPercent * 200));

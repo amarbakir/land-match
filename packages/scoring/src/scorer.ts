@@ -56,11 +56,15 @@ function weightedAverage(scores: ComponentScores, weights: ScoringWeights): numb
 
   for (const key of Object.keys(scores) as Array<keyof ComponentScores>) {
     const weight = weights[key];
+    const score = scores[key];
+    // Legacy stored criteria may predate weight validation; skip anything unusable
+    if (!Number.isFinite(weight) || weight <= 0 || !Number.isFinite(score)) continue;
     totalWeight += weight;
-    totalScore += scores[key] * weight;
+    totalScore += score * weight;
   }
 
-  return totalWeight === 0 ? 0 : Math.round(totalScore / totalWeight);
+  if (totalWeight === 0) return 0;
+  return Math.min(100, Math.max(0, Math.round(totalScore / totalWeight)));
 }
 
 function emptyScores(): ComponentScores {

@@ -1,8 +1,20 @@
 import { z } from 'zod';
 
+export const ScoringComponent = z.enum([
+  'soil', 'flood', 'price', 'acreage', 'zoning', 'geography', 'infrastructure', 'climate',
+]);
+
+export type ScoringComponent = z.infer<typeof ScoringComponent>;
+
+const Range = z
+  .object({ min: z.number().optional(), max: z.number().optional() })
+  .refine((r) => r.min === undefined || r.max === undefined || r.min <= r.max, {
+    message: 'min must be <= max',
+  });
+
 export const SearchCriteria = z.object({
-  acreage: z.object({ min: z.number().optional(), max: z.number().optional() }).optional(),
-  price: z.object({ min: z.number().optional(), max: z.number().optional() }).optional(),
+  acreage: Range.optional(),
+  price: Range.optional(),
   soilCapabilityClass: z.object({ max: z.number() }).optional(),
   floodZoneExclude: z.array(z.string()).optional(),
   geography: z
@@ -20,7 +32,7 @@ export const SearchCriteria = z.object({
       maxFloodRisk: z.number().optional(),
     })
     .optional(),
-  weights: z.record(z.string(), z.number()).optional(),
+  weights: z.partialRecord(ScoringComponent, z.number().min(0)).optional(),
 });
 
 export type SearchCriteria = z.infer<typeof SearchCriteria>;
