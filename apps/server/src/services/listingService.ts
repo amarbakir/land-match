@@ -231,13 +231,8 @@ export async function getSavedListings(
       );
     }
 
-    if (filters.sort === 'homestead') {
-      items.sort((a, b) => {
-        const aScore = a.homesteadScore ?? -1;
-        const bScore = b.homesteadScore ?? -1;
-        return filters.sortDir === 'desc' ? bScore - aScore : aScore - bScore;
-      });
-    }
+    // sort=homestead is ordered in SQL (persisted homestead_score) — a page
+    // re-sort here would only shuffle within pages, not across them.
 
     return ok({
       items,

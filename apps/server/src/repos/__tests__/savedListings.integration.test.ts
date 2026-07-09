@@ -100,6 +100,34 @@ describe('findSavedListings (integration)', () => {
     expect(page2.rows).toHaveLength(1);
   });
 
+  it('sorts by homestead score in SQL so pagination is globally ordered, nulls last', async () => {
+    // Bug this catches: ordering by saved_at in SQL and re-sorting each page
+    // in memory — a higher-scored item saved later appears on page 2 below
+    // lower-scored page-1 items, so "best first" silently lies across pages.
+    const userA = await seedUser('a@example.com');
+    const low = await seedListing('low', 10000, 5);
+    const high = await seedListing('high', 20000, 5);
+    const mid = await seedListing('mid', 30000, 5);
+    const unscored = await seedListing('unscored', 40000, 5);
+    const scores: Array<[string, number]> = [[low, 20], [high, 90], [mid, 55]];
+    for (const [listingId, score] of scores) {
+      await listingRepo.insertEnrichment(listingId, { sourcesUsed: ['usda-soil'], errors: [] });
+      await listingRepo.updateHomesteadScore(listingId, score);
+    }
+    // Save order deliberately different from score order
+    for (const id of [low, unscored, high, mid]) await listingRepo.saveListing(userA, id);
+
+    const page1 = await listingRepo.findSavedListings(userA, { sort: 'homestead', sortDir: 'desc', limit: 2, offset: 0 });
+    const page2 = await listingRepo.findSavedListings(userA, { sort: 'homestead', sortDir: 'desc', limit: 2, offset: 2 });
+
+    expect(page1.rows.map((r) => r.homesteadScore)).toEqual([90, 55]);
+    // Null-scored rows sort last regardless of direction, never interleaved
+    expect(page2.rows.map((r) => r.homesteadScore)).toEqual([20, null]);
+
+    const asc = await listingRepo.findSavedListings(userA, { sort: 'homestead', sortDir: 'asc', limit: 10 });
+    expect(asc.rows.map((r) => r.homesteadScore)).toEqual([20, 55, 90, null]);
+  });
+
   it('sorts by price in SQL (asc and desc)', async () => {
     const userA = await seedUser('a@example.com');
     const cheap = await seedListing('cheap', 20000, 5);

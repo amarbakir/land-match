@@ -170,24 +170,21 @@ describe('getSavedListings', () => {
     }
   });
 
-  it('sorts by homesteadScore in-memory when sort=homestead', async () => {
-    // Bug this catches: homestead sorting happens in-memory (score is computed,
-    // not a DB column). If we forget to sort or sort wrong direction, the user
-    // sees listings in arbitrary order when they choose "sort by score"
-    const row1 = { ...makeSavedRow({ soilClass: 6, floodZone: 'AE' }), id: 'sl-bad', listingId: 'lst-bad' };
-    const row2 = { ...makeSavedRow({ soilClass: 1, floodZone: 'X' }), id: 'sl-good', listingId: 'lst-good' };
+  it('preserves the repo (SQL) order for sort=homestead instead of re-sorting the page', async () => {
+    // Bug this catches: homestead ordering lives in SQL (persisted column) so
+    // pagination is globally ordered. Re-sorting the page in memory here —
+    // e.g. by a recomputed display score that differs from the persisted one —
+    // would shuffle rows within the page and break cross-page ordering.
+    const row1 = { ...makeSavedRow(), id: 'sl-first', listingId: 'lst-first', homesteadScore: 90 };
+    const row2 = { ...makeSavedRow(), id: 'sl-second', listingId: 'lst-second', homesteadScore: 55 };
     mockFindSaved.mockResolvedValue({ rows: [row1, row2], total: 2 });
 
     const result = await getSavedListings('user-1', { sort: 'homestead', sortDir: 'desc', limit: 20, offset: 0 });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      // Best score should come first in desc order
-      expect(result.data.items[0].listingId).toBe('lst-good');
-      expect(result.data.items[1].listingId).toBe('lst-bad');
-      expect(result.data.items[0].homesteadScore!).toBeGreaterThan(
-        result.data.items[1].homesteadScore!,
-      );
+      expect(mockFindSaved).toHaveBeenCalledWith('user-1', expect.objectContaining({ sort: 'homestead', sortDir: 'desc' }));
+      expect(result.data.items.map((i) => i.listingId)).toEqual(['lst-first', 'lst-second']);
     }
   });
 

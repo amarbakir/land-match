@@ -232,9 +232,13 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
   const conn = tx ?? db;
   const dir = sortDir === 'asc' ? asc : desc;
 
-  const orderColumn = sort === 'price' ? listings.price
-    : sort === 'acreage' ? listings.acreage
-    : savedListings.savedAt; // 'date' and 'homestead' both default to savedAt (homestead sorted in service layer)
+  // homestead_score is persisted (backfilled) — sort in SQL so pagination is
+  // globally ordered. NULLS LAST both directions: unscored rows trail rather
+  // than leading the ascending view. saved_at tiebreak keeps page windows
+  // stable when scores collide.
+  const orderBy = sort === 'homestead'
+    ? [sql`${enrichments.homesteadScore} ${sortDir === 'asc' ? sql`ASC` : sql`DESC`} NULLS LAST`, desc(savedListings.savedAt)]
+    : [dir(sort === 'price' ? listings.price : sort === 'acreage' ? listings.acreage : savedListings.savedAt)];
 
   // Subquery: the caller's single highest score per listing with its profile
   // name. Scoped to the caller's own profiles — listings are global, so
@@ -293,7 +297,7 @@ export async function findSavedListings(userId: string, opts: SavedListingsQuery
       .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
       .leftJoin(bestScoreSq, eq(bestScoreSq.listingId, listings.id))
       .where(eq(savedListings.userId, userId))
-      .orderBy(dir(orderColumn))
+      .orderBy(...orderBy)
       .limit(limit)
       .offset(offset),
     conn
