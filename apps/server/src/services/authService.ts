@@ -9,6 +9,10 @@ import { isUniqueViolation } from '../lib/pgErrors';
 import * as refreshTokenRepo from '../repos/refreshTokenRepo';
 import * as userRepo from '../repos/userRepo';
 
+// Reuse of an already-rotated token within this window is treated as a benign
+// race (parallel tabs, retried lost response) rather than theft — see refresh().
+const REUSE_GRACE_MS = 30_000;
+
 // Issue a token pair and record the refresh token server-side so it can be
 // rotated, reuse-detected, and revoked. A fresh familyId starts a new session
 // chain (login/register); rotation passes the existing one through.
@@ -83,10 +87,11 @@ export async function login(
       .catch(() => false);
     if (!user || !user.passwordHash || !valid) return err(ERR.INVALID_CREDENTIALS);
 
-    // Bounded housekeeping: expired rows are useless for reuse detection.
-    await refreshTokenRepo.deleteExpiredForUser(user.id);
-
-    const tokens = await issueTokens(user.id);
+    const [, tokens] = await Promise.all([
+      // Bounded housekeeping: expired rows are useless for reuse detection.
+      refreshTokenRepo.deleteExpiredForUser(user.id),
+      issueTokens(user.id),
+    ]);
     return ok(tokens);
   } catch (e) {
     captureError(e, 'authService.login');
@@ -103,26 +108,32 @@ export async function refresh(
 
     // A valid signature is not enough — the token must be the live, un-rotated
     // record of its session. Tokens issued before server-side tracking have no
-    // row and force a re-login.
+    // row and force a re-login. (Expiry is enforced by the JWT exp claim; the
+    // row's expires_at mirrors it for cleanup only.)
     const record = await refreshTokenRepo.findByHash(hashToken(refreshToken));
-    if (!record || record.revokedAt || record.expiresAt <= new Date()) {
+    if (!record || record.revokedAt) {
       return err(ERR.INVALID_REFRESH_TOKEN);
     }
 
     // Rotation: consume exactly once. A token that was already exchanged
     // (rotatedAt set, or a concurrent exchange winning the race) is theft
     // evidence — an attacker and the real client are both holding it — so
-    // revoke the entire session family.
+    // revoke the entire session family. Exception: reuse within the grace
+    // window is treated as a benign race (two browser tabs sharing one stored
+    // token, a lost rotation response being retried) — still a 401, but the
+    // session survives instead of every tab being hard-logged-out.
     const consumed = await refreshTokenRepo.consume(record.id);
     if (!consumed) {
-      await refreshTokenRepo.revokeFamily(record.familyId);
+      const rotatedRecently = record.rotatedAt != null && Date.now() - record.rotatedAt.getTime() < REUSE_GRACE_MS;
+      if (!rotatedRecently) {
+        await refreshTokenRepo.revokeFamily(record.familyId);
+      }
       return err(ERR.INVALID_REFRESH_TOKEN);
     }
 
-    const user = await userRepo.findById(payload.sub);
-    if (!user) return err(ERR.USER_NOT_FOUND);
-
-    const tokens = await issueTokens(user.id, record.familyId);
+    // record.userId is authoritative (FK to users, no delete path) — no extra
+    // user lookup needed on the hottest auth endpoint.
+    const tokens = await issueTokens(record.userId, record.familyId);
     return ok(tokens);
   } catch (e) {
     captureError(e, 'authService.refresh');
@@ -132,11 +143,11 @@ export async function refresh(
 
 export async function logout(refreshToken: string): Promise<Result<void>> {
   try {
-    // Best-effort by design: an invalid/unknown token still returns ok so
-    // logout never traps the user in a signed-in state client-side.
-    const payload = await verifyToken(refreshToken, 'refresh');
-    if (!payload) return ok(undefined);
-
+    // Best-effort by design: unknown tokens simply have no row, and still
+    // return ok so logout never traps the user in a signed-in state
+    // client-side. The hash lookup is authoritative — no JWT verification
+    // needed (and skipping it means even an expired token's live family gets
+    // revoked).
     const record = await refreshTokenRepo.findByHash(hashToken(refreshToken));
     if (record) {
       await refreshTokenRepo.revokeFamily(record.familyId);

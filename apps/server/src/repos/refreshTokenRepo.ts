@@ -11,12 +11,10 @@ export interface InsertRefreshTokenInput {
   expiresAt: Date;
 }
 
-export async function insert(input: InsertRefreshTokenInput, tx?: Tx) {
-  const [row] = await (tx ?? db)
+export async function insert(input: InsertRefreshTokenInput, tx?: Tx): Promise<void> {
+  await (tx ?? db)
     .insert(refreshTokens)
-    .values({ id: generateId(), ...input })
-    .returning();
-  return row;
+    .values({ id: generateId(), ...input });
 }
 
 export async function findByHash(tokenHash: string, tx?: Tx) {

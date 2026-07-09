@@ -1,21 +1,16 @@
 import { Hono } from 'hono';
 import { RegisterRequest, LoginRequest, RefreshRequest } from '@landmatch/api';
 
-import { badRequest, readJson, throwFromResult, okResponse } from '../lib/httpExceptions';
+import { parseBody, throwFromResult, okResponse } from '../lib/httpExceptions';
 import * as authService from '../services/authService';
 import type { Env } from '../types/env';
 
 const auth = new Hono<Env>();
 
 auth.post('/register', async (c) => {
-  const body = await readJson(c);
-  const parsed = RegisterRequest.safeParse(body);
+  const body = await parseBody(c, RegisterRequest);
 
-  if (!parsed.success) {
-    return badRequest(parsed.error.issues.map((i) => i.message).join(', '));
-  }
-
-  const result = await authService.register(parsed.data.email, parsed.data.password, parsed.data.name);
+  const result = await authService.register(body.email, body.password, body.name);
 
   if (!result.ok) {
     return throwFromResult(result, { EMAIL_ALREADY_EXISTS: 409 });
@@ -25,14 +20,9 @@ auth.post('/register', async (c) => {
 });
 
 auth.post('/login', async (c) => {
-  const body = await readJson(c);
-  const parsed = LoginRequest.safeParse(body);
+  const body = await parseBody(c, LoginRequest);
 
-  if (!parsed.success) {
-    return badRequest(parsed.error.issues.map((i) => i.message).join(', '));
-  }
-
-  const result = await authService.login(parsed.data.email, parsed.data.password);
+  const result = await authService.login(body.email, body.password);
 
   if (!result.ok) {
     return throwFromResult(result, { INVALID_CREDENTIALS: 401 });
@@ -42,34 +32,24 @@ auth.post('/login', async (c) => {
 });
 
 auth.post('/refresh', async (c) => {
-  const body = await readJson(c);
-  const parsed = RefreshRequest.safeParse(body);
+  const body = await parseBody(c, RefreshRequest);
 
-  if (!parsed.success) {
-    return badRequest(parsed.error.issues.map((i) => i.message).join(', '));
-  }
-
-  const result = await authService.refresh(parsed.data.refreshToken);
+  const result = await authService.refresh(body.refreshToken);
 
   if (!result.ok) {
-    return throwFromResult(result, { INVALID_REFRESH_TOKEN: 401, USER_NOT_FOUND: 401 });
+    return throwFromResult(result, { INVALID_REFRESH_TOKEN: 401 });
   }
 
   return okResponse(c, result.data);
 });
 
 auth.post('/logout', async (c) => {
-  const body = await readJson(c);
-  const parsed = RefreshRequest.safeParse(body);
+  const body = await parseBody(c, RefreshRequest);
 
-  if (!parsed.success) {
-    return badRequest(parsed.error.issues.map((i) => i.message).join(', '));
-  }
-
-  const result = await authService.logout(parsed.data.refreshToken);
+  const result = await authService.logout(body.refreshToken);
 
   if (!result.ok) {
-    return throwFromResult(result, {});
+    return throwFromResult(result);
   }
 
   return c.body(null, 204);

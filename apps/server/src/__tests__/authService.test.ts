@@ -51,7 +51,6 @@ beforeEach(() => {
   mockJwt.generateTokenPair.mockResolvedValue(TOKEN_PAIR);
   mockJwt.hashToken.mockReturnValue('hash-1');
   mockJwt.refreshTokenExpiry.mockReturnValue(new Date(Date.now() + 30 * 86_400_000));
-  mockRefreshRepo.insert.mockResolvedValue(LIVE_RECORD);
   mockRefreshRepo.consume.mockResolvedValue(true);
 });
 
@@ -179,7 +178,6 @@ describe('refresh', () => {
   it('rotates: returns a new pair, consumes the old record, and keeps the family', async () => {
     mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
     mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
-    mockUserRepo.findById.mockResolvedValue(STORED_USER);
 
     const result = await refresh('valid-refresh-token');
 
@@ -223,12 +221,12 @@ describe('refresh', () => {
     expect(mockRefreshRepo.consume).not.toHaveBeenCalled();
   });
 
-  it('treats reuse of an already-rotated token as theft and revokes the family', async () => {
+  it('treats reuse of a token rotated a while ago as theft and revokes the family', async () => {
     // Bug this catches: reuse without family revocation — an attacker who
     // stole and rotated the token keeps a live session while the real user's
     // failed refresh looks like a transient error.
     mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
-    mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
+    mockRefreshRepo.findByHash.mockResolvedValue({ ...LIVE_RECORD, rotatedAt: new Date(Date.now() - 10 * 60_000) });
     mockRefreshRepo.consume.mockResolvedValue(false); // already exchanged
 
     const result = await refresh('reused-token');
@@ -238,33 +236,34 @@ describe('refresh', () => {
     expect(mockJwt.generateTokenPair).not.toHaveBeenCalled();
   });
 
+  it('does not revoke the family when reuse follows rotation within the grace window', async () => {
+    // Bug this catches: two browser tabs sharing one stored refresh token both
+    // refreshing after access-token expiry — the loser must get a 401, not
+    // hard-log the user out of every tab by killing the family.
+    mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
+    mockRefreshRepo.findByHash.mockResolvedValue({ ...LIVE_RECORD, rotatedAt: new Date(Date.now() - 2_000) });
+    mockRefreshRepo.consume.mockResolvedValue(false);
+
+    const result = await refresh('racing-tab-token');
+
+    expect(result).toEqual({ ok: false, error: 'INVALID_REFRESH_TOKEN' });
+    expect(mockRefreshRepo.revokeFamily).not.toHaveBeenCalled();
+  });
+
   // Bug: if DB throws during refresh, should not crash
-  it('returns INTERNAL_ERROR when findById throws', async () => {
+  it('returns INTERNAL_ERROR when the store throws', async () => {
     mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
     mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
-    mockUserRepo.findById.mockRejectedValue(new Error('DB timeout'));
+    mockRefreshRepo.consume.mockRejectedValue(new Error('DB timeout'));
 
     const result = await refresh('valid-token');
 
     expect(result).toEqual({ ok: false, error: 'INTERNAL_ERROR' });
   });
-
-  // Bug: user deleted between token issuance and refresh — stale token shouldn't work
-  it('rejects refresh for a deleted user', async () => {
-    mockJwt.verifyToken.mockResolvedValue({ sub: 'deleted-user' });
-    mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
-    mockUserRepo.findById.mockResolvedValue(undefined);
-
-    const result = await refresh('valid-but-orphaned-token');
-
-    expect(result).toEqual({ ok: false, error: 'USER_NOT_FOUND' });
-    expect(mockJwt.generateTokenPair).not.toHaveBeenCalled();
-  });
 });
 
 describe('logout', () => {
   it('revokes the whole session family for a known token', async () => {
-    mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
     mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
 
     const result = await logout('valid-refresh-token');
@@ -273,8 +272,8 @@ describe('logout', () => {
     expect(mockRefreshRepo.revokeFamily).toHaveBeenCalledWith('fam-1');
   });
 
-  it('succeeds quietly for an invalid token — logout must never trap the user signed in', async () => {
-    mockJwt.verifyToken.mockResolvedValue(null);
+  it('succeeds quietly for an unknown token — logout must never trap the user signed in', async () => {
+    mockRefreshRepo.findByHash.mockResolvedValue(undefined);
 
     const result = await logout('garbage');
 

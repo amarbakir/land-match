@@ -63,6 +63,18 @@ export async function readJson(c: Context<Env>): Promise<unknown> {
   }
 }
 
+/**
+ * readJson + Zod parse + uniform 400 with joined issue messages — the one
+ * place the validation-error formatting policy lives.
+ */
+export async function parseBody<T>(c: Context<Env>, schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false; error: { issues: Array<{ message: string }> } } }): Promise<T> {
+  const parsed = schema.safeParse(await readJson(c));
+  if (!parsed.success) {
+    badRequest(parsed.error.issues.map((i) => i.message).join(', '));
+  }
+  return parsed.data;
+}
+
 export function notFound(message: string): never {
   const { code, message: msg } = resolveCodeAndMessage(404, message);
   throw new HTTPException(404, { res: jsonError(404, code, msg) });

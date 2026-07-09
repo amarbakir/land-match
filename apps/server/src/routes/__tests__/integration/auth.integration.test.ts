@@ -105,10 +105,10 @@ describe('auth flow (integration)', () => {
 });
 
 describe('refresh token lifecycle (integration)', () => {
-  it('rotates the refresh token, and reuse of the old one kills the whole session family', async () => {
+  it('rotates the refresh token; a racing reuse gets 401 but the session survives (grace window)', async () => {
     // Bug this catches: refresh minting new tokens while the old stays valid —
-    // indefinite session extension, and a stolen token good for 30 days with
-    // no recourse.
+    // indefinite session extension. And the flip side: two browser tabs racing
+    // a refresh must not hard-log the user out of everything.
     const { body } = await register('rotate@example.com');
     const original = body.data.refreshToken as string;
 
@@ -117,11 +117,31 @@ describe('refresh token lifecycle (integration)', () => {
     const rotated = ((await first.json()) as Json).data.refreshToken as string;
     expect(rotated).not.toBe(original);
 
-    // Reusing the already-exchanged token is theft evidence...
+    // Immediate reuse (a losing tab) is rejected but treated as benign...
     const reuse = await post('/api/v1/auth/refresh', { refreshToken: original });
     expect(reuse.status).toBe(401);
 
-    // ...and revokes the rotated descendant too (attacker and victim both lose).
+    // ...so the rotated descendant keeps working.
+    const afterReuse = await post('/api/v1/auth/refresh', { refreshToken: rotated });
+    expect(afterReuse.status).toBe(200);
+  });
+
+  it('reuse outside the grace window is theft — the whole family dies', async () => {
+    // Bug this catches: a stolen refresh token replayed later. Both the stolen
+    // token and everything rotated from it must be revoked.
+    const { body } = await register('theft@example.com');
+    const original = body.data.refreshToken as string;
+
+    const first = await post('/api/v1/auth/refresh', { refreshToken: original });
+    const rotated = ((await first.json()) as Json).data.refreshToken as string;
+
+    // Age the rotation past the grace window.
+    await pool.query(`UPDATE refresh_tokens SET rotated_at = now() - interval '10 minutes' WHERE rotated_at IS NOT NULL`);
+
+    const reuse = await post('/api/v1/auth/refresh', { refreshToken: original });
+    expect(reuse.status).toBe(401);
+
+    // The attacker-or-victim's descendant token is dead too.
     const afterReuse = await post('/api/v1/auth/refresh', { refreshToken: rotated });
     expect(afterReuse.status).toBe(401);
   });

@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 
 import { SignJWT, jwtVerify } from 'jose';
 
 import { auth } from '../config';
+import { generateId } from './id';
 
 type TokenType = 'access' | 'refresh';
 
@@ -41,7 +42,7 @@ export async function signToken(userId: string, type: TokenType): Promise<string
     .setSubject(userId)
     // jti makes same-second tokens for one user distinct — refresh tokens are
     // stored server-side by hash, which must be unique per token.
-    .setJti(randomUUID())
+    .setJti(generateId())
     .setIssuedAt()
     .setExpirationTime(getExpiration(type))
     .sign(getSecret());
@@ -52,8 +53,10 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+// Derived from the same expression the JWT exp claim uses, so the DB record
+// and the token can never disagree about when a refresh token dies.
 export function refreshTokenExpiry(): Date {
-  return new Date(Date.now() + auth.refreshTokenExpiresInDays * 86_400_000);
+  return new Date(Date.now() + parseDuration(getExpiration('refresh')) * 1000);
 }
 
 export async function verifyToken(

@@ -5,7 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import * as Sentry from '@sentry/node';
 
-import type { ApiErrorEnvelopeType } from '@landmatch/api';
+import { ErrorMessage, type ApiErrorEnvelopeType } from '@landmatch/api';
 import { server } from './config';
 import { pool } from './db/client';
 import { registerEnrichmentMetrics } from './lib/enrichmentMetrics';
@@ -50,7 +50,7 @@ export function createApp() {
     // Raw messages from unexpected errors leak internals (pg constraint/table
     // names, hostnames) — production gets a generic body; detail stays in
     // logs/Sentry. Kept verbatim outside production for DX.
-    const message = server.isProduction ? 'Internal server error' : err.message || 'Internal server error';
+    const message = server.isProduction ? ErrorMessage.INTERNAL_ERROR : err.message || ErrorMessage.INTERNAL_ERROR;
     const body = { ok: false, code: 'INTERNAL_ERROR', error: message } satisfies ApiErrorEnvelopeType;
     return c.json(body, statusCode);
   });
