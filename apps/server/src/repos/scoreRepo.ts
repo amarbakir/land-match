@@ -12,6 +12,11 @@ export interface InsertScoreInput {
   llmSummary?: string;
 }
 
+/**
+ * Inserts a score; returns null when a concurrent run already scored this
+ * listing+profile (unique index) — callers treat that as "someone else owns
+ * this score" and skip alerting.
+ */
 export async function insert(input: InsertScoreInput, tx?: Tx) {
   const id = generateId();
 
@@ -26,9 +31,10 @@ export async function insert(input: InsertScoreInput, tx?: Tx) {
       llmSummary: input.llmSummary ?? null,
       scoredAt: new Date(),
     })
+    .onConflictDoNothing({ target: [scores.listingId, scores.searchProfileId] })
     .returning();
 
-  return row;
+  return row ?? null;
 }
 
 // Rescoring path (re-enrichment): refresh the score values in place, keyed on

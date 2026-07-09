@@ -135,7 +135,11 @@ export const scores = pgTable('scores', {
   scoredAt: timestamp('scored_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
   index('scores_search_profile_id_idx').on(table.searchProfileId),
-  index('scores_listing_id_idx').on(table.listingId),
+  // One score per listing+profile — makes concurrent matching runs converge
+  // (insert ... onConflictDoNothing) instead of double-scoring and
+  // double-alerting. Also serves listing_id-prefix lookups, so no separate
+  // listing_id index.
+  uniqueIndex('scores_listing_profile_idx').on(table.listingId, table.searchProfileId),
 ]);
 
 export const alerts = pgTable('alerts', {
@@ -157,6 +161,8 @@ export const alerts = pgTable('alerts', {
 }, (table) => [
   index('alerts_status_idx').on(table.status),
   index('alerts_user_profile_status_idx').on(table.userId, table.searchProfileId, table.status),
+  // One alert per score+channel — concurrent matching runs can't double-email
+  uniqueIndex('alerts_score_channel_idx').on(table.scoreId, table.channel),
 ]);
 
 // Server-side record of issued refresh tokens (hashed — a DB leak must not

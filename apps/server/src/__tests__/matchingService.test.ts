@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
 import * as scoreRepo from '../repos/scoreRepo';
@@ -8,6 +9,9 @@ import * as userRepo from '../repos/userRepo';
 import * as scoring from '@landmatch/scoring';
 import { matchListingAgainstProfiles } from '../services/matchingService';
 
+vi.mock('../db/client', () => ({
+  db: { transaction: vi.fn(async (cb: any) => cb('fake-tx')) },
+}));
 vi.mock('../repos/listingRepo');
 vi.mock('../repos/searchProfileRepo');
 vi.mock('../repos/scoreRepo');
@@ -109,6 +113,7 @@ const PROFILE = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(db.transaction).mockImplementation(async (cb: any) => cb('fake-tx'));
 });
 
 describe('matchListingAgainstProfiles', () => {
@@ -149,6 +154,7 @@ describe('matchListingAgainstProfiles', () => {
     expect(result.data.alertsCreated).toBe(1);
     expect(mockAlertRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({ channel: 'email' }),
+      'fake-tx',
     );
   });
 
@@ -243,6 +249,7 @@ describe('matchListingAgainstProfiles', () => {
     if (!result.ok) return;
     expect(mockAlertRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({ channel: 'sms' }),
+      'fake-tx',
     );
   });
 
@@ -288,9 +295,11 @@ describe('matchListingAgainstProfiles', () => {
     expect(mockAlertRepo.insert).toHaveBeenCalledTimes(2);
     expect(mockAlertRepo.insert).toHaveBeenNthCalledWith(1,
       expect.objectContaining({ channel: 'email' }),
+      'fake-tx',
     );
     expect(mockAlertRepo.insert).toHaveBeenNthCalledWith(2,
       expect.objectContaining({ channel: 'push' }),
+      'fake-tx',
     );
   });
 
@@ -337,6 +346,7 @@ describe('matchListingAgainstProfiles', () => {
       'listing-1',
       'profile-1',
       expect.objectContaining({ overallScore: 80 }),
+      'fake-tx',
     );
     // Newly above threshold and never alerted → alert fires now
     expect(mockAlertRepo.insert).toHaveBeenCalledTimes(1);
@@ -431,6 +441,35 @@ describe('matchListingAgainstProfiles', () => {
     if (!result.ok) return;
     expect(result.data.scored).toBe(0);
     expect(mockScoreRepo.updateScoreValues).not.toHaveBeenCalled();
+  });
+
+  it('skips alerting when the score insert loses a concurrent-insert race', async () => {
+    // Bug this catches: check-then-insert with no constraint — two concurrent
+    // enrichments of the same listing both read an empty scored set and both
+    // insert, producing duplicate scores AND duplicate alert emails. With the
+    // unique index, the losing insert returns null and must not alert.
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 75,
+      componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+      hardFilterFailed: false,
+      failedFilters: [],
+    });
+
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+    mockScoreRepo.insert.mockResolvedValueOnce(null as any); // conflict: the other worker won
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.scored).toBe(0);
+    expect(mockAlertRepo.insert).not.toHaveBeenCalled();
   });
 
   it('returns error when listing not found', async () => {

@@ -13,6 +13,10 @@ export interface InsertAlertInput {
   channel: AlertChannel;
 }
 
+/**
+ * Inserts an alert; returns null when one already exists for this
+ * score+channel (unique index) — concurrent matching runs can't double-email.
+ */
 export async function insert(input: InsertAlertInput, tx?: Tx) {
   const id = generateId();
 
@@ -28,9 +32,10 @@ export async function insert(input: InsertAlertInput, tx?: Tx) {
       status: 'pending',
       createdAt: new Date(),
     })
+    .onConflictDoNothing({ target: [alerts.scoreId, alerts.channel] })
     .returning();
 
-  return row;
+  return row ?? null;
 }
 
 export async function findByListingAndProfile(listingId: string, profileId: string, tx?: Tx) {

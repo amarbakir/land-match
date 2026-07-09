@@ -3,6 +3,7 @@ import { mapEnrichmentRow, mapListingRow, scoreListing } from '@landmatch/scorin
 import type { SearchCriteria } from '@landmatch/scoring';
 
 import { captureError } from '../lib/captureError';
+import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
 import * as scoreRepo from '../repos/scoreRepo';
@@ -47,39 +48,51 @@ export async function matchListingAgainstProfiles(
       const result = scoreListing(listingData, enrichmentData, criteria);
       const componentScores = result.componentScores as unknown as Record<string, number>;
 
-      const scoreRow = alreadyScored
-        ? await scoreRepo.updateScoreValues(listingId, profile.id, {
-            overallScore: result.overallScore,
-            componentScores,
-          })
-        : await scoreRepo.insert({
-            listingId,
-            searchProfileId: profile.id,
-            overallScore: result.overallScore,
-            componentScores,
-          });
-      if (!scoreRow) continue; // score row deleted since the id set was read
-      scored++;
+      // Score + alerts commit atomically per profile: a crash between them
+      // must not leave a scored row whose alert is lost forever (the score's
+      // existence is what suppresses future alert attempts).
+      const written = await db.transaction(async (tx) => {
+        const scoreRow = alreadyScored
+          ? await scoreRepo.updateScoreValues(listingId, profile.id, {
+              overallScore: result.overallScore,
+              componentScores,
+            }, tx)
+          : await scoreRepo.insert({
+              listingId,
+              searchProfileId: profile.id,
+              overallScore: result.overallScore,
+              componentScores,
+            }, tx);
+        // null: row deleted since the id set was read, or a concurrent run
+        // won the insert race (unique index) — it owns the alerts too.
+        if (!scoreRow) return null;
 
-      // 'inbox' guard: a rescored row keeps its user-facing status, so a
-      // dismissed/shortlisted match crossing the threshold must not fire a
-      // fresh alert pointing at something the inbox no longer shows.
-      if (result.overallScore >= profile.alertThreshold && !alertedProfileIds.has(profile.id) && scoreRow.status === 'inbox') {
-        // TODO: cache by userId to avoid duplicate lookups when multiple profiles share a user
-        const user = await userRepo.findById(profile.userId);
-        const channels = getAlertChannels(user?.notificationPrefs);
+        let alerts = 0;
+        // 'inbox' guard: a rescored row keeps its user-facing status, so a
+        // dismissed/shortlisted match crossing the threshold must not fire a
+        // fresh alert pointing at something the inbox no longer shows.
+        if (result.overallScore >= profile.alertThreshold && !alertedProfileIds.has(profile.id) && scoreRow.status === 'inbox') {
+          // TODO: cache by userId to avoid duplicate lookups when multiple profiles share a user
+          const user = await userRepo.findById(profile.userId);
+          const channels = getAlertChannels(user?.notificationPrefs);
 
-        for (const channel of channels) {
-          await alertRepo.insert({
-            userId: profile.userId,
-            searchProfileId: profile.id,
-            listingId,
-            scoreId: scoreRow.id,
-            channel,
-          });
-          alertsCreated++;
+          for (const channel of channels) {
+            const alertRow = await alertRepo.insert({
+              userId: profile.userId,
+              searchProfileId: profile.id,
+              listingId,
+              scoreId: scoreRow.id,
+              channel,
+            }, tx);
+            if (alertRow) alerts++;
+          }
         }
-      }
+        return { alerts };
+      });
+
+      if (!written) continue;
+      scored++;
+      alertsCreated += written.alerts;
     }
 
     return ok({ scored, alertsCreated });
