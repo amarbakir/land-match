@@ -12,6 +12,7 @@ describe('auth config — JWT secret', () => {
   beforeEach(() => {
     vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@db.example.com:5432/landmatch');
     vi.stubEnv('CORS_ORIGIN', 'https://app.example.com');
+    vi.stubEnv('DATABASE_SSL_CA', ''); // a real value in .env must not leak in
   });
 
   afterEach(() => {
@@ -53,6 +54,7 @@ describe('server config — CORS origin', () => {
   beforeEach(() => {
     vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@db.example.com:5432/landmatch');
     vi.stubEnv('JWT_SECRET', 'a-real-production-secret');
+    vi.stubEnv('DATABASE_SSL_CA', ''); // a real value in .env must not leak in
   });
 
   afterEach(() => {
@@ -148,6 +150,82 @@ describe('database config — TLS', () => {
 
     const config = await importConfig();
     expect(config.database.connection.ssl).toEqual({ rejectUnauthorized: true, ca: pem });
+  });
+
+  it('restores literal \\n sequences in an inline PEM (secrets managers flatten newlines)', async () => {
+    // Bug this catches: passing the flattened single-line PEM straight to the
+    // TLS layer — the startup guard passes but every connection then fails
+    // the handshake, an outage indistinguishable from a wrong CA.
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.abc.supabase.co:5432/landmatch');
+    vi.stubEnv('DATABASE_SSL_CA', '-----BEGIN CERTIFICATE-----\\nMIIB\\n-----END CERTIFICATE-----');
+
+    const config = await importConfig();
+    expect((config.database.connection.ssl as { ca?: string }).ca)
+      .toBe('-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----');
+  });
+
+  it('reads DATABASE_SSL_CA from a file path', async () => {
+    const fs = await import('fs');
+    const os = await import('os');
+    const path = await import('path');
+    const pem = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n';
+    const caPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ca-')), 'bundle.pem');
+    fs.writeFileSync(caPath, pem);
+
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.abc.supabase.co:5432/landmatch');
+    vi.stubEnv('DATABASE_SSL_CA', caPath);
+
+    const config = await importConfig();
+    expect((config.database.connection.ssl as { ca?: string }).ca).toBe(pem);
+  });
+
+  it('fails with a labeled error when the CA file path is unreadable and TLS is needed', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.abc.supabase.co:5432/landmatch');
+    vi.stubEnv('DATABASE_SSL_CA', '/nonexistent/rds-bundle.pem');
+
+    // Bug this catches: a raw ENOENT with no mention of which env var to fix.
+    await expect(importConfig()).rejects.toThrow(/DATABASE_SSL_CA/);
+  });
+
+  it('ignores a stale CA file path when the connection is plaintext localhost', async () => {
+    // Bug this catches: eagerly reading the CA at import — a leftover
+    // DATABASE_SSL_CA from testing against staging would crash every local
+    // dev start even though the localhost connection never uses it.
+    vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/landmatch');
+    vi.stubEnv('DATABASE_SSL_CA', '/nonexistent/rds-bundle.pem');
+
+    const config = await importConfig();
+    expect(config.database.connection.ssl).toBeUndefined();
+  });
+
+  it('treats host case-insensitively for the local-dev exemption', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@LOCALHOST:5432/landmatch');
+
+    const config = await importConfig();
+    expect(config.database.connection.ssl).toBeUndefined();
+  });
+
+  it('parses a bracketed IPv6 loopback as a local plaintext host', async () => {
+    // Bug this catches: splitting host:port on ':' turns '[::1]:5432' into
+    // host '[', which would force TLS on an IPv6 local dev setup.
+    vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@[::1]:5432/landmatch');
+
+    const config = await importConfig();
+    expect(config.database.connection.host).toBe('::1');
+    expect(config.database.connection.port).toBe(5432);
+    expect(config.database.connection.ssl).toBeUndefined();
+  });
+
+  it('parses a credential-less URL without smearing the host into user/password', async () => {
+    // Bug this catches: lastIndexOf('@') === -1 slicing the host string into
+    // user='localhost' password='5432/...' for trust-auth local Postgres.
+    vi.stubEnv('DATABASE_URL', 'postgresql://localhost:5432/landmatch');
+
+    const config = await importConfig();
+    expect(config.database.connection.host).toBe('localhost');
+    expect(config.database.connection.user).toBeUndefined();
+    expect(config.database.connection.password).toBeUndefined();
+    expect(config.database.connection.database).toBe('landmatch');
   });
 
   it('fails with a missing-variable error (not a TLS error) when DATABASE_URL is unset in production', async () => {
