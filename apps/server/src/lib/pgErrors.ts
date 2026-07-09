@@ -15,8 +15,11 @@ export function isForeignKeyViolation(error: unknown): boolean {
 function hasSqlState(error: unknown, code: string): boolean {
   // Drizzle wraps driver errors (DrizzleQueryError) with the pg error on
   // `cause` — walk the chain rather than trusting the top-level shape.
-  for (let e = error; typeof e === 'object' && e !== null; e = (e as { cause?: unknown }).cause) {
+  // Depth-bounded so a cyclic cause chain can't spin the event loop forever.
+  let e = error;
+  for (let depth = 0; depth < 10 && typeof e === 'object' && e !== null; depth++) {
     if ((e as { code?: unknown }).code === code) return true;
+    e = (e as { cause?: unknown }).cause;
   }
   return false;
 }

@@ -1,22 +1,17 @@
 import { Hono } from 'hono';
 import { EnrichListingRequest, ListingByUrlQuery, SavedListingsFilters } from '@landmatch/api';
 
-import { badRequest, okResponse, readJson, throwFromResult } from '../lib/httpExceptions';
+import { badRequest, okResponse, parseBody, throwFromResult } from '../lib/httpExceptions';
 import * as listingService from '../services/listingService';
 import type { Env } from '../types/env';
 
 const listings = new Hono<Env>();
 
 listings.post('/enrich', async (c) => {
-  const body = await readJson(c);
-  const parsed = EnrichListingRequest.safeParse(body);
-
-  if (!parsed.success) {
-    return badRequest(parsed.error.issues.map((i) => i.message).join(', '));
-  }
+  const body = await parseBody(c, EnrichListingRequest);
 
   const userId = c.get('userId');
-  const result = await listingService.enrichAndPersist(parsed.data, userId);
+  const result = await listingService.enrichAndPersist(body, userId);
 
   if (!result.ok) {
     return throwFromResult(result, { GEOCODE_FAILED: 422 });

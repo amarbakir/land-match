@@ -4,11 +4,15 @@ import argon2 from 'argon2';
 import * as userRepo from '../repos/userRepo';
 import * as refreshTokenRepo from '../repos/refreshTokenRepo';
 import * as jwt from '../lib/jwt';
+import { db } from '../db/client';
 import { register, login, refresh, logout } from '../services/authService';
 
 vi.mock('../repos/userRepo');
 vi.mock('../repos/refreshTokenRepo');
 vi.mock('../lib/jwt');
+vi.mock('../db/client', () => ({
+  db: { transaction: vi.fn() },
+}));
 
 const mockUserRepo = vi.mocked(userRepo);
 const mockRefreshRepo = vi.mocked(refreshTokenRepo);
@@ -48,10 +52,13 @@ const STORED_USER = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // Transactions execute their callback with a fake tx handle
+  vi.mocked(db.transaction).mockImplementation(async (cb) => cb('fake-tx' as never));
   mockJwt.generateTokenPair.mockResolvedValue(TOKEN_PAIR);
   mockJwt.hashToken.mockReturnValue('hash-1');
   mockJwt.refreshTokenExpiry.mockReturnValue(new Date(Date.now() + 30 * 86_400_000));
   mockRefreshRepo.consume.mockResolvedValue(true);
+  mockRefreshRepo.deleteExpiredForUser.mockResolvedValue(undefined);
 });
 
 describe('register', () => {
@@ -182,11 +189,12 @@ describe('refresh', () => {
     const result = await refresh('valid-refresh-token');
 
     expect(result).toEqual({ ok: true, data: TOKEN_PAIR });
-    expect(mockRefreshRepo.consume).toHaveBeenCalledWith('rt-1');
+    expect(mockRefreshRepo.consume).toHaveBeenCalledWith('rt-1', 'fake-tx');
     // Bug this catches: starting a new family on rotation would break reuse
     // detection across the chain.
     expect(mockRefreshRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({ familyId: 'fam-1' }),
+      'fake-tx',
     );
   });
 

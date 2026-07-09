@@ -6,6 +6,7 @@ import { generateTokenPair, hashToken, refreshTokenExpiry, verifyToken } from '.
 import { generateId } from '../lib/id';
 import { ERR } from '../lib/errors';
 import { isUniqueViolation } from '../lib/pgErrors';
+import { db, type Tx } from '../db/client';
 import * as refreshTokenRepo from '../repos/refreshTokenRepo';
 import * as userRepo from '../repos/userRepo';
 
@@ -16,14 +17,14 @@ const REUSE_GRACE_MS = 30_000;
 // Issue a token pair and record the refresh token server-side so it can be
 // rotated, reuse-detected, and revoked. A fresh familyId starts a new session
 // chain (login/register); rotation passes the existing one through.
-async function issueTokens(userId: string, familyId: string = generateId()) {
+async function issueTokens(userId: string, familyId: string = generateId(), tx?: Tx) {
   const tokens = await generateTokenPair(userId);
   await refreshTokenRepo.insert({
     userId,
     familyId,
     tokenHash: hashToken(tokens.refreshToken),
     expiresAt: refreshTokenExpiry(),
-  });
+  }, tx);
   return tokens;
 }
 
@@ -55,9 +56,12 @@ export async function register(
     if (existing) return err(ERR.EMAIL_ALREADY_EXISTS);
 
     const passwordHash = await argon2.hash(password, ARGON2_OPTIONS);
-    const user = await userRepo.insert({ email, name, passwordHash });
-
-    const tokens = await issueTokens(user.id);
+    // One transaction: a failed token insert must not leave a user row whose
+    // retry gets a baffling EMAIL_ALREADY_EXISTS for an account "that failed".
+    const tokens = await db.transaction(async (tx) => {
+      const user = await userRepo.insert({ email, name, passwordHash }, tx);
+      return issueTokens(user.id, undefined, tx);
+    });
     return ok(tokens);
   } catch (e) {
     // Two concurrent registrations for the same email both pass the pre-check;
@@ -89,7 +93,8 @@ export async function login(
 
     const [, tokens] = await Promise.all([
       // Bounded housekeeping: expired rows are useless for reuse detection.
-      refreshTokenRepo.deleteExpiredForUser(user.id),
+      // Own catch — a failed cleanup must never fail an otherwise-valid login.
+      refreshTokenRepo.deleteExpiredForUser(user.id).catch((e) => captureError(e, 'authService.login: token cleanup failed')),
       issueTokens(user.id),
     ]);
     return ok(tokens);
@@ -115,25 +120,31 @@ export async function refresh(
       return err(ERR.INVALID_REFRESH_TOKEN);
     }
 
-    // Rotation: consume exactly once. A token that was already exchanged
-    // (rotatedAt set, or a concurrent exchange winning the race) is theft
-    // evidence — an attacker and the real client are both holding it — so
-    // revoke the entire session family. Exception: reuse within the grace
-    // window is treated as a benign race (two browser tabs sharing one stored
-    // token, a lost rotation response being retried) — still a 401, but the
-    // session survives instead of every tab being hard-logged-out.
-    const consumed = await refreshTokenRepo.consume(record.id);
-    if (!consumed) {
-      const rotatedRecently = record.rotatedAt != null && Date.now() - record.rotatedAt.getTime() < REUSE_GRACE_MS;
+    // Rotation: consume exactly once and mint the replacement in ONE
+    // transaction — consume committing without the insert would strand the
+    // session (old token burned, new one never issued) on a transient DB
+    // error. record.userId is authoritative (FK to users, no delete path).
+    const tokens = await db.transaction(async (tx) => {
+      const consumed = await refreshTokenRepo.consume(record.id, tx);
+      if (!consumed) return null;
+      return issueTokens(record.userId, record.familyId, tx);
+    });
+
+    if (!tokens) {
+      // The token was already exchanged — theft evidence (attacker and real
+      // client both hold it) — so revoke the entire session family. Exception:
+      // rotation within the grace window is a benign race (two browser tabs
+      // sharing one stored token, a retried lost response) — still a 401, but
+      // the session survives. Re-read the row first: when we lost a truly
+      // concurrent race, our pre-consume snapshot still shows rotatedAt null.
+      const current = await refreshTokenRepo.findByHash(hashToken(refreshToken));
+      const rotatedRecently = current?.rotatedAt != null && Date.now() - current.rotatedAt.getTime() < REUSE_GRACE_MS;
       if (!rotatedRecently) {
         await refreshTokenRepo.revokeFamily(record.familyId);
       }
       return err(ERR.INVALID_REFRESH_TOKEN);
     }
 
-    // record.userId is authoritative (FK to users, no delete path) — no extra
-    // user lookup needed on the hottest auth endpoint.
-    const tokens = await issueTokens(record.userId, record.familyId);
     return ok(tokens);
   } catch (e) {
     captureError(e, 'authService.refresh');

@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import type { ZodType } from 'zod';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
@@ -67,7 +68,7 @@ export async function readJson(c: Context<Env>): Promise<unknown> {
  * readJson + Zod parse + uniform 400 with joined issue messages — the one
  * place the validation-error formatting policy lives.
  */
-export async function parseBody<T>(c: Context<Env>, schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false; error: { issues: Array<{ message: string }> } } }): Promise<T> {
+export async function parseBody<T>(c: Context<Env>, schema: ZodType<T>): Promise<T> {
   const parsed = schema.safeParse(await readJson(c));
   if (!parsed.success) {
     badRequest(parsed.error.issues.map((i) => i.message).join(', '));

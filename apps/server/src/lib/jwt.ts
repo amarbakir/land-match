@@ -53,10 +53,10 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-// Derived from the same expression the JWT exp claim uses, so the DB record
-// and the token can never disagree about when a refresh token dies.
+// Reads the same config field the JWT exp claim is built from, so the DB
+// record and the token can't disagree about when a refresh token dies.
 export function refreshTokenExpiry(): Date {
-  return new Date(Date.now() + parseDuration(getExpiration('refresh')) * 1000);
+  return new Date(Date.now() + auth.refreshTokenExpiresInDays * 86_400_000);
 }
 
 export async function verifyToken(
