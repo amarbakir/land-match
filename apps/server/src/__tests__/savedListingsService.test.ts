@@ -9,7 +9,7 @@ vi.mock('../services/matchingService', () => ({
 }));
 
 import * as listingRepo from '../repos/listingRepo';
-import { getSavedListings, unsaveListing } from '../services/listingService';
+import { getSavedListings, saveListing, unsaveListing } from '../services/listingService';
 
 const mockFindSaved = vi.mocked(listingRepo.findSavedListings);
 const mockUnsave = vi.mocked(listingRepo.unsaveListing);
@@ -286,6 +286,33 @@ describe('getSavedListings', () => {
       expect(score).not.toBeNull();
       expect(score!).toBeGreaterThan(40); // good soil (class 2) + minimal flood (X)
     }
+  });
+});
+
+describe('saveListing', () => {
+  const mockSave = vi.mocked(listingRepo.saveListing);
+
+  it('maps an FK violation (unknown listing id) to NOT_FOUND, not a raw 500', async () => {
+    // Bug this catches: the route calling the repo directly — an unknown id
+    // threw the raw pg FK-violation (constraint/table names) into the response.
+    mockSave.mockRejectedValue(Object.assign(new Error('violates foreign key constraint'), { code: '23503' }));
+
+    const result = await saveListing('user-1', 'lst-nonexistent');
+
+    expect(result).toEqual({ ok: false, error: 'NOT_FOUND' });
+  });
+
+  it('returns savedAt for a fresh save and tolerates an already-saved conflict', async () => {
+    const savedAt = new Date('2026-07-09T00:00:00Z');
+    mockSave.mockResolvedValueOnce({ savedAt } as Awaited<ReturnType<typeof listingRepo.saveListing>>);
+
+    const fresh = await saveListing('user-1', 'lst-1');
+    expect(fresh.ok && fresh.data.savedAt).toBe(savedAt.toISOString());
+
+    // onConflictDoNothing returns undefined when already saved — still ok
+    mockSave.mockResolvedValueOnce(undefined as never);
+    const dup = await saveListing('user-1', 'lst-1');
+    expect(dup.ok).toBe(true);
   });
 });
 

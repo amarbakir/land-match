@@ -127,6 +127,23 @@ describe('enrich (integration)', () => {
     const res = await getByUrl('https://example.com/listing/1');
     expect(res.status).toBe(401);
   });
+
+  it('returns a clean 404 (no pg internals) when saving an unknown listing id', async () => {
+    // Bug this catches: the save route calling the repo directly — an unknown
+    // id threw the raw FK-violation into the 500 body, leaking constraint and
+    // table names to any authenticated caller.
+    const token = await registerUser(app, 'saver@example.com');
+
+    const res = await app.request('/api/v1/listings/lst-does-not-exist/save', {
+      method: 'POST',
+      headers: authHeaders(token),
+    });
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { code: string; error: string };
+    expect(body.code).toBe('NOT_FOUND');
+    expect(body.error).not.toMatch(/constraint|foreign key|violates/i);
+  });
 });
 
 describe('by-url visibility (integration)', () => {

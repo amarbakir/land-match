@@ -3,6 +3,7 @@ import { enrichListing, type EnrichmentResult } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
 import { captureError } from '../lib/captureError';
+import { isForeignKeyViolation } from '../lib/pgErrors';
 import { db, type Tx } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 import { matchListingAgainstProfiles } from './matchingService';
@@ -241,6 +242,20 @@ export async function getSavedListings(
     });
   } catch (error) {
     captureError(error, 'listingService.getSavedListings');
+    return err('INTERNAL_ERROR');
+  }
+}
+
+export async function saveListing(userId: string, listingId: string): Promise<Result<{ savedAt: string }>> {
+  try {
+    const saved = await listingRepo.saveListing(userId, listingId);
+    // onConflictDoNothing returns nothing if already saved — that's fine
+    return ok({ savedAt: (saved?.savedAt ?? new Date()).toISOString() });
+  } catch (error) {
+    // Unknown listing id trips the FK constraint — that's a client-facing 404,
+    // not an internal error (and its raw pg message must never reach clients).
+    if (isForeignKeyViolation(error)) return err('NOT_FOUND');
+    captureError(error, 'listingService.saveListing');
     return err('INTERNAL_ERROR');
   }
 }

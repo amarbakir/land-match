@@ -47,7 +47,11 @@ export function createApp() {
     const statusCode = 500 as ContentfulStatusCode;
     Sentry.captureException(err);
     (c.get('logger') ?? logger).error({ err }, `unhandled error: ${c.req.method} ${c.req.path}`);
-    const body = { ok: false, code: 'INTERNAL_ERROR', error: err.message || 'Internal server error' } satisfies ApiErrorEnvelopeType;
+    // Raw messages from unexpected errors leak internals (pg constraint/table
+    // names, hostnames) — production gets a generic body; detail stays in
+    // logs/Sentry. Kept verbatim outside production for DX.
+    const message = server.isProduction ? 'Internal server error' : err.message || 'Internal server error';
+    const body = { ok: false, code: 'INTERNAL_ERROR', error: message } satisfies ApiErrorEnvelopeType;
     return c.json(body, statusCode);
   });
 

@@ -4,10 +4,19 @@
  * map the lost-race case to a domain conflict (409) instead of a generic 500.
  */
 export function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: unknown }).code === '23505'
-  );
+  return hasSqlState(error, '23505');
+}
+
+/** SQLSTATE 23503: referenced row missing — maps to a domain 404, not a 500. */
+export function isForeignKeyViolation(error: unknown): boolean {
+  return hasSqlState(error, '23503');
+}
+
+function hasSqlState(error: unknown, code: string): boolean {
+  // Drizzle wraps driver errors (DrizzleQueryError) with the pg error on
+  // `cause` — walk the chain rather than trusting the top-level shape.
+  for (let e = error; typeof e === 'object' && e !== null; e = (e as { cause?: unknown }).cause) {
+    if ((e as { code?: unknown }).code === code) return true;
+  }
+  return false;
 }
