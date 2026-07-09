@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { REGIONS } from '../types';
-import { getDbUrl, getPool, runShell } from '../lib/postgis';
+import { getDbUrl, getPool, psqlSafeUrl, runShell } from '../lib/postgis';
 
 const DATA_DIR = join(import.meta.dirname, '../../data/wetlands');
 
@@ -17,7 +17,9 @@ export async function loadWetlands(regionName: string): Promise<void> {
   mkdirSync(DATA_DIR, { recursive: true });
 
   const pool = getPool();
-  const dbUrl = getDbUrl();
+  // ogr2ogr connects via libpq, same downgrade-by-default semantics as psql —
+  // remote loads must pin verify-full or refuse.
+  const dbUrl = psqlSafeUrl(getDbUrl());
   const states = STATES_BY_REGION[regionName];
   if (!states) throw new Error(`No state list for region: ${regionName}`);
 

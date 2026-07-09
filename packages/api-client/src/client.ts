@@ -129,7 +129,9 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       init.headers = { 'Content-Type': 'application/json' };
       init.body = JSON.stringify(body);
     }
-    if (reqOptions?.timeoutMs !== undefined) {
+    // Guarded: some React Native/Hermes runtimes don't ship the static —
+    // degrade to no timeout rather than throwing before the request is made.
+    if (reqOptions?.timeoutMs !== undefined && typeof AbortSignal.timeout === 'function') {
       init.signal = AbortSignal.timeout(reqOptions.timeoutMs);
     }
 
@@ -158,21 +160,26 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     return envelope.data.data as TRes;
   }
 
-  // Revoke the refresh-token family server-side, then clear local tokens.
-  // noAuth: a 401 here (token already revoked/expired) must not trigger the
-  // refresh-retry machinery and mint a fresh pair for a user who is signing
-  // out. Best-effort — local sign-out never blocks on the server.
+  // Sign the device out: capture the refresh token, clear local storage
+  // immediately (the UI must never wait on the network to look signed out),
+  // then fire a best-effort server-side family revoke with the captured
+  // token. noAuth: a 401 here (token already revoked/expired) must not
+  // trigger the refresh-retry machinery and mint a fresh pair for a user who
+  // is signing out. Never throws.
   async function logout(): Promise<void> {
+    let tokens: Tokens | null = null;
     try {
-      const tokens = await storage.getTokens();
-      if (tokens) {
-        await request<void>('POST', '/auth/logout', { refreshToken: tokens.refreshToken }, { noAuth: true, timeoutMs: 5_000 });
-      }
+      tokens = await storage.getTokens();
     } catch {
-      // swallow: revocation is best-effort, the local clear below is what
-      // signs the device out
-    } finally {
-      await storage.clearTokens();
+      // unreadable storage — still clear below
+    }
+    await storage.clearTokens();
+
+    if (tokens) {
+      // Deliberately unawaited: revocation is best-effort background work
+      void request<void>('POST', '/auth/logout', { refreshToken: tokens.refreshToken }, { noAuth: true, timeoutMs: 5_000 }).catch(
+        () => {},
+      );
     }
   }
 

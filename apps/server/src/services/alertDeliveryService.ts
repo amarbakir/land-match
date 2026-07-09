@@ -222,5 +222,14 @@ async function deliverGroup(group: AlertGroup, alertIds: string[]): Promise<void
     html,
   });
 
-  await alertRepo.markSent(alertIds);
+  try {
+    await alertRepo.markSent(alertIds);
+  } catch (e) {
+    // The email already went out — releasing for retry here would re-send it.
+    // Terminal-fail instead: worst case a delivered alert is recorded 'failed',
+    // never the user emailed the same matches again.
+    throw new PermanentDeliveryError(
+      `sent but markSent failed for group ${group.userId}:${group.searchProfileId}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
 }

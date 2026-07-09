@@ -45,10 +45,27 @@ function resolveSslCa(): string | undefined {
     try {
       sslCaValue = fs.readFileSync(value, 'utf8');
     } catch (e) {
-      throw new Error(`DATABASE_SSL_CA file not readable: ${value} (${e instanceof Error ? e.message : String(e)})`);
+      // Multiple consumers (server, drizzle-kit, geodata ETL) run from
+      // different working directories — prefer an absolute path.
+      throw new Error(
+        `DATABASE_SSL_CA file not readable: ${value} (cwd: ${process.cwd()}; use an absolute path) (${e instanceof Error ? e.message : String(e)})`,
+      );
     }
   }
   return sslCaValue;
+}
+
+// Credentials with @/:/# must be percent-encoded in the URL; Postgres needs
+// the decoded value (pg's own connectionString parser decodes too). Malformed
+// escapes (a legacy password with a literal '%') pass through raw rather
+// than crashing config load.
+function decodeCredential(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
@@ -78,6 +95,21 @@ function resolveSsl(host: string, params: URLSearchParams, warnings: string[]): 
   }
 
   return { rejectUnauthorized: true, ca: resolveSslCa() };
+}
+
+/**
+ * parseDatabaseUrl trimmed to what `new Pool(...)` should receive: policy
+ * warnings are routed to onWarning (default console.warn) and non-pg fields
+ * (warnings/sslmode/pgbouncer) are stripped, so the naive call is the safe
+ * call. Consumers that need the raw fields use parseDatabaseUrl directly.
+ */
+export function poolConfig(
+  url: string,
+  onWarning: (message: string) => void = console.warn,
+): Omit<ParsedConnection, 'warnings' | 'sslmode' | 'pgbouncer'> {
+  const { warnings, sslmode: _sslmode, pgbouncer: _pgbouncer, ...connection } = parseDatabaseUrl(url);
+  for (const warning of warnings) onWarning(warning);
+  return connection;
 }
 
 /**
@@ -121,9 +153,9 @@ export function parseDatabaseUrl(url: string): ParsedConnection {
   return {
     host,
     port: parseInt(portStr || '5432', 10),
-    user,
-    password,
-    database,
+    user: decodeCredential(user),
+    password: decodeCredential(password),
+    database: decodeCredential(database) as string,
     ssl: resolveSsl(host, params, warnings),
     pgbouncer: params.has('pgbouncer'),
     sslmode: params.get('sslmode'),

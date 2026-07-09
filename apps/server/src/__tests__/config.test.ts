@@ -228,6 +228,26 @@ describe('database config — TLS', () => {
     expect(config.database.connection.database).toBe('landmatch');
   });
 
+  it('percent-decodes URL-encoded credentials (special chars in passwords)', async () => {
+    // Bug this catches: managed providers commonly generate passwords with
+    // @/:/# which must be percent-encoded in the URL — passing the literal
+    // 'p%40ss' to Postgres fails auth for every consumer of the shared parser.
+    vi.stubEnv('DATABASE_URL', 'postgresql://land%40match:p%40ss%3Aw0rd@db.abc.supabase.co:5432/landmatch');
+
+    const config = await importConfig();
+    expect(config.database.connection.user).toBe('land@match');
+    expect(config.database.connection.password).toBe('p@ss:w0rd');
+  });
+
+  it('tolerates an unencoded % in credentials instead of throwing', async () => {
+    // decodeURIComponent throws on malformed escapes — a legacy password with
+    // a literal % must pass through raw, not crash config load.
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:100%pass@db.abc.supabase.co:5432/landmatch');
+
+    const config = await importConfig();
+    expect(config.database.connection.password).toBe('100%pass');
+  });
+
   it('fails with a missing-variable error (not a TLS error) when DATABASE_URL is unset in production', async () => {
     // Bug this catches: the localhost default kicking in for a forgotten
     // DATABASE_URL and tripping the TLS guard — sending the operator to debug

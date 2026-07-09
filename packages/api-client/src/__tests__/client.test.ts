@@ -314,32 +314,45 @@ describe('401 refresh flow', () => {
 });
 
 describe('logout', () => {
-  it('revokes the refresh-token family on the server BEFORE clearing local tokens', async () => {
-    // Bug this catches: clients that only clear local storage — the signed-out
-    // device's refresh family stays live server-side for up to 30 days.
+  it('clears local tokens immediately and revokes with the captured token', async () => {
+    // Bugs this catches: (a) clients that only clear local storage — the
+    // refresh family stays live server-side for up to 30 days; (b) reading
+    // the token AFTER clearing — nothing left to revoke.
     const storage = makeStorage({ accessToken: 'acc-1', refreshToken: 'ref-1' });
     const client = createApiClient({ baseUrl: BASE_URL, storage });
     mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await client.logout();
 
+    expect(storage.clearTokens).toHaveBeenCalled();
     expect(mockFetch.mock.calls[0][0]).toBe('http://api.test/api/v1/auth/logout');
     expect(JSON.parse(mockFetch.mock.calls[0][1]?.body as string)).toEqual({ refreshToken: 'ref-1' });
-    expect(storage.clearTokens).toHaveBeenCalled();
-    // Revoke must be attempted while the token is still readable
-    expect(mockFetch.mock.invocationCallOrder[0]).toBeLessThan(
-      storage.clearTokens.mock.invocationCallOrder[0],
+    // Local sign-out must not wait on the network: clear happens before the request
+    expect(storage.clearTokens.mock.invocationCallOrder[0]).toBeLessThan(
+      mockFetch.mock.invocationCallOrder[0],
     );
   });
 
-  it('still clears local tokens when the revoke request fails (best-effort contract)', async () => {
-    // Bug this catches: a network error during revoke leaving the user unable
-    // to sign out locally.
+  it('resolves without waiting for the revoke response (never blocks sign-out)', async () => {
+    // Bug this catches: a flaky connection holding the signed-in UI (and the
+    // user's cached data) hostage for the duration of the revoke request.
+    const storage = makeStorage({ accessToken: 'acc-1', refreshToken: 'ref-1' });
+    const client = createApiClient({ baseUrl: BASE_URL, storage });
+    mockFetch.mockReturnValueOnce(new Promise(() => {})); // revoke never settles
+
+    await expect(client.logout()).resolves.toBeUndefined();
+
+    expect(storage.clearTokens).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1); // revoke was still fired
+  });
+
+  it('never rejects when the revoke request fails', async () => {
     const storage = makeStorage({ accessToken: 'acc-1', refreshToken: 'ref-1' });
     const client = createApiClient({ baseUrl: BASE_URL, storage });
     mockFetch.mockRejectedValueOnce(new Error('Network request failed'));
 
     await expect(client.logout()).resolves.toBeUndefined();
+    await new Promise((r) => setTimeout(r, 0)); // rejection must not surface as unhandled
 
     expect(storage.clearTokens).toHaveBeenCalled();
   });
@@ -352,12 +365,13 @@ describe('logout', () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(401, { ok: false, code: 'UNAUTHORIZED', error: 'x' }));
 
     await client.logout();
+    await new Promise((r) => setTimeout(r, 0));
 
     expect(mockFetch).toHaveBeenCalledTimes(1); // no /auth/refresh, no retry
     expect(storage.clearTokens).toHaveBeenCalled();
   });
 
-  it('skips the server call entirely when no tokens are stored', async () => {
+  it('skips the revoke request entirely when no tokens are stored', async () => {
     const storage = makeStorage(null);
     const client = createApiClient({ baseUrl: BASE_URL, storage });
 
@@ -365,6 +379,27 @@ describe('logout', () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(storage.clearTokens).toHaveBeenCalled();
+  });
+
+  it('still revokes on runtimes without AbortSignal.timeout (React Native/Hermes)', async () => {
+    // Bug this catches: AbortSignal.timeout is missing on some RN runtimes —
+    // calling it throws synchronously, the throw was swallowed, and the
+    // server-side revoke silently never happened on mobile.
+    const original = AbortSignal.timeout;
+    // @ts-expect-error simulating a runtime without the static
+    AbortSignal.timeout = undefined;
+    try {
+      const storage = makeStorage({ accessToken: 'acc-1', refreshToken: 'ref-1' });
+      const client = createApiClient({ baseUrl: BASE_URL, storage });
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+      await client.logout();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch.mock.calls[0][1]?.signal).toBeUndefined();
+    } finally {
+      AbortSignal.timeout = original;
+    }
   });
 });
 

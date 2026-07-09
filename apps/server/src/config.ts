@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 
-import { parseDatabaseUrl, type ParsedConnection } from '@landmatch/db';
+import { poolConfig } from '@landmatch/db';
 
 import { logger } from './lib/logger';
 
@@ -36,14 +36,9 @@ function optional(name: string, defaultValue: string): string {
 }
 
 // Connection/TLS policy lives in @landmatch/db (single owner across server,
-// geodata ETL, and drizzle-kit); this wrapper only surfaces its policy
-// warnings through the server logger.
-function parseConnection(url: string): Omit<ParsedConnection, 'warnings'> {
-  const { warnings, ...connection } = parseDatabaseUrl(url);
-  for (const warning of warnings) {
-    logger.warn({ host: connection.host }, warning);
-  }
-  return connection;
+// geodata ETL, and drizzle-kit); policy warnings surface through the server logger.
+function parseConnection(url: string) {
+  return poolConfig(url, (warning) => logger.warn(warning));
 }
 
 /**

@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import { isLocalHost, parseDatabaseUrl } from '@landmatch/db';
+import { isLocalHost, parseDatabaseUrl, poolConfig } from '@landmatch/db';
 import { Pool } from 'pg';
 import type { RegionBounds } from '../types';
 
@@ -11,9 +11,7 @@ export function getPool(): Pool {
   // Shared TLS policy from @landmatch/db — a raw connectionString would use
   // pg-native URL semantics (plaintext without sslmode) against the same
   // database the server connects to with verified TLS.
-  const { warnings, ...connection } = parseDatabaseUrl(getDbUrl());
-  for (const warning of warnings) console.warn(`[geodata] ${warning}`);
-  return new Pool(connection);
+  return new Pool(poolConfig(getDbUrl(), (w) => console.warn(`[geodata] ${w}`)));
 }
 
 /**

@@ -212,6 +212,26 @@ describe('deliverPendingAlerts', () => {
     expect(mockAlertRepo.releaseForRetry).toHaveBeenCalledWith([]); // permanent — retry can never fix it
   });
 
+  it('never releases for retry after the email was actually sent (markSent failure)', async () => {
+    // Bug this catches: sendEmail succeeds, then the markSent DB write blips —
+    // classifying that as retryable re-queues alerts whose email already went
+    // out, emailing the user the same matches up to MAX_SEND_ATTEMPTS times.
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ alertFrequency: 'instant' }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([LISTING]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
+    mockAlertRepo.markSent.mockRejectedValueOnce(new Error('connection terminated'));
+
+    const result = await deliverPendingAlerts();
+
+    expect(result.ok).toBe(true);
+    expect(mockEmail.sendEmail).toHaveBeenCalledOnce();
+    expect(mockAlertRepo.releaseForRetry).toHaveBeenCalledWith([]); // nothing re-queued
+    expect(mockAlertRepo.markFailed).toHaveBeenCalledWith(['alert-1']);
+  });
+
   it('splits a mixed group: exhausted alerts fail, fresh ones retry', async () => {
     mockAlertRepo.claimPending.mockResolvedValue(['alert-1', 'alert-2']);
     mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([

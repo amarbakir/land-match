@@ -109,17 +109,27 @@ export async function claimPending(tx?: Tx): Promise<string[]> {
 }
 
 /**
- * Put claimed alerts back in the pending pool (e.g. digest window not yet
- * elapsed). Guarded on status='processing': if this worker's stale claims were
- * stolen and already delivered by another worker, an unguarded release would
- * flip 'sent' back to 'pending' and queue a duplicate email.
+ * Put claimed alerts back in the pending pool. Guarded on
+ * status='processing': if this worker's stale claims were stolen and already
+ * delivered by another worker, an unguarded release would flip 'sent' back to
+ * 'pending' and queue a duplicate email. Single implementation for both
+ * release flavors so the guard can't drift between them.
  */
-export async function releaseClaims(alertIds: string[], tx?: Tx) {
+async function releaseToPending(alertIds: string[], countAttempt: boolean, tx?: Tx) {
   if (alertIds.length === 0) return;
   await (tx ?? db)
     .update(alerts)
-    .set({ status: 'pending', claimedAt: null })
+    .set({
+      status: 'pending',
+      claimedAt: null,
+      ...(countAttempt ? { attempts: sql`${alerts.attempts} + 1` } : {}),
+    })
     .where(and(inArray(alerts.id, alertIds), eq(alerts.status, 'processing')));
+}
+
+/** Release without consuming retry budget (e.g. digest window not yet elapsed). */
+export async function releaseClaims(alertIds: string[], tx?: Tx) {
+  return releaseToPending(alertIds, false, tx);
 }
 
 export async function findClaimedWithDetails(alertIds: string[], tx?: Tx) {
@@ -169,16 +179,9 @@ export async function markSent(alertIds: string[], tx?: Tx) {
     .where(inArray(alerts.id, alertIds));
 }
 
-/**
- * Transient delivery failure: hand the alerts back to the pending pool with
- * one more attempt on the books. Same stolen-claim guard as releaseClaims.
- */
+/** Transient delivery failure: release with one more attempt on the books. */
 export async function releaseForRetry(alertIds: string[], tx?: Tx) {
-  if (alertIds.length === 0) return;
-  await (tx ?? db)
-    .update(alerts)
-    .set({ status: 'pending', claimedAt: null, attempts: sql`${alerts.attempts} + 1` })
-    .where(and(inArray(alerts.id, alertIds), eq(alerts.status, 'processing')));
+  return releaseToPending(alertIds, true, tx);
 }
 
 export async function markFailed(alertIds: string[], tx?: Tx) {
