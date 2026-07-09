@@ -2,14 +2,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import argon2 from 'argon2';
 
 import * as userRepo from '../repos/userRepo';
+import * as refreshTokenRepo from '../repos/refreshTokenRepo';
 import * as jwt from '../lib/jwt';
-import { register, login, refresh } from '../services/authService';
+import { register, login, refresh, logout } from '../services/authService';
 
 vi.mock('../repos/userRepo');
+vi.mock('../repos/refreshTokenRepo');
 vi.mock('../lib/jwt');
 
 const mockUserRepo = vi.mocked(userRepo);
+const mockRefreshRepo = vi.mocked(refreshTokenRepo);
 const mockJwt = vi.mocked(jwt);
+
+const LIVE_RECORD = {
+  id: 'rt-1',
+  userId: 'user-1',
+  familyId: 'fam-1',
+  tokenHash: 'hash-1',
+  expiresAt: new Date(Date.now() + 86_400_000),
+  createdAt: new Date(),
+  rotatedAt: null,
+  revokedAt: null,
+};
 
 const TOKEN_PAIR = {
   accessToken: 'access-tok',
@@ -35,6 +49,10 @@ const STORED_USER = {
 beforeEach(() => {
   vi.resetAllMocks();
   mockJwt.generateTokenPair.mockResolvedValue(TOKEN_PAIR);
+  mockJwt.hashToken.mockReturnValue('hash-1');
+  mockJwt.refreshTokenExpiry.mockReturnValue(new Date(Date.now() + 30 * 86_400_000));
+  mockRefreshRepo.insert.mockResolvedValue(LIVE_RECORD);
+  mockRefreshRepo.consume.mockResolvedValue(true);
 });
 
 describe('register', () => {
@@ -158,14 +176,20 @@ describe('login', () => {
 });
 
 describe('refresh', () => {
-  it('returns new token pair when refresh token is valid and user exists', async () => {
+  it('rotates: returns a new pair, consumes the old record, and keeps the family', async () => {
     mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
+    mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
     mockUserRepo.findById.mockResolvedValue(STORED_USER);
 
     const result = await refresh('valid-refresh-token');
 
     expect(result).toEqual({ ok: true, data: TOKEN_PAIR });
-    expect(mockJwt.verifyToken).toHaveBeenCalledWith('valid-refresh-token', 'refresh');
+    expect(mockRefreshRepo.consume).toHaveBeenCalledWith('rt-1');
+    // Bug this catches: starting a new family on rotation would break reuse
+    // detection across the chain.
+    expect(mockRefreshRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ familyId: 'fam-1' }),
+    );
   });
 
   it('rejects an invalid/expired refresh token', async () => {
@@ -177,9 +201,47 @@ describe('refresh', () => {
     expect(mockUserRepo.findById).not.toHaveBeenCalled();
   });
 
+  it('rejects a validly-signed token with no server-side record', async () => {
+    // Bug this catches: trusting the JWT signature alone — the pre-rotation
+    // world where a stolen token stayed valid for 30 days with no recourse.
+    mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
+    mockRefreshRepo.findByHash.mockResolvedValue(undefined);
+
+    const result = await refresh('signed-but-untracked-token');
+
+    expect(result).toEqual({ ok: false, error: 'INVALID_REFRESH_TOKEN' });
+    expect(mockJwt.generateTokenPair).not.toHaveBeenCalled();
+  });
+
+  it('rejects a revoked token without consuming it', async () => {
+    mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
+    mockRefreshRepo.findByHash.mockResolvedValue({ ...LIVE_RECORD, revokedAt: new Date() });
+
+    const result = await refresh('revoked-token');
+
+    expect(result).toEqual({ ok: false, error: 'INVALID_REFRESH_TOKEN' });
+    expect(mockRefreshRepo.consume).not.toHaveBeenCalled();
+  });
+
+  it('treats reuse of an already-rotated token as theft and revokes the family', async () => {
+    // Bug this catches: reuse without family revocation — an attacker who
+    // stole and rotated the token keeps a live session while the real user's
+    // failed refresh looks like a transient error.
+    mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
+    mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
+    mockRefreshRepo.consume.mockResolvedValue(false); // already exchanged
+
+    const result = await refresh('reused-token');
+
+    expect(result).toEqual({ ok: false, error: 'INVALID_REFRESH_TOKEN' });
+    expect(mockRefreshRepo.revokeFamily).toHaveBeenCalledWith('fam-1');
+    expect(mockJwt.generateTokenPair).not.toHaveBeenCalled();
+  });
+
   // Bug: if DB throws during refresh, should not crash
   it('returns INTERNAL_ERROR when findById throws', async () => {
     mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
+    mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
     mockUserRepo.findById.mockRejectedValue(new Error('DB timeout'));
 
     const result = await refresh('valid-token');
@@ -190,11 +252,33 @@ describe('refresh', () => {
   // Bug: user deleted between token issuance and refresh — stale token shouldn't work
   it('rejects refresh for a deleted user', async () => {
     mockJwt.verifyToken.mockResolvedValue({ sub: 'deleted-user' });
+    mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
     mockUserRepo.findById.mockResolvedValue(undefined);
 
     const result = await refresh('valid-but-orphaned-token');
 
     expect(result).toEqual({ ok: false, error: 'USER_NOT_FOUND' });
     expect(mockJwt.generateTokenPair).not.toHaveBeenCalled();
+  });
+});
+
+describe('logout', () => {
+  it('revokes the whole session family for a known token', async () => {
+    mockJwt.verifyToken.mockResolvedValue({ sub: 'user-1' });
+    mockRefreshRepo.findByHash.mockResolvedValue(LIVE_RECORD);
+
+    const result = await logout('valid-refresh-token');
+
+    expect(result.ok).toBe(true);
+    expect(mockRefreshRepo.revokeFamily).toHaveBeenCalledWith('fam-1');
+  });
+
+  it('succeeds quietly for an invalid token — logout must never trap the user signed in', async () => {
+    mockJwt.verifyToken.mockResolvedValue(null);
+
+    const result = await logout('garbage');
+
+    expect(result.ok).toBe(true);
+    expect(mockRefreshRepo.revokeFamily).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,5 @@
+import { createHash, randomUUID } from 'crypto';
+
 import { SignJWT, jwtVerify } from 'jose';
 
 import { auth } from '../config';
@@ -37,9 +39,21 @@ export async function signToken(userId: string, type: TokenType): Promise<string
   return new SignJWT({ type })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(userId)
+    // jti makes same-second tokens for one user distinct — refresh tokens are
+    // stored server-side by hash, which must be unique per token.
+    .setJti(randomUUID())
     .setIssuedAt()
     .setExpirationTime(getExpiration(type))
     .sign(getSecret());
+}
+
+/** Server-side fingerprint of a refresh token — the raw token is never stored. */
+export function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+export function refreshTokenExpiry(): Date {
+  return new Date(Date.now() + auth.refreshTokenExpiresInDays * 86_400_000);
 }
 
 export async function verifyToken(

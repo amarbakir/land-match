@@ -2,10 +2,26 @@ import argon2 from 'argon2';
 import { ok, err, type Result, type AuthTokenResponseType } from '@landmatch/api';
 
 import { captureError } from '../lib/captureError';
-import { generateTokenPair, verifyToken } from '../lib/jwt';
+import { generateTokenPair, hashToken, refreshTokenExpiry, verifyToken } from '../lib/jwt';
+import { generateId } from '../lib/id';
 import { ERR } from '../lib/errors';
 import { isUniqueViolation } from '../lib/pgErrors';
+import * as refreshTokenRepo from '../repos/refreshTokenRepo';
 import * as userRepo from '../repos/userRepo';
+
+// Issue a token pair and record the refresh token server-side so it can be
+// rotated, reuse-detected, and revoked. A fresh familyId starts a new session
+// chain (login/register); rotation passes the existing one through.
+async function issueTokens(userId: string, familyId: string = generateId()) {
+  const tokens = await generateTokenPair(userId);
+  await refreshTokenRepo.insert({
+    userId,
+    familyId,
+    tokenHash: hashToken(tokens.refreshToken),
+    expiresAt: refreshTokenExpiry(),
+  });
+  return tokens;
+}
 
 // OWASP-recommended argon2id baseline (19 MiB, 2 iterations, 1 lane) — lighter
 // than the library defaults, which matters on the CPU-throttled 512 MB Lambda.
@@ -37,7 +53,7 @@ export async function register(
     const passwordHash = await argon2.hash(password, ARGON2_OPTIONS);
     const user = await userRepo.insert({ email, name, passwordHash });
 
-    const tokens = await generateTokenPair(user.id);
+    const tokens = await issueTokens(user.id);
     return ok(tokens);
   } catch (e) {
     // Two concurrent registrations for the same email both pass the pre-check;
@@ -67,7 +83,10 @@ export async function login(
       .catch(() => false);
     if (!user || !user.passwordHash || !valid) return err(ERR.INVALID_CREDENTIALS);
 
-    const tokens = await generateTokenPair(user.id);
+    // Bounded housekeeping: expired rows are useless for reuse detection.
+    await refreshTokenRepo.deleteExpiredForUser(user.id);
+
+    const tokens = await issueTokens(user.id);
     return ok(tokens);
   } catch (e) {
     captureError(e, 'authService.login');
@@ -82,13 +101,49 @@ export async function refresh(
     const payload = await verifyToken(refreshToken, 'refresh');
     if (!payload) return err(ERR.INVALID_REFRESH_TOKEN);
 
+    // A valid signature is not enough — the token must be the live, un-rotated
+    // record of its session. Tokens issued before server-side tracking have no
+    // row and force a re-login.
+    const record = await refreshTokenRepo.findByHash(hashToken(refreshToken));
+    if (!record || record.revokedAt || record.expiresAt <= new Date()) {
+      return err(ERR.INVALID_REFRESH_TOKEN);
+    }
+
+    // Rotation: consume exactly once. A token that was already exchanged
+    // (rotatedAt set, or a concurrent exchange winning the race) is theft
+    // evidence — an attacker and the real client are both holding it — so
+    // revoke the entire session family.
+    const consumed = await refreshTokenRepo.consume(record.id);
+    if (!consumed) {
+      await refreshTokenRepo.revokeFamily(record.familyId);
+      return err(ERR.INVALID_REFRESH_TOKEN);
+    }
+
     const user = await userRepo.findById(payload.sub);
     if (!user) return err(ERR.USER_NOT_FOUND);
 
-    const tokens = await generateTokenPair(user.id);
+    const tokens = await issueTokens(user.id, record.familyId);
     return ok(tokens);
   } catch (e) {
     captureError(e, 'authService.refresh');
+    return err(ERR.INTERNAL_ERROR);
+  }
+}
+
+export async function logout(refreshToken: string): Promise<Result<void>> {
+  try {
+    // Best-effort by design: an invalid/unknown token still returns ok so
+    // logout never traps the user in a signed-in state client-side.
+    const payload = await verifyToken(refreshToken, 'refresh');
+    if (!payload) return ok(undefined);
+
+    const record = await refreshTokenRepo.findByHash(hashToken(refreshToken));
+    if (record) {
+      await refreshTokenRepo.revokeFamily(record.familyId);
+    }
+    return ok(undefined);
+  } catch (e) {
+    captureError(e, 'authService.logout');
     return err(ERR.INTERNAL_ERROR);
   }
 }

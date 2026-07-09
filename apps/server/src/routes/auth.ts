@@ -58,4 +58,21 @@ auth.post('/refresh', async (c) => {
   return okResponse(c, result.data);
 });
 
+auth.post('/logout', async (c) => {
+  const body = await readJson(c);
+  const parsed = RefreshRequest.safeParse(body);
+
+  if (!parsed.success) {
+    return badRequest(parsed.error.issues.map((i) => i.message).join(', '));
+  }
+
+  const result = await authService.logout(parsed.data.refreshToken);
+
+  if (!result.ok) {
+    return throwFromResult(result, {});
+  }
+
+  return c.body(null, 204);
+});
+
 export default auth;

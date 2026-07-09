@@ -146,6 +146,27 @@ export const alerts = pgTable('alerts', {
   index('alerts_user_profile_status_idx').on(table.userId, table.searchProfileId, table.status),
 ]);
 
+// Server-side record of issued refresh tokens (hashed — a DB leak must not
+// yield usable tokens). family_id groups a rotation chain: reusing an
+// already-rotated token is theft evidence and revokes the whole family.
+export const refreshTokens = pgTable('refresh_tokens', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  familyId: text('family_id').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  // Set when the token is exchanged during rotation — a second use after this
+  // is reuse. Kept (not deleted) until expiry so reuse stays detectable.
+  rotatedAt: timestamp('rotated_at', { withTimezone: true, mode: 'date' }),
+  // Set by logout or family revocation on detected reuse.
+  revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+}, (table) => [
+  uniqueIndex('refresh_tokens_token_hash_idx').on(table.tokenHash),
+  index('refresh_tokens_user_id_idx').on(table.userId),
+  index('refresh_tokens_family_id_idx').on(table.familyId),
+]);
+
 // Fixed-window rate-limit counters, shared across server instances (Fargate
 // tasks, Lambda containers) so limits don't multiply with concurrency.
 export const rateLimits = pgTable('rate_limits', {

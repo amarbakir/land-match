@@ -103,3 +103,53 @@ describe('auth flow (integration)', () => {
     expect(((await res.json()) as Json).code).toBe('BAD_REQUEST');
   });
 });
+
+describe('refresh token lifecycle (integration)', () => {
+  it('rotates the refresh token, and reuse of the old one kills the whole session family', async () => {
+    // Bug this catches: refresh minting new tokens while the old stays valid —
+    // indefinite session extension, and a stolen token good for 30 days with
+    // no recourse.
+    const { body } = await register('rotate@example.com');
+    const original = body.data.refreshToken as string;
+
+    const first = await post('/api/v1/auth/refresh', { refreshToken: original });
+    expect(first.status).toBe(200);
+    const rotated = ((await first.json()) as Json).data.refreshToken as string;
+    expect(rotated).not.toBe(original);
+
+    // Reusing the already-exchanged token is theft evidence...
+    const reuse = await post('/api/v1/auth/refresh', { refreshToken: original });
+    expect(reuse.status).toBe(401);
+
+    // ...and revokes the rotated descendant too (attacker and victim both lose).
+    const afterReuse = await post('/api/v1/auth/refresh', { refreshToken: rotated });
+    expect(afterReuse.status).toBe(401);
+  });
+
+  it('logout revokes the session — the refresh token stops working', async () => {
+    const { body } = await register('logout@example.com');
+    const token = body.data.refreshToken as string;
+
+    const res = await post('/api/v1/auth/logout', { refreshToken: token });
+    expect(res.status).toBe(204);
+
+    const after = await post('/api/v1/auth/refresh', { refreshToken: token });
+    expect(after.status).toBe(401);
+  });
+
+  it('logout does not touch other sessions of the same user', async () => {
+    // Bug this catches: revoking by user_id instead of family — logging out
+    // of the extension would also kill the web app session.
+    await register('twosessions@example.com');
+    const second = await post('/api/v1/auth/login', { email: 'twosessions@example.com', password: 'password123' });
+    const secondToken = (((await second.json()) as Json).data.refreshToken) as string;
+
+    const first = await post('/api/v1/auth/login', { email: 'twosessions@example.com', password: 'password123' });
+    const firstToken = (((await first.json()) as Json).data.refreshToken) as string;
+
+    await post('/api/v1/auth/logout', { refreshToken: firstToken });
+
+    const stillAlive = await post('/api/v1/auth/refresh', { refreshToken: secondToken });
+    expect(stillAlive.status).toBe(200);
+  });
+});
