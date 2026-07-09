@@ -47,10 +47,18 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
 }
 
 // Visibility policy: ownerless (global feed) listings are visible to everyone;
-// owned listings only to their owner. Module-private for now — export it when
-// other read paths adopt the policy (land-match-9vs).
+// owned listings only to their owner. Module-private — user-facing read paths
+// adopt it via the find* helpers below.
 function visibleTo(userId: string) {
   return or(isNull(listings.userId), eq(listings.userId, userId));
+}
+
+// Visibility-gated lookup: null when the listing doesn't exist OR belongs to
+// another user — callers must not distinguish the two (that would leak ids).
+export async function findVisibleListing(id: string, userId: string, tx?: Tx) {
+  return (tx ?? db).query.listings.findFirst({
+    where: and(eq(listings.id, id), visibleTo(userId)),
+  });
 }
 
 async function findOneWithEnrichment(where: SQL | undefined, tx?: Tx, orderBy?: SQL) {

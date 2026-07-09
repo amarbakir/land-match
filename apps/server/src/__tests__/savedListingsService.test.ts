@@ -288,10 +288,28 @@ describe('getSavedListings', () => {
 
 describe('saveListing', () => {
   const mockSave = vi.mocked(listingRepo.saveListing);
+  const mockFindVisible = vi.mocked(listingRepo.findVisibleListing);
+  const visibleListing = { id: 'lst-1' } as Awaited<ReturnType<typeof listingRepo.findVisibleListing>>;
 
-  it('maps an FK violation (unknown listing id) to NOT_FOUND, not a raw 500', async () => {
+  it("returns NOT_FOUND for another user's listing without touching saved_listings", async () => {
+    // Bug this catches: no visibility check on save — any authenticated user
+    // who learned a listing id could save it and read its full row + enrichment
+    // via GET /saved. Invisible must be indistinguishable from nonexistent.
+    mockFindVisible.mockResolvedValue(undefined);
+
+    const result = await saveListing('user-b', 'lst-owned-by-a');
+
+    expect(result).toEqual({ ok: false, error: 'NOT_FOUND' });
+    expect(mockSave).not.toHaveBeenCalled();
+    expect(mockFindVisible).toHaveBeenCalledWith('lst-owned-by-a', 'user-b');
+  });
+
+  it('maps an FK violation (listing deleted after visibility check) to NOT_FOUND, not a raw 500', async () => {
     // Bug this catches: the route calling the repo directly — an unknown id
     // threw the raw pg FK-violation (constraint/table names) into the response.
+    // Still reachable post-visibility-check if the listing is deleted between
+    // the lookup and the insert.
+    mockFindVisible.mockResolvedValue(visibleListing);
     mockSave.mockRejectedValue(Object.assign(new Error('violates foreign key constraint'), { code: '23503' }));
 
     const result = await saveListing('user-1', 'lst-nonexistent');
@@ -301,6 +319,7 @@ describe('saveListing', () => {
 
   it('returns savedAt for a fresh save and tolerates an already-saved conflict', async () => {
     const savedAt = new Date('2026-07-09T00:00:00Z');
+    mockFindVisible.mockResolvedValue(visibleListing);
     mockSave.mockResolvedValueOnce({ savedAt } as Awaited<ReturnType<typeof listingRepo.saveListing>>);
 
     const fresh = await saveListing('user-1', 'lst-1');

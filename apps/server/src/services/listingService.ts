@@ -248,6 +248,12 @@ export async function getSavedListings(
 
 export async function saveListing(userId: string, listingId: string): Promise<Result<{ savedAt: string }>> {
   try {
+    // Same visibility policy as by-url: another user's listing must look like
+    // a missing one, or any authenticated user could save an id they learned
+    // elsewhere and read its full row + enrichment via GET /saved.
+    const listing = await listingRepo.findVisibleListing(listingId, userId);
+    if (!listing) return err('NOT_FOUND');
+
     const saved = await listingRepo.saveListing(userId, listingId);
     // onConflictDoNothing returns nothing if already saved — that's fine
     return ok({ savedAt: (saved?.savedAt ?? new Date()).toISOString() });

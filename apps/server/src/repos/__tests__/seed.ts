@@ -18,3 +18,9 @@ export async function seedListing(
   const row = await listingRepo.insertListing({ address, latitude: 36.6, longitude: -92.1, price, acreage, enrichmentStatus });
   return row.id;
 }
+
+// Owned (user-enriched) listing — private to its owner under the visibility policy.
+export async function seedOwnedListing(address: string, userId: string) {
+  const row = await listingRepo.insertListing({ address, latitude: 36.6, longitude: -92.1, userId });
+  return row.id;
+}
