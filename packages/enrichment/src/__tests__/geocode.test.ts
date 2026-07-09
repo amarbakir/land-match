@@ -131,7 +131,7 @@ describe('geocode', () => {
     let maxInFlight = 0;
     const startedAt: number[] = [];
 
-    fetchSpy.mockImplementation(async (input) => {
+    fetchSpy.mockImplementation(async (input: string | URL | Request) => {
       if (String(input).includes('nominatim')) {
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
