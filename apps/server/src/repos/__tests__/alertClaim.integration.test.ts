@@ -6,34 +6,52 @@ import { describe, expect, it } from 'vitest';
 import { db } from '../../db/client';
 import * as alertRepo from '../alertRepo';
 import * as scoreRepo from '../scoreRepo';
-import * as searchProfileRepo from '../searchProfileRepo';
-import { seedListing, seedUser } from './seed';
+import { seedListing, seedProfile, seedUser } from './seed';
 
-async function seedPendingAlert(n: number, channel: AlertChannel = 'email') {
+interface AlertGroup {
+  userId: string;
+  profileId: string;
+  n: number;
+  alertCount: number;
+}
+
+// One user+profile — the unit the delivery service groups into a single email.
+async function seedGroup(n: number, alertFrequency: 'instant' | 'daily' | 'weekly' = 'instant'): Promise<AlertGroup> {
   const userId = await seedUser(`alerts-${n}@example.com`);
-  const profile = await searchProfileRepo.insert({
-    userId,
-    name: `Profile ${n}`,
-    alertFrequency: 'instant',
-    alertThreshold: 70,
-    criteria: {},
-    isActive: true,
-  });
-  const listingId = await seedListing(`${n} Alert Rd, MO`);
+  const profileId = await seedProfile(userId, { name: `Profile ${n}`, alertFrequency });
+  return { userId, profileId, n, alertCount: 0 };
+}
+
+// Each alert gets its own listing+score (scores are unique per listing+profile).
+// sentAt backdates the alert to an already-delivered send for window tests.
+async function addAlert(group: AlertGroup, opts: { channel?: AlertChannel; sentAt?: Date } = {}) {
+  group.alertCount += 1;
+  const listingId = await seedListing(`${group.n}-${group.alertCount} Alert Rd, MO`);
   const score = await scoreRepo.insert({
     listingId,
-    searchProfileId: profile.id,
+    searchProfileId: group.profileId,
     overallScore: 80,
     componentScores: { soil: 80 },
   });
   const alert = await alertRepo.insert({
-    userId,
-    searchProfileId: profile.id,
+    userId: group.userId,
+    searchProfileId: group.profileId,
     listingId,
-    scoreId: score.id,
-    channel,
+    scoreId: score!.id,
+    channel: opts.channel ?? 'email',
   });
-  return alert.id;
+  if (opts.sentAt) {
+    await db.update(alerts).set({ status: 'sent', sentAt: opts.sentAt }).where(eq(alerts.id, alert!.id));
+  }
+  return alert!.id;
+}
+
+async function seedPendingAlert(n: number, channel: AlertChannel = 'email') {
+  return addAlert(await seedGroup(n), { channel });
+}
+
+function hoursAgo(hours: number) {
+  return new Date(Date.now() - hours * 60 * 60 * 1000);
 }
 
 function setClaimState(alertId: string, claimedAt: Date) {
@@ -136,6 +154,75 @@ describe('releaseForRetry (integration)', () => {
     const [row] = await db.select().from(alerts).where(eq(alerts.id, id));
     expect(row.status).toBe('sent'); // never flipped back to pending → no duplicate email
     expect(row.attempts).toBe(0);
+  });
+});
+
+describe('digest eligibility at the claim boundary', () => {
+  // Bug these catch: every 5-minute run claimed ALL pending alerts including
+  // digests whose window hadn't elapsed, then released them — ~576 pointless
+  // claim/release row-update pairs while a daily digest waits (land-match-7y8).
+
+  it('skips a daily-digest group whose window has not elapsed', async () => {
+    const g = await seedGroup(1, 'daily');
+    await addAlert(g, { sentAt: hoursAgo(1) });
+    await addAlert(g); // pending, but not due for ~23h
+
+    expect(await alertRepo.claimPending()).toEqual([]);
+  });
+
+  it('claims a daily-digest group once 24h have elapsed since the last send', async () => {
+    const g = await seedGroup(1, 'daily');
+    await addAlert(g, { sentAt: hoursAgo(25) });
+    const due = await addAlert(g);
+
+    expect(await alertRepo.claimPending()).toEqual([due]);
+  });
+
+  it('weekly digests wait seven days, not 24 hours', async () => {
+    const notDue = await seedGroup(1, 'weekly');
+    await addAlert(notDue, { sentAt: hoursAgo(3 * 24) });
+    await addAlert(notDue);
+
+    const due = await seedGroup(2, 'weekly');
+    await addAlert(due, { sentAt: hoursAgo(8 * 24) });
+    const dueId = await addAlert(due);
+
+    expect(await alertRepo.claimPending()).toEqual([dueId]);
+  });
+
+  it('instant alerts claim regardless of a recent send', async () => {
+    const g = await seedGroup(1, 'instant');
+    await addAlert(g, { sentAt: hoursAgo(0.01) });
+    const pending = await addAlert(g);
+
+    expect(await alertRepo.claimPending()).toEqual([pending]);
+  });
+});
+
+describe('group-integrity claiming', () => {
+  it('does not claim a new alert for a group a live worker is already processing', async () => {
+    // Bug this catches: an alert arriving mid-delivery gets claimed by a second
+    // run; both runs pass the window check before either marks sent → the user
+    // gets two partial digests in the same window (land-match-7y8 comment).
+    const g = await seedGroup(1, 'instant');
+    const first = await addAlert(g);
+    expect(await alertRepo.claimPending()).toEqual([first]);
+
+    await addAlert(g); // arrives while the first claim is still live
+
+    expect(await alertRepo.claimPending()).toEqual([]);
+  });
+
+  it('claims the whole group, stale claim included, once the claim goes stale', async () => {
+    const g = await seedGroup(1, 'instant');
+    const first = await addAlert(g);
+    await alertRepo.claimPending();
+    await setClaimState(first, new Date(Date.now() - 20 * 60_000)); // worker died
+    const second = await addAlert(g);
+
+    const claimed = await alertRepo.claimPending();
+
+    expect(claimed.sort()).toEqual([first, second].sort());
   });
 });
 

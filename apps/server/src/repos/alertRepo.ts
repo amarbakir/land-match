@@ -1,4 +1,5 @@
-import { eq, and, or, inArray, desc, lt, lte, sql } from 'drizzle-orm';
+import { eq, and, or, inArray, desc, gt, lt, lte, notExists, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { alerts, users, searchProfiles } from '@landmatch/db';
 import type { AlertChannel } from '@landmatch/api';
 
@@ -59,11 +60,12 @@ export async function findAlertedProfileIds(listingId: string, tx?: Tx): Promise
 // user is emailed twice.
 const STALE_CLAIM_MS = 15 * 60_000;
 
-// One run claims at most this many alerts; the 5-minute cadence drains any
-// backlog incrementally. Unbounded claims + a big backlog would blow the
-// Lambda timeout and leave everything stuck in 'processing' for
-// STALE_CLAIM_MS, stalling delivery entirely.
-const CLAIM_BATCH_SIZE = 500;
+// One run claims at most this many user+profile groups (one email each); the
+// 5-minute cadence drains any backlog incrementally. Unbounded claims + a big
+// backlog would blow the Lambda timeout and leave everything stuck in
+// 'processing' for STALE_CLAIM_MS, stalling delivery entirely. Bounding by
+// group, not alert, keeps one group's digest from splitting across batches.
+const CLAIM_GROUP_BATCH_SIZE = 500;
 
 // Transient failures release back to pending with attempts+1; past this many
 // attempts an alert is terminally 'failed'. Enforced both where failures are
@@ -72,37 +74,98 @@ const CLAIM_BATCH_SIZE = 500;
 export const MAX_SEND_ATTEMPTS = 5;
 
 /**
- * Atomically claim every deliverable alert for this worker. FOR UPDATE SKIP
- * LOCKED means two workers running concurrently (scaled Fargate tasks,
- * overlapping cron invocations) partition the pending set instead of both
- * claiming — and double-sending — the same alerts.
+ * Atomically claim every deliverable alert for this worker, whole user+profile
+ * groups at a time. FOR UPDATE SKIP LOCKED means two workers running
+ * concurrently (scaled Fargate tasks, overlapping cron invocations) partition
+ * the pending set instead of both claiming — and double-sending — the same
+ * alerts.
+ *
+ * Eligibility lives here, not just in the delivery service: a digest group
+ * whose frequency window hasn't elapsed since its last send is not claimed at
+ * all (previously every 5-minute run claimed and released it — 2 row UPDATEs
+ * per waiting alert per cycle). A group another live worker is mid-delivery on
+ * is skipped whole, so a late-arriving alert can't split one window's digest
+ * into two emails. The service's isWindowElapsed re-check stays as the
+ * backstop for claim-to-send races.
  */
 export async function claimPending(tx?: Tx): Promise<string[]> {
-  const claimable = (tx ?? db)
-    .select({ id: alerts.id })
-    .from(alerts)
-    .where(
-      and(
-        // The delivery service sends email only — claiming sms/push alerts
-        // would email opted-out users and consume the alert for its real channel.
-        eq(alerts.channel, 'email'),
-        lt(alerts.attempts, MAX_SEND_ATTEMPTS),
-        or(
-          eq(alerts.status, 'pending'),
-          and(eq(alerts.status, 'processing'), lte(alerts.claimedAt, new Date(Date.now() - STALE_CLAIM_MS))),
+  const conn = tx ?? db;
+  const staleCutoff = new Date(Date.now() - STALE_CLAIM_MS);
+
+  const claimable = and(
+    // The delivery service sends email only — claiming sms/push alerts
+    // would email opted-out users and consume the alert for its real channel.
+    eq(alerts.channel, 'email'),
+    lt(alerts.attempts, MAX_SEND_ATTEMPTS),
+    or(
+      eq(alerts.status, 'pending'),
+      and(eq(alerts.status, 'processing'), lte(alerts.claimedAt, staleCutoff)),
+    ),
+  );
+
+  // No 'sent' alert for this group inside its frequency window. 'instant'
+  // short-circuits; unknown frequencies fall to interval '0' (always due),
+  // matching the service's isWindowElapsed.
+  const sentInWindow = alias(alerts, 'sent_in_window');
+  const windowElapsed = or(
+    eq(searchProfiles.alertFrequency, 'instant'),
+    notExists(
+      conn
+        .select({ one: sql`1` })
+        .from(sentInWindow)
+        .where(
+          and(
+            eq(sentInWindow.userId, alerts.userId),
+            eq(sentInWindow.searchProfileId, alerts.searchProfileId),
+            eq(sentInWindow.status, 'sent'),
+            sql`${sentInWindow.sentAt} > now() - (CASE ${searchProfiles.alertFrequency} WHEN 'daily' THEN interval '24 hours' WHEN 'weekly' THEN interval '7 days' ELSE interval '0' END)`,
+          ),
+        ),
+    ),
+  );
+
+  // No live (non-stale) claim on any alert of this group by another worker.
+  const liveClaim = alias(alerts, 'live_claim');
+  const groupIdle = notExists(
+    conn
+      .select({ one: sql`1` })
+      .from(liveClaim)
+      .where(
+        and(
+          eq(liveClaim.userId, alerts.userId),
+          eq(liveClaim.searchProfileId, alerts.searchProfileId),
+          eq(liveClaim.status, 'processing'),
+          gt(liveClaim.claimedAt, staleCutoff),
         ),
       ),
-    )
-    // FIFO: without an order, a backlog bigger than the batch can starve old
-    // alerts indefinitely and split one user's digest across batches.
-    .orderBy(alerts.createdAt)
-    .limit(CLAIM_BATCH_SIZE)
-    .for('update', { skipLocked: true });
+  );
 
-  const rows = await (tx ?? db)
+  const groups = conn
+    .select({ userId: alerts.userId, searchProfileId: alerts.searchProfileId })
+    .from(alerts)
+    .innerJoin(searchProfiles, eq(searchProfiles.id, alerts.searchProfileId))
+    .where(and(claimable, windowElapsed, groupIdle))
+    .groupBy(alerts.userId, alerts.searchProfileId)
+    // FIFO by each group's oldest alert: a backlog bigger than the batch must
+    // not starve old groups indefinitely.
+    .orderBy(sql`min(${alerts.createdAt})`)
+    .limit(CLAIM_GROUP_BATCH_SIZE)
+    .as('claim_groups');
+
+  const claimableIds = conn
+    .select({ id: alerts.id })
+    .from(alerts)
+    .innerJoin(
+      groups,
+      and(eq(alerts.userId, groups.userId), eq(alerts.searchProfileId, groups.searchProfileId)),
+    )
+    .where(claimable)
+    .for('update', { of: alerts, skipLocked: true });
+
+  const rows = await conn
     .update(alerts)
     .set({ status: 'processing', claimedAt: new Date() })
-    .where(inArray(alerts.id, claimable))
+    .where(inArray(alerts.id, claimableIds))
     .returning({ id: alerts.id });
 
   return rows.map((r) => r.id);

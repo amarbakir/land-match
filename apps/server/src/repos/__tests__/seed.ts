@@ -33,11 +33,14 @@ export async function seedOwnedListing(address: string, userId: string) {
   return row.id;
 }
 
-export async function seedProfile(userId: string, opts: { name?: string; isActive?: boolean } = {}) {
+export async function seedProfile(
+  userId: string,
+  opts: { name?: string; isActive?: boolean; alertFrequency?: 'instant' | 'daily' | 'weekly' } = {},
+) {
   const row = await searchProfileRepo.insert({
     userId,
     name: opts.name ?? 'Test profile',
-    alertFrequency: 'daily',
+    alertFrequency: opts.alertFrequency ?? 'daily',
     alertThreshold: 70,
     criteria: {},
     isActive: opts.isActive ?? true,
