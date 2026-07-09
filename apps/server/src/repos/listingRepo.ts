@@ -48,15 +48,19 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
 
 // Visibility policy: ownerless (global feed) listings are visible to everyone;
 // owned listings only to their owner. Module-private — user-facing read paths
-// adopt it via the find* helpers below.
+// adopt it via the find* helpers below. Matching-side dual: searchProfileRepo
+// .findActive scoped by listing owner (a policy change must update both).
 function visibleTo(userId: string) {
   return or(isNull(listings.userId), eq(listings.userId, userId));
 }
 
-// Visibility-gated lookup: null when the listing doesn't exist OR belongs to
-// another user — callers must not distinguish the two (that would leak ids).
+// Visibility-gated existence check: null when the listing doesn't exist OR
+// belongs to another user — callers must not distinguish the two (that would
+// leak ids). Projects id only; widen if a caller ever needs the row (rows
+// carry raw_data jsonb blobs not worth shipping for a truthiness test).
 export async function findVisibleListing(id: string, userId: string, tx?: Tx) {
   return (tx ?? db).query.listings.findFirst({
+    columns: { id: true },
     where: and(eq(listings.id, id), visibleTo(userId)),
   });
 }
@@ -213,6 +217,9 @@ export async function recordEnrichmentAttempt(
     .where(eq(listings.id, id));
 }
 
+// The three by-id lookups below intentionally bypass visibleTo — their callers
+// are system paths (matching, alert delivery, re-enrichment) that must see all
+// listings. User-facing reads go through findVisibleListing / findByUrl.
 export async function findListingById(id: string, tx?: Tx) {
   return (tx ?? db).query.listings.findFirst({
     where: eq(listings.id, id),

@@ -28,6 +28,8 @@ export async function matchListingAgainstProfiles(
     if (!data.enrichment) return err('Listing not enriched');
 
     const [profiles, scoredProfileIds, alertedProfileIds] = await Promise.all([
+      // Owned listings match only their owner's profiles; ownerless (feed)
+      // listings match everyone — matching-side dual of listingRepo.visibleTo.
       searchProfileRepo.findActive(data.listing.userId),
       scoreRepo.findScoredProfileIds(listingId),
       alertRepo.findAlertedProfileIds(listingId),

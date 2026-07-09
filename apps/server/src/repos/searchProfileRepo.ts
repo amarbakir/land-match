@@ -47,14 +47,14 @@ export async function findByUserId(userId: string, tx?: Tx) {
   });
 }
 
-// listingOwnerId scopes matching to the visibility policy (listingRepo.visibleTo):
-// an owned listing only matches its owner's profiles; ownerless (feed) listings
-// match every user's (pass null).
-export async function findActive(listingOwnerId: string | null, tx?: Tx) {
+// Active profiles, optionally scoped to one user (null = all users). Required
+// rather than defaulted so every caller makes the scoping decision explicitly.
+export async function findActive(userId: string | null, tx?: Tx) {
   return (tx ?? db).query.searchProfiles.findMany({
-    where: listingOwnerId === null
-      ? eq(searchProfiles.isActive, true)
-      : and(eq(searchProfiles.isActive, true), eq(searchProfiles.userId, listingOwnerId)),
+    where: and(
+      eq(searchProfiles.isActive, true),
+      userId === null ? undefined : eq(searchProfiles.userId, userId),
+    ),
   });
 }
 
