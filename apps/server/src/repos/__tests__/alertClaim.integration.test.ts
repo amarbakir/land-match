@@ -107,3 +107,34 @@ describe('alert claiming (integration)', () => {
     expect(await alertRepo.claimPending()).toEqual([]); // stays sent
   });
 });
+
+describe('releaseForRetry (integration)', () => {
+  it('returns alerts to pending with one more attempt on the books, re-claimable next run', async () => {
+    // Bug this catches: transient failures marked alerts 'failed' and nothing
+    // ever re-claims 'failed' — the notification was silently dropped forever.
+    const id = await seedPendingAlert(1);
+    expect(await alertRepo.claimPending()).toEqual([id]);
+
+    await alertRepo.releaseForRetry([id]);
+
+    const [row] = await db.select().from(alerts).where(eq(alerts.id, id));
+    expect(row.status).toBe('pending');
+    expect(row.attempts).toBe(1);
+    expect(row.claimedAt).toBeNull();
+    // The next delivery run picks it up again
+    expect(await alertRepo.claimPending()).toEqual([id]);
+  });
+
+  it('does not clobber an alert another worker already sent (stolen-claim guard)', async () => {
+    const id = await seedPendingAlert(1);
+    await alertRepo.claimPending();
+    // Another worker stole the stale claim and delivered it
+    await db.update(alerts).set({ status: 'sent' }).where(eq(alerts.id, id));
+
+    await alertRepo.releaseForRetry([id]);
+
+    const [row] = await db.select().from(alerts).where(eq(alerts.id, id));
+    expect(row.status).toBe('sent'); // never flipped back to pending → no duplicate email
+    expect(row.attempts).toBe(0);
+  });
+});

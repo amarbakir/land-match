@@ -152,6 +152,9 @@ export const alerts = pgTable('alerts', {
   scoreId: text('score_id').notNull().references(() => scores.id, { onDelete: 'cascade' }),
   channel: text('channel').notNull(),
   status: text('status').notNull().default('pending'),
+  // Failed delivery attempts so far; transient failures release back to
+  // pending with attempts+1, terminal 'failed' only past the max
+  attempts: integer('attempts').notNull().default(0),
   sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }),
   // Set when a delivery worker claims the alert (status 'processing') so
   // concurrent workers never send the same alert twice; stale claims are

@@ -17,6 +17,14 @@ type AlertFrequency = 'instant' | 'daily' | 'weekly';
 
 type PendingAlert = Awaited<ReturnType<typeof alertRepo.findClaimedWithDetails>>[number];
 
+// Transient failures (Resend 429/timeout, DB blip) release back to pending
+// with attempts+1; an alert becomes terminally 'failed' only after this many
+// attempts. The 5-minute cron cadence spaces the retries.
+const MAX_SEND_ATTEMPTS = 5;
+
+/** Retrying can never succeed (e.g. the alert's listing/score rows are gone). */
+class PermanentDeliveryError extends Error {}
+
 interface AlertGroup {
   userId: string;
   userEmail: string;
@@ -131,7 +139,19 @@ export async function deliverPendingAlerts({ deadlineAt }: DeliveryOptions = {})
           emailsSent++;
           alertsProcessed += alertIds.length;
         } catch (error) {
-          await alertRepo.markFailed(alertIds);
+          // Terminal: permanent errors, or alerts whose retry budget this
+          // failure exhausts. Everything else goes back to pending with
+          // attempts+1 — a transient Resend/DB error must not silently drop
+          // the user's notification forever.
+          const terminal = error instanceof PermanentDeliveryError
+            ? group.alerts
+            : group.alerts.filter((a) => a.attempts + 1 >= MAX_SEND_ATTEMPTS);
+          const terminalIds = new Set(terminal.map((a) => a.alertId));
+          const retryIds = alertIds.filter((id) => !terminalIds.has(id));
+
+          if (terminalIds.size > 0) await alertRepo.markFailed([...terminalIds]);
+          if (retryIds.length > 0) await alertRepo.releaseForRetry(retryIds);
+
           const message = error instanceof Error ? error.message : String(error);
           errors.push(`Failed to deliver to ${group.userEmail}: ${message}`);
         }
@@ -188,7 +208,8 @@ async function deliverGroup(group: AlertGroup, alertIds: string[]): Promise<void
     .filter((item): item is AlertItem => item !== null);
 
   if (alertItems.length === 0) {
-    throw new Error(`no hydrated data for group ${group.userId}:${group.searchProfileId}`);
+    // The referenced listing/score rows are gone — no retry can fix that
+    throw new PermanentDeliveryError(`no hydrated data for group ${group.userId}:${group.searchProfileId}`);
   }
 
   const html = await renderAlertEmail({

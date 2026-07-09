@@ -1,4 +1,4 @@
-import { eq, and, or, inArray, desc, lte } from 'drizzle-orm';
+import { eq, and, or, inArray, desc, lte, sql } from 'drizzle-orm';
 import { alerts, users, searchProfiles } from '@landmatch/db';
 import type { AlertChannel } from '@landmatch/api';
 
@@ -125,6 +125,7 @@ export async function findClaimedWithDetails(alertIds: string[], tx?: Tx) {
       userId: alerts.userId,
       searchProfileId: alerts.searchProfileId,
       createdAt: alerts.createdAt,
+      attempts: alerts.attempts,
       userEmail: users.email,
       userName: users.name,
       profileName: searchProfiles.name,
@@ -159,6 +160,18 @@ export async function markSent(alertIds: string[], tx?: Tx) {
     .update(alerts)
     .set({ status: 'sent', sentAt: new Date() })
     .where(inArray(alerts.id, alertIds));
+}
+
+/**
+ * Transient delivery failure: hand the alerts back to the pending pool with
+ * one more attempt on the books. Same stolen-claim guard as releaseClaims.
+ */
+export async function releaseForRetry(alertIds: string[], tx?: Tx) {
+  if (alertIds.length === 0) return;
+  await (tx ?? db)
+    .update(alerts)
+    .set({ status: 'pending', claimedAt: null, attempts: sql`${alerts.attempts} + 1` })
+    .where(and(inArray(alerts.id, alertIds), eq(alerts.status, 'processing')));
 }
 
 export async function markFailed(alertIds: string[], tx?: Tx) {

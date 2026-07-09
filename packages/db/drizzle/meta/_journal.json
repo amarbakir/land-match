@@ -155,6 +155,13 @@
       "when": 1783619498741,
       "tag": "0021_sparkling_wilson_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1783626125916,
+      "tag": "0022_normal_redwing",
+      "breakpoints": true
     }
   ]
 }

@@ -35,6 +35,7 @@ function baseAlert() {
     userName: 'Test User',
     profileName: 'Hudson Valley',
     alertFrequency: 'daily',
+    attempts: 0,
   };
 }
 
@@ -154,7 +155,10 @@ describe('deliverPendingAlerts', () => {
     expect(alerts[0].listingUrl).toBe('#');
   });
 
-  it('marks alerts as failed and captures error on Resend failure', async () => {
+  it('releases alerts for retry (not terminal failure) on a transient Resend error', async () => {
+    // Bug this catches: any error marked the whole group status='failed' and
+    // nothing ever re-claims 'failed' — one Resend 429 or timeout silently
+    // dropped the user's notification forever.
     mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
       makePendingAlert({ alertFrequency: 'instant' }),
     ]);
@@ -170,7 +174,60 @@ describe('deliverPendingAlerts', () => {
     expect(result.data.emailsSent).toBe(0);
     expect(result.data.errors).toHaveLength(1);
     expect(result.data.errors[0]).toContain('Resend rate limit');
+    expect(mockAlertRepo.releaseForRetry).toHaveBeenCalledWith(['alert-1']);
+    expect(mockAlertRepo.markFailed).not.toHaveBeenCalled();
+  });
+
+  it('marks alerts terminally failed once retry budget is exhausted', async () => {
+    // attempts counts prior failed sends; this failure is the last allowed one
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ alertFrequency: 'instant', attempts: 4 }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([LISTING]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
+    mockEmail.sendEmail.mockRejectedValueOnce(new Error('Resend rate limit'));
+
+    const result = await deliverPendingAlerts();
+
+    expect(result.ok).toBe(true);
     expect(mockAlertRepo.markFailed).toHaveBeenCalledWith(['alert-1']);
+    expect(mockAlertRepo.releaseForRetry).not.toHaveBeenCalled();
+  });
+
+  it('fails immediately (no retry) when the group has no hydrated data', async () => {
+    // Permanent error: the listing/score rows are gone — retrying can never
+    // succeed and would burn retry cycles for 5 runs.
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ alertFrequency: 'instant' }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([]);
+
+    const result = await deliverPendingAlerts();
+
+    expect(result.ok).toBe(true);
+    expect(mockAlertRepo.markFailed).toHaveBeenCalledWith(['alert-1']);
+    expect(mockAlertRepo.releaseForRetry).not.toHaveBeenCalled();
+  });
+
+  it('splits a mixed group: exhausted alerts fail, fresh ones retry', async () => {
+    mockAlertRepo.claimPending.mockResolvedValue(['alert-1', 'alert-2']);
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ alertFrequency: 'instant', attempts: 4 }),
+      makePendingAlert({ alertId: 'alert-2', scoreId: 'score-1', alertFrequency: 'instant', attempts: 1 }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([LISTING]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
+    mockEmail.sendEmail.mockRejectedValueOnce(new Error('timeout'));
+
+    const result = await deliverPendingAlerts();
+
+    expect(result.ok).toBe(true);
+    expect(mockAlertRepo.markFailed).toHaveBeenCalledWith(['alert-1']);
+    expect(mockAlertRepo.releaseForRetry).toHaveBeenCalledWith(['alert-2']);
   });
 
   it('groups correctly — 2 profiles for same user produce 2 emails', async () => {
