@@ -1,0 +1,52 @@
+// AWS Lambda entrypoint for scheduled listing re-enrichment (sst.aws.Cron) —
+// the deployed counterpart of the local node-cron scheduler, which never runs
+// on Lambda stages.
+// sort-imports-ignore — ../init must be imported first so Sentry initializes before other modules load
+import '../init';
+
+import * as Sentry from '@sentry/node';
+
+import { runMigrations } from '../db/client';
+import { runReEnrichment } from './runReEnrichment';
+
+// Lambda stages have no other migration path (only the node-server entrypoint
+// migrates at boot). Memoized per container; drizzle's migrator takes an
+// advisory lock, so concurrent cold starts are safe. Reset on failure so the
+// next invocation retries instead of caching the rejection.
+let migrationsReady: Promise<void> | null = null;
+
+// Stop picking up listings this long before the Lambda deadline: enough to
+// finish the in-flight vendor calls and flush Sentry instead of being killed
+// mid-write.
+const DEADLINE_BUFFER_MS = 15_000;
+
+interface LambdaContext {
+  getRemainingTimeInMillis?: () => number;
+}
+
+export async function handler(_event: unknown, context?: LambdaContext) {
+  try {
+    try {
+      await (migrationsReady ??= runMigrations());
+    } catch (e) {
+      migrationsReady = null;
+      throw e;
+    }
+
+    const remainingMs = context?.getRemainingTimeInMillis?.();
+    const deadlineAt = remainingMs !== undefined ? Date.now() + remainingMs - DEADLINE_BUFFER_MS : undefined;
+
+    const result = await runReEnrichment({ deadlineAt });
+
+    if (!result.ok) {
+      // Throw so the invocation registers as a Lambda failure (CloudWatch errors metric)
+      throw new Error(`re-enrichment failed: ${result.error}`);
+    }
+
+    return result.data;
+  } finally {
+    // Lambda freezes the container as soon as the handler settles — flush
+    // buffered Sentry events before that happens.
+    await Sentry.flush(2000);
+  }
+}

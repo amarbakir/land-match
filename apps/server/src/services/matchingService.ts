@@ -14,7 +14,13 @@ interface MatchResult {
   alertsCreated: number;
 }
 
-export async function matchListingAgainstProfiles(listingId: string): Promise<Result<MatchResult>> {
+// rescore: refresh existing score rows instead of skipping them — used after
+// re-enrichment so listings first scored with neutral (missing) data don't
+// keep their stale scores forever. Alert dedupe still applies.
+export async function matchListingAgainstProfiles(
+  listingId: string,
+  opts: { rescore?: boolean } = {},
+): Promise<Result<MatchResult>> {
   try {
     const data = await listingRepo.findListingWithEnrichment(listingId);
     if (!data) return err('Listing not found');
@@ -34,17 +40,31 @@ export async function matchListingAgainstProfiles(listingId: string): Promise<Re
 
     // TODO: iterations are independent — could parallelize with Promise.all if profile count grows
     for (const profile of profiles) {
-      if (scoredProfileIds.has(profile.id)) continue;
+      const alreadyScored = scoredProfileIds.has(profile.id);
+      if (alreadyScored && !opts.rescore) continue;
 
       const criteria = profile.criteria as SearchCriteria;
       const result = scoreListing(listingData, enrichmentData, criteria);
+      const componentScores = result.componentScores as unknown as Record<string, number>;
 
-      const scoreRow = await scoreRepo.insert({
-        listingId,
-        searchProfileId: profile.id,
-        overallScore: result.overallScore,
-        componentScores: result.componentScores as unknown as Record<string, number>,
-      });
+      let scoreRow;
+      const existing = alreadyScored
+        ? await scoreRepo.findByListingAndProfile(listingId, profile.id)
+        : null;
+      if (existing) {
+        scoreRow = await scoreRepo.updateScoreValues(existing.id, {
+          overallScore: result.overallScore,
+          componentScores,
+        });
+        if (!scoreRow) continue; // row deleted since lookup — nothing to alert on
+      } else {
+        scoreRow = await scoreRepo.insert({
+          listingId,
+          searchProfileId: profile.id,
+          overallScore: result.overallScore,
+          componentScores,
+        });
+      }
       scored++;
 
       if (result.overallScore >= profile.alertThreshold && !alertedProfileIds.has(profile.id)) {

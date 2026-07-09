@@ -56,6 +56,7 @@ const LISTING = {
   longitude: -73.79,
   rawData: null,
   enrichmentStatus: 'complete',
+  enrichmentAttempts: 0,
   firstSeenAt: new Date(),
   lastSeenAt: new Date(),
   delistedAt: null,

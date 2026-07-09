@@ -1,5 +1,5 @@
 import { err, isHttpUrl, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
-import { enrichListing, type EnrichmentResult } from '@landmatch/enrichment';
+import { deriveEnrichmentStatus, enrichListing, type EnrichmentResult } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
 import { captureError } from '../lib/captureError';
@@ -140,6 +140,7 @@ export async function enrichAndPersist(
           source: input.source,
           externalId: input.externalId,
           userId,
+          enrichmentStatus: deriveEnrichmentStatus(enrichment),
         },
         tx,
       );

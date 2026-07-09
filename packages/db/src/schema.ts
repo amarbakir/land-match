@@ -53,6 +53,8 @@ export const listings = pgTable('listings', {
   longitude: doublePrecision('longitude'),
   rawData: jsonb('raw_data'),
   enrichmentStatus: text('enrichment_status').notNull().default('pending'),
+  // Re-enrichment runs (jobs/runReEnrichment) bump this; rows at the cap stop retrying
+  enrichmentAttempts: integer('enrichment_attempts').notNull().default(0),
   userId: text('user_id').references(() => users.id),
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),

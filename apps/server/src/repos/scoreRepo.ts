@@ -31,6 +31,26 @@ export async function insert(input: InsertScoreInput, tx?: Tx) {
   return row;
 }
 
+// Rescoring path (re-enrichment): refresh the score values in place, keeping
+// user state (status/readAt) and the row id that alerts reference.
+export async function updateScoreValues(
+  id: string,
+  data: { overallScore: number; componentScores: Record<string, number> },
+  tx?: Tx,
+) {
+  const [row] = await (tx ?? db)
+    .update(scores)
+    .set({
+      overallScore: data.overallScore,
+      componentScores: data.componentScores,
+      scoredAt: new Date(),
+    })
+    .where(eq(scores.id, id))
+    .returning();
+
+  return row ?? null;
+}
+
 export async function findByListingAndProfile(listingId: string, profileId: string, tx?: Tx) {
   return (tx ?? db).query.scores.findFirst({
     where: and(eq(scores.listingId, listingId), eq(scores.searchProfileId, profileId)),

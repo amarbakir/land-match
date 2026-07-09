@@ -9,4 +9,5 @@ export { setMetricsSink, type EnrichmentMetric, type MetricsSink } from './metri
 export { parcelAdapter } from './parcel';
 export { clearAdditionalAdapters, registerAdapter, runEnrichmentPipeline } from './pipeline';
 export { soilAdapter } from './soil';
+export { deriveEnrichmentStatus, type EnrichmentStatus } from './status';
 export type { ClimateData, ClimateNormalsData, ElevationData, EnrichmentAdapter, EnrichmentKey, EnrichmentResult, FloodData, LatLng, ParcelData, Result, SoilData, WetlandsData } from './types';

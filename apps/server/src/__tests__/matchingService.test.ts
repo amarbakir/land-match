@@ -40,6 +40,7 @@ const LISTING = {
   longitude: -73.79,
   rawData: null,
   enrichmentStatus: 'complete',
+  enrichmentAttempts: 0,
   firstSeenAt: new Date(),
   lastSeenAt: new Date(),
   delistedAt: null,
@@ -291,6 +292,108 @@ describe('matchListingAgainstProfiles', () => {
     expect(mockAlertRepo.insert).toHaveBeenNthCalledWith(2,
       expect.objectContaining({ channel: 'push' }),
     );
+  });
+
+  // Bug these catch: re-enriched listings were scored once with neutral data
+  // and matchListingAgainstProfiles skipped them forever, so the whole point
+  // of re-enrichment (fixing stale neutral scores) was lost.
+  it('rescore updates the existing score row instead of skipping it', async () => {
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 80,
+      componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+      hardFilterFailed: false,
+      failedFilters: [],
+    });
+
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+    const existingScore = {
+      id: 'score-existing',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 50,
+      componentScores: {},
+      llmSummary: null,
+      status: 'inbox',
+      readAt: null,
+      scoredAt: new Date(),
+    };
+    mockScoreRepo.findByListingAndProfile.mockResolvedValueOnce(existingScore);
+    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({ ...existingScore, overallScore: 80 });
+    mockUserRepo.findById.mockResolvedValueOnce(USER);
+    mockAlertRepo.insert.mockResolvedValueOnce({} as any);
+
+    const result = await matchListingAgainstProfiles('listing-1', { rescore: true });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.scored).toBe(1);
+    // Updates in place — never inserts a duplicate score row for the profile
+    expect(mockScoreRepo.insert).not.toHaveBeenCalled();
+    expect(mockScoreRepo.updateScoreValues).toHaveBeenCalledWith(
+      'score-existing',
+      expect.objectContaining({ overallScore: 80 }),
+    );
+    // Newly above threshold and never alerted → alert fires now
+    expect(mockAlertRepo.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('rescore does not re-alert profiles that were already alerted', async () => {
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 90,
+      componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+      hardFilterFailed: false,
+      failedFilters: [],
+    });
+
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
+    mockScoreRepo.findByListingAndProfile.mockResolvedValueOnce({
+      id: 'score-existing',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 50,
+      componentScores: {},
+      llmSummary: null,
+      status: 'inbox',
+      readAt: null,
+      scoredAt: new Date(),
+    });
+    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({} as any);
+
+    const result = await matchListingAgainstProfiles('listing-1', { rescore: true });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.alertsCreated).toBe(0);
+    expect(mockAlertRepo.insert).not.toHaveBeenCalled();
+  });
+
+  it('without rescore, already-scored profiles are still skipped', async () => {
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.scored).toBe(0);
+    expect(mockScoreRepo.updateScoreValues).not.toHaveBeenCalled();
   });
 
   it('returns error when listing not found', async () => {

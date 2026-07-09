@@ -48,9 +48,22 @@ describe('pipeline metrics', () => {
     expect(adapterEvents[0].ms).toBeGreaterThanOrEqual(0);
   });
 
-  it('marks adapter metrics ok: false when the adapter returns an error result', async () => {
+  it('emits one metric per attempt when a transient failure is retried', async () => {
     const events = collectMetrics();
     registerAdapter('elevation', fakeAdapter('PostGIS Elevation', async () => ({ ok: false, error: 'HTTP 503' })));
+
+    await runEnrichmentPipeline(COORDS);
+
+    // 5xx is retried once, so the failed attempt and its retry both report
+    expect(events.filter((e) => e.type === 'adapter')).toEqual([
+      { type: 'adapter', source: 'PostGIS Elevation', ok: false, ms: expect.any(Number) },
+      { type: 'adapter', source: 'PostGIS Elevation', ok: false, ms: expect.any(Number) },
+    ]);
+  });
+
+  it('marks adapter metrics ok: false without retry for non-transient errors', async () => {
+    const events = collectMetrics();
+    registerAdapter('elevation', fakeAdapter('PostGIS Elevation', async () => ({ ok: false, error: 'unexpected response shape' })));
 
     await runEnrichmentPipeline(COORDS);
 

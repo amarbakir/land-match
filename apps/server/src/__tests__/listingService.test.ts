@@ -1,9 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-// Mock enrichListing (network I/O — geocode + external APIs)
-vi.mock('@landmatch/enrichment', () => ({
-  enrichListing: vi.fn(),
-}));
+// Mock ONLY enrichListing (network I/O — geocode + external APIs);
+// deriveEnrichmentStatus is pure and runs for real.
+vi.mock('@landmatch/enrichment', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@landmatch/enrichment')>();
+  return { ...actual, enrichListing: vi.fn() };
+});
 
 // Mock DB layer (database I/O)
 vi.mock('../db/client', () => ({
@@ -36,7 +38,10 @@ const mockUpdateHomesteadScore = vi.mocked(listingRepo.updateHomesteadScore);
 const mockMatchListing = vi.mocked(matchListingAgainstProfiles);
 
 // Realistic fixture matching what enrichListing actually returns
-function makeEnrichResult(overrides?: { errors?: Array<{ source: string; error: string }> }) {
+function makeEnrichResult(overrides?: {
+  errors?: Array<{ source: string; error: string }>;
+  sourcesUsed?: string[];
+}) {
   return {
     ok: true as const,
     data: {
@@ -49,7 +54,7 @@ function makeEnrichResult(overrides?: { errors?: Array<{ source: string; error: 
           suitabilityRatings: { cropland: 85 },
         },
         flood: { zone: 'X', description: 'Minimal flood hazard' },
-        sourcesUsed: ['usda', 'fema'],
+        sourcesUsed: overrides?.sourcesUsed ?? ['usda', 'fema'],
         errors: overrides?.errors ?? [],
       },
     },
@@ -66,6 +71,7 @@ const listingRow = {
   price: 50000,
   acreage: 40,
   enrichmentStatus: 'enriched',
+  enrichmentAttempts: 0,
   url: null,
   title: null,
   externalId: null,
@@ -248,6 +254,51 @@ describe('enrichAndPersist', () => {
         source: 'landwatch',
         externalId: 'lw-99887766',
       }),
+      'fake-tx',
+    );
+  });
+
+  // Bug these catch: enrichmentStatus was hardcoded 'enriched', so a full
+  // vendor outage still produced 'enriched' rows that nothing ever retried.
+  it("stores status 'enriched' when every adapter succeeded", async () => {
+    mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+    await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
+
+    expect(mockInsertListing).toHaveBeenCalledWith(
+      expect.objectContaining({ enrichmentStatus: 'enriched' }),
+      'fake-tx',
+    );
+  });
+
+  it("stores status 'partial' when some adapters failed", async () => {
+    mockEnrichListing.mockResolvedValue(
+      makeEnrichResult({ sourcesUsed: ['usda'], errors: [{ source: 'fema', error: 'HTTP 503' }] }),
+    );
+
+    await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
+
+    expect(mockInsertListing).toHaveBeenCalledWith(
+      expect.objectContaining({ enrichmentStatus: 'partial' }),
+      'fake-tx',
+    );
+  });
+
+  it("stores status 'failed' when every adapter failed", async () => {
+    mockEnrichListing.mockResolvedValue(
+      makeEnrichResult({
+        sourcesUsed: [],
+        errors: [
+          { source: 'usda', error: 'timeout' },
+          { source: 'fema', error: 'HTTP 500' },
+        ],
+      }),
+    );
+
+    await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
+
+    expect(mockInsertListing).toHaveBeenCalledWith(
+      expect.objectContaining({ enrichmentStatus: 'failed' }),
       'fake-tx',
     );
   });

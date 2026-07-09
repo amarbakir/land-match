@@ -1,32 +1,45 @@
 import cron from 'node-cron';
 import * as Sentry from '@sentry/node';
 
-import { email } from '../config';
+import { email, reEnrichment } from '../config';
 import { runDelivery } from './runDelivery';
+import { runReEnrichment } from './runReEnrichment';
 import { logger } from '../lib/logger';
 
-// Claiming makes overlapping runs safe (alertRepo.claimPending), but skipping
-// while a slow run is still in flight avoids pointless claim/release churn.
-let deliveryJobRunning = false;
+// Overlapping runs are safe (alert claims / enrichment attempt caps), but
+// skipping while a slow run is still in flight avoids pointless churn.
+function scheduleJob(schedule: string, name: string, run: () => Promise<unknown>): void {
+  let running = false;
+  logger.info({ schedule }, `starting ${name} cron`);
 
-export function startScheduler(): void {
-  // Email delivery cron — always starts, no-ops if no pending alerts
-  logger.info({ schedule: email.deliveryCronSchedule }, 'starting email delivery cron');
-
-  cron.schedule(email.deliveryCronSchedule, async () => {
-    if (deliveryJobRunning) {
-      logger.info('skipping delivery — previous run still in progress');
+  cron.schedule(schedule, async () => {
+    if (running) {
+      logger.info(`skipping ${name} — previous run still in progress`);
       return;
     }
 
-    deliveryJobRunning = true;
+    running = true;
     try {
-      await runDelivery();
+      await run();
     } catch (error) {
       Sentry.captureException(error);
-      logger.error({ err: error }, 'email delivery failed');
+      logger.error({ err: error }, `${name} failed`);
     } finally {
-      deliveryJobRunning = false;
+      running = false;
     }
   });
+}
+
+export function startScheduler(): void {
+  if (email.inProcessCron) {
+    scheduleJob(email.deliveryCronSchedule, 'email delivery', runDelivery);
+  } else {
+    logger.info('in-process email cron disabled — alert delivery runs via the AlertDelivery cron');
+  }
+
+  if (reEnrichment.inProcessCron) {
+    scheduleJob(reEnrichment.cronSchedule, 're-enrichment', runReEnrichment);
+  } else {
+    logger.info('in-process re-enrichment cron disabled — re-enrichment runs via the ReEnrichment cron');
+  }
 }

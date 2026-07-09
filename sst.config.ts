@@ -60,10 +60,11 @@ export default $config({
           ...baseEnvironment,
           // Behind the ALB: client IP is the rightmost X-Forwarded-For hop
           TRUST_PROXY: 'true',
-          // Deployed: the AlertDelivery cron owns delivery. In `sst dev` the
-          // service runs locally where that cron may not fire — keep the
-          // in-process scheduler as the delivery path there.
+          // Deployed: the AlertDelivery/ReEnrichment crons own these jobs. In
+          // `sst dev` the service runs locally where those crons may not fire —
+          // keep the in-process scheduler as the execution path there.
           EMAIL_INPROCESS_CRON: $dev ? 'true' : 'false',
+          REENRICH_INPROCESS_CRON: $dev ? 'true' : 'false',
         },
       });
 
@@ -102,6 +103,26 @@ export default $config({
         // Must stay well under alertRepo's STALE_CLAIM_MS (15 min) — a run
         // outliving that window gets its claims stolen → double-sends.
         timeout: '2 minutes',
+        link: allSecrets,
+        environment: baseEnvironment,
+      },
+    });
+
+    // ── Listing re-enrichment ────────────────────────────────────────────
+    // Retries listings whose enrichment is incomplete ('pending'/'partial'/
+    // 'failed') so a vendor outage doesn't leave a cohort scored neutral
+    // forever. Overlapping runs are safe (attempt caps bound the work) and
+    // the handler stops picking up listings ahead of the Lambda deadline.
+    new sst.aws.Cron('ReEnrichment', {
+      // Deployed cadence. (REENRICH_CRON_SCHEDULE only tunes the local node-cron.)
+      schedule: 'rate(1 hour)',
+      function: {
+        handler: 'apps/server/src/jobs/reEnrichmentHandler.handler',
+        runtime: 'nodejs22.x',
+        memory: '512 MB',
+        // Sequential vendor calls (10s timeout + one retry each) over a batch
+        // of 25 — generous ceiling, the deadline buffer exits cleanly first.
+        timeout: '5 minutes',
         link: allSecrets,
         environment: baseEnvironment,
       },

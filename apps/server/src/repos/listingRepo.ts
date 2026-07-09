@@ -1,6 +1,6 @@
-import { eq, inArray, and, or, isNull, desc, asc, sql, count as countFn, type SQL } from 'drizzle-orm';
+import { eq, ne, lt, inArray, and, or, isNull, isNotNull, desc, asc, sql, count as countFn, type SQL } from 'drizzle-orm';
 import { listings, enrichments, savedListings, scores, searchProfiles } from '@landmatch/db';
-import type { EnrichmentResult } from '@landmatch/enrichment';
+import type { EnrichmentResult, EnrichmentStatus } from '@landmatch/enrichment';
 
 import { db, type Tx } from '../db/client';
 import { generateId } from '../lib/id';
@@ -16,6 +16,7 @@ export interface InsertListingInput {
   source?: string;
   externalId?: string;
   userId?: string;
+  enrichmentStatus?: EnrichmentStatus | 'pending';
 }
 
 export async function insertListing(input: InsertListingInput, tx?: Tx) {
@@ -36,7 +37,7 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
       url: input.url ?? null,
       title: input.title ?? null,
       userId: input.userId ?? null,
-      enrichmentStatus: 'enriched',
+      enrichmentStatus: input.enrichmentStatus ?? 'pending',
       firstSeenAt: now,
       lastSeenAt: now,
     })
@@ -92,41 +93,45 @@ export async function insertEnrichment(
 ) {
   const id = generateId();
 
+  const values = {
+    soilCapabilityClass: result.soil?.capabilityClass ?? null,
+    soilDrainageClass: result.soil?.drainageClass ?? null,
+    soilTexture: result.soil?.texture ?? null,
+    soilSuitabilityRatings: result.soil?.suitabilityRatings ?? null,
+    femaFloodZone: result.flood?.zone ?? null,
+    floodZoneDescription: result.flood?.description ?? null,
+    zoningCode: result.parcel?.zoningCode ?? null,
+    zoningDescription: result.parcel?.zoningDescription ?? null,
+    verifiedAcreage: result.parcel?.verifiedAcreage ?? null,
+    parcelGeometry: result.parcel?.geometry ?? null,
+    fireRiskScore: result.climate?.fireRiskScore ?? null,
+    floodRiskScore: result.climate?.floodRiskScore ?? null,
+    heatRiskScore: result.climate?.heatRiskScore ?? null,
+    droughtRiskScore: result.climate?.droughtRiskScore ?? null,
+    // Climate normals (PRISM)
+    frostFreeDays: result.climateNormals?.frostFreeDays ?? null,
+    annualPrecipIn: result.climateNormals?.annualPrecipIn ?? null,
+    avgMinTempF: result.climateNormals?.avgMinTempF ?? null,
+    avgMaxTempF: result.climateNormals?.avgMaxTempF ?? null,
+    growingSeasonDays: result.climateNormals?.growingSeasonDays ?? null,
+    // Elevation (3DEP)
+    elevationFt: result.elevation?.elevationFt ?? null,
+    slopePct: result.elevation?.slopePct ?? null,
+    // Wetlands (NWI)
+    wetlandType: result.wetlands?.wetlandType ?? null,
+    wetlandDescription: result.wetlands?.wetlandDescription ?? null,
+    wetlandWithinBufferFt: result.wetlands?.distanceFt === Infinity ? null : (result.wetlands?.distanceFt ?? null),
+    enrichedAt: new Date(),
+    sourcesUsed: result.sourcesUsed,
+  };
+
+  // listing_id is unique — re-enrichment replaces the previous row's data
+  // wholesale (fresh run wins; homestead_score is recomputed right after by
+  // persistEnrichment, so it isn't carried over here).
   const [row] = await (tx ?? db)
     .insert(enrichments)
-    .values({
-      id,
-      listingId,
-      soilCapabilityClass: result.soil?.capabilityClass ?? null,
-      soilDrainageClass: result.soil?.drainageClass ?? null,
-      soilTexture: result.soil?.texture ?? null,
-      soilSuitabilityRatings: result.soil?.suitabilityRatings ?? null,
-      femaFloodZone: result.flood?.zone ?? null,
-      floodZoneDescription: result.flood?.description ?? null,
-      zoningCode: result.parcel?.zoningCode ?? null,
-      zoningDescription: result.parcel?.zoningDescription ?? null,
-      verifiedAcreage: result.parcel?.verifiedAcreage ?? null,
-      parcelGeometry: result.parcel?.geometry ?? null,
-      fireRiskScore: result.climate?.fireRiskScore ?? null,
-      floodRiskScore: result.climate?.floodRiskScore ?? null,
-      heatRiskScore: result.climate?.heatRiskScore ?? null,
-      droughtRiskScore: result.climate?.droughtRiskScore ?? null,
-      // Climate normals (PRISM)
-      frostFreeDays: result.climateNormals?.frostFreeDays ?? null,
-      annualPrecipIn: result.climateNormals?.annualPrecipIn ?? null,
-      avgMinTempF: result.climateNormals?.avgMinTempF ?? null,
-      avgMaxTempF: result.climateNormals?.avgMaxTempF ?? null,
-      growingSeasonDays: result.climateNormals?.growingSeasonDays ?? null,
-      // Elevation (3DEP)
-      elevationFt: result.elevation?.elevationFt ?? null,
-      slopePct: result.elevation?.slopePct ?? null,
-      // Wetlands (NWI)
-      wetlandType: result.wetlands?.wetlandType ?? null,
-      wetlandDescription: result.wetlands?.wetlandDescription ?? null,
-      wetlandWithinBufferFt: result.wetlands?.distanceFt === Infinity ? null : (result.wetlands?.distanceFt ?? null),
-      enrichedAt: new Date(),
-      sourcesUsed: result.sourcesUsed,
-    })
+    .values({ id, listingId, ...values })
+    .onConflictDoUpdate({ target: enrichments.listingId, set: values })
     .returning();
 
   return row;
@@ -141,6 +146,41 @@ export async function updateHomesteadScore(
     .update(enrichments)
     .set({ homesteadScore: score })
     .where(eq(enrichments.listingId, listingId));
+}
+
+// Candidates for the re-enrichment job: anything not fully enriched that still
+// has retry budget and coordinates to enrich with. Oldest first so a backlog
+// drains in FIFO order.
+export async function findListingsNeedingEnrichment(limit: number, maxAttempts: number, tx?: Tx) {
+  return (tx ?? db)
+    .select()
+    .from(listings)
+    .where(
+      and(
+        ne(listings.enrichmentStatus, 'enriched'),
+        lt(listings.enrichmentAttempts, maxAttempts),
+        isNotNull(listings.latitude),
+        isNotNull(listings.longitude),
+      ),
+    )
+    .orderBy(asc(listings.firstSeenAt))
+    .limit(limit);
+}
+
+export async function recordEnrichmentAttempt(
+  id: string,
+  status: EnrichmentStatus | undefined,
+  tx?: Tx,
+) {
+  await (tx ?? db)
+    .update(listings)
+    .set({
+      enrichmentAttempts: sql`${listings.enrichmentAttempts} + 1`,
+      // No status means the run produced nothing worth persisting — keep the
+      // existing status and only consume retry budget.
+      ...(status ? { enrichmentStatus: status } : {}),
+    })
+    .where(eq(listings.id, id));
 }
 
 export async function findListingById(id: string, tx?: Tx) {

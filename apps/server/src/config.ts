@@ -266,6 +266,15 @@ export const email = {
   inProcessCron: featureFlag('EMAIL_INPROCESS_CRON', true),
 } as const;
 
+export const reEnrichment = {
+  // Local-dev-only cadence (node-cron). Deployed stages are scheduled by the
+  // ReEnrichment cron in sst.config.ts — changing this does not affect them.
+  cronSchedule: optional('REENRICH_CRON_SCHEDULE', '*/15 * * * *'),
+  // In-process node-cron is for local dev; deployed stages run the
+  // sst.aws.Cron ReEnrichment job instead and set this to false.
+  inProcessCron: featureFlag('REENRICH_INPROCESS_CRON', true),
+} as const;
+
 /**
  * Sentry configuration — DSN-optional. Locally, SENTRY_SPOTLIGHT=1 sends
  * events to the Spotlight sidecar with no account needed.
