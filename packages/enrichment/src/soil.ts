@@ -2,6 +2,7 @@ import { err, ok } from '@landmatch/api';
 import { z } from 'zod';
 
 import type { EnrichmentAdapter, LatLng, Result, SoilData } from './types';
+import { boundedString } from './validate';
 
 const SDM_URL = 'https://sdmdataaccess.sc.egov.usda.gov/tabular/post.rest';
 const TIMEOUT_MS = 15_000;
@@ -10,7 +11,7 @@ const TIMEOUT_MS = 15_000;
 // texture). Validating — not asserting — the shape keeps maintenance HTML
 // pages and error objects from sliding through as soil rows; string caps keep
 // unbounded vendor text out of storage.
-const SdmCell = z.union([z.string().transform((s) => s.slice(0, 100)), z.number(), z.null()]);
+const SdmCell = z.union([boundedString(100), z.number(), z.null()]);
 const SdmResponse = z.object({
   Table: z.array(z.array(SdmCell)).optional(),
 });

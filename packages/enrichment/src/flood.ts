@@ -2,6 +2,7 @@ import { err, ok } from '@landmatch/api';
 import { z } from 'zod';
 
 import type { EnrichmentAdapter, FloodData, LatLng, Result } from './types';
+import { boundedString } from './validate';
 
 const NFHL_URL = 'https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query';
 const TIMEOUT_MS = 10_000;
@@ -38,7 +39,7 @@ const NfhlQueryResponse = z.object({
 const NfhlFeature = z.object({
   // Real zone codes are <= 4 chars; the cap keeps unbounded vendor text out
   // of storage without rejecting unknown-but-plausible codes.
-  attributes: z.object({ FLD_ZONE: z.string().transform((s) => s.slice(0, 30)) }),
+  attributes: z.object({ FLD_ZONE: boundedString(30) }),
 });
 
 export const floodAdapter: EnrichmentAdapter<FloodData> = {

@@ -3,12 +3,13 @@ import type { Pool } from 'pg';
 import { z } from 'zod';
 
 import type { ElevationData, EnrichmentAdapter, LatLng, Result } from './types';
+import { pgNumeric } from './validate';
 
-// pg returns NUMERIC as strings; a null slope (raster tile edge) must not
-// cast to 0 — "perfectly flat" inflates building-suitability scores.
+// A null slope (raster tile edge) must fail, not read as "perfectly flat"
+// and inflate building-suitability scores (see pgNumeric).
 const ElevationRow = z.object({
-  elevation_ft: z.union([z.number(), z.string()]).pipe(z.coerce.number()),
-  slope_pct: z.union([z.number(), z.string()]).pipe(z.coerce.number()),
+  elevation_ft: pgNumeric,
+  slope_pct: pgNumeric,
 });
 
 export function createElevationAdapter(pool: Pool): EnrichmentAdapter<ElevationData> {

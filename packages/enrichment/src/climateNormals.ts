@@ -3,18 +3,16 @@ import type { Pool } from 'pg';
 import { z } from 'zod';
 
 import type { ClimateNormalsData, EnrichmentAdapter, LatLng, Result } from './types';
+import { pgNumeric } from './validate';
 
-// pg returns NUMERIC as strings; null means the point missed a raster tile.
-// Number(null) is 0, so casting instead of validating fabricates values
-// (0°F temps, desert precipitation) for partial coverage.
-const FiniteNumeric = z.union([z.number(), z.string()]).pipe(z.coerce.number());
-
+// A null field means the point missed that raster tile — partial coverage
+// must fail, not read as extreme climate (see pgNumeric).
 const NormalsRow = z.object({
-  frost_free_days: FiniteNumeric,
-  annual_precip_in: FiniteNumeric,
-  avg_min_temp_f: FiniteNumeric,
-  avg_max_temp_f: FiniteNumeric,
-  growing_season_days: FiniteNumeric,
+  frost_free_days: pgNumeric,
+  annual_precip_in: pgNumeric,
+  avg_min_temp_f: pgNumeric,
+  avg_max_temp_f: pgNumeric,
+  growing_season_days: pgNumeric,
 });
 
 export function createClimateNormalsAdapter(pool: Pool): EnrichmentAdapter<ClimateNormalsData> {

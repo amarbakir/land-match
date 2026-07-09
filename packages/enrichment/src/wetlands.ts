@@ -3,14 +3,15 @@ import type { Pool } from 'pg';
 import { z } from 'zod';
 
 import type { EnrichmentAdapter, LatLng, Result, WetlandsData } from './types';
+import { boundedString, pgNumeric } from './validate';
 
 const BUFFER_FT = 1000;
 
 // NWI attribute strings are ETL'd vendor text — cap before storage.
 const WetlandRow = z.object({
-  wetland_type: z.string().transform((s) => s.slice(0, 100)).nullable(),
-  attribute: z.string().transform((s) => s.slice(0, 500)).nullable(),
-  distance_ft: z.union([z.number(), z.string()]).pipe(z.coerce.number()),
+  wetland_type: boundedString(100).nullable(),
+  attribute: boundedString(500).nullable(),
+  distance_ft: pgNumeric,
 });
 
 export function createWetlandsAdapter(pool: Pool): EnrichmentAdapter<WetlandsData> {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { isValidLatLng } from './coords';
 import type { Result } from './types';
+import { boundedString } from './validate';
 
 export interface GeocodeData {
   lat: number;
@@ -17,7 +18,7 @@ const TIMEOUT_MS = 10_000;
 // Both geocoders' responses are validated, not cast: garbage lat/lng would
 // otherwise flow downstream as NaN (into vendor queries and the listings
 // table), and display names are unbounded vendor text.
-const BoundedAddress = z.string().transform((s) => s.slice(0, 500));
+const BoundedAddress = boundedString(500);
 
 const CensusResponse = z.object({
   result: z
@@ -101,6 +102,16 @@ export function resetGeocoderForTests(): void {
   nominatimQueued = 0;
 }
 
+// Schema-valid coordinates can still be out of range (e.g. lat/lng swapped by
+// the vendor) — one shared tail keeps both providers' guard and error format
+// in sync.
+function checkedGeocode(provider: string, data: GeocodeData): Result<GeocodeData> {
+  if (!isValidLatLng(data)) {
+    return err(`${provider} returned invalid coordinates (${data.lat}, ${data.lng})`);
+  }
+  return ok(data);
+}
+
 export async function geocode(address: string): Promise<Result<GeocodeData>> {
   const cacheKey = normalizeAddress(address);
   const cached = geocodeCache.get(cacheKey);
@@ -146,16 +157,11 @@ async function geocodeCensus(address: string): Promise<Result<GeocodeData>> {
     }
 
     const match = matches[0];
-    const data = {
+    return checkedGeocode('Census Geocoder', {
       lat: match.coordinates.y,
       lng: match.coordinates.x,
       matchedAddress: match.matchedAddress,
-    };
-    if (!isValidLatLng(data)) {
-      return err(`Census Geocoder returned invalid coordinates (${data.lat}, ${data.lng})`);
-    }
-
-    return ok(data);
+    });
   } catch (e) {
     return err(`Census Geocoder failed: ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -187,16 +193,11 @@ async function geocodeNominatim(address: string): Promise<Result<GeocodeData>> {
     }
 
     const result = parsed.data[0];
-    const data = {
+    return checkedGeocode('Nominatim', {
       lat: result.lat,
       lng: result.lon,
       matchedAddress: result.display_name,
-    };
-    if (!isValidLatLng(data)) {
-      return err(`Nominatim returned invalid coordinates (${data.lat}, ${data.lng})`);
-    }
-
-    return ok(data);
+    });
   } catch (e) {
     return err(`Nominatim failed: ${e instanceof Error ? e.message : String(e)}`);
   }
