@@ -39,12 +39,15 @@ type SslConfig = { rejectUnauthorized: boolean; ca?: string } | undefined;
 
 // DATABASE_SSL_CA holds either inline PEM or a path to a CA bundle file —
 // needed for providers whose server certs aren't signed by a public CA
-// (Supabase's own CA, the AWS RDS bundle).
+// (Supabase's own CA, the AWS RDS bundle). Resolved once: env is fixed at
+// import time and a path-form value shouldn't be re-read per connection.
 function resolveSslCa(): string | undefined {
   const value = process.env.DATABASE_SSL_CA;
   if (!value) return undefined;
   return value.includes('-----BEGIN') ? value : fs.readFileSync(value, 'utf8');
 }
+
+const sslCa = resolveSslCa();
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 
@@ -66,7 +69,7 @@ function resolveSsl(host: string, params: URLSearchParams): SslConfig {
     return { rejectUnauthorized: false };
   }
 
-  return { rejectUnauthorized: true, ca: resolveSslCa() };
+  return { rejectUnauthorized: true, ca: sslCa };
 }
 
 /**
@@ -102,7 +105,12 @@ function parseDatabaseUrl(url: string) {
 /**
  * Database configuration
  */
-const databaseUrl = optional('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/landmatch');
+// required() in production so a forgotten DATABASE_URL fails with "missing
+// variable" instead of the localhost default tripping the TLS guard below
+// with a misleading certificate error.
+const databaseUrl = isProduction
+  ? required('DATABASE_URL')
+  : optional('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/landmatch');
 const directUrl = optional('DIRECT_URL', databaseUrl);
 
 export const database = {
@@ -249,11 +257,6 @@ export function validateConfig(): void {
     'config loaded',
   );
 
-  if (isProduction) {
-    if (!database.url) {
-      throw new Error('DATABASE_URL is required in production');
-    }
-  }
 }
 
 export default {

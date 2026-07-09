@@ -107,21 +107,18 @@ describe('database config — TLS', () => {
     vi.unstubAllEnvs();
   });
 
-  function stubUrl(url: string) {
-    vi.stubEnv('DATABASE_URL', url);
-  }
 
   it('keeps local development plaintext — localhost URL gets no ssl config', async () => {
     // Bug this catches: forcing TLS on the default localhost URL would break
     // every local dev setup (docker-compose Postgres has no certs).
-    stubUrl('postgresql://postgres:postgres@localhost:5432/landmatch');
+    vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/landmatch');
 
     const config = await importConfig();
     expect(config.database.connection.ssl).toBeUndefined();
   });
 
   it('defaults any remote host to certificate-verified TLS', async () => {
-    stubUrl('postgresql://user:pass@db.abc.supabase.co:5432/landmatch');
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.abc.supabase.co:5432/landmatch');
 
     const config = await importConfig();
     // Bug this catches: the old host.includes('supabase.co') heuristic set
@@ -131,14 +128,14 @@ describe('database config — TLS', () => {
   });
 
   it('honors sslmode=disable for a non-local dev database', async () => {
-    stubUrl('postgresql://user:pass@192.168.1.50:5432/landmatch?sslmode=disable');
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@192.168.1.50:5432/landmatch?sslmode=disable');
 
     const config = await importConfig();
     expect(config.database.connection.ssl).toBeUndefined();
   });
 
   it('honors sslmode=no-verify as an explicit unverified-TLS escape hatch', async () => {
-    stubUrl('postgresql://user:pass@db.abc.supabase.co:5432/landmatch?sslmode=no-verify');
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.abc.supabase.co:5432/landmatch?sslmode=no-verify');
 
     const config = await importConfig();
     expect(config.database.connection.ssl).toEqual({ rejectUnauthorized: false });
@@ -146,25 +143,35 @@ describe('database config — TLS', () => {
 
   it('passes an inline PEM from DATABASE_SSL_CA to the connection', async () => {
     const pem = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----';
-    stubUrl('postgresql://user:pass@db.abc.supabase.co:5432/landmatch');
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.abc.supabase.co:5432/landmatch');
     vi.stubEnv('DATABASE_SSL_CA', pem);
 
     const config = await importConfig();
     expect(config.database.connection.ssl).toEqual({ rejectUnauthorized: true, ca: pem });
   });
 
+  it('fails with a missing-variable error (not a TLS error) when DATABASE_URL is unset in production', async () => {
+    // Bug this catches: the localhost default kicking in for a forgotten
+    // DATABASE_URL and tripping the TLS guard — sending the operator to debug
+    // certificates when the variable is simply unset.
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DATABASE_URL', '');
+
+    await expect(importConfig()).rejects.toThrow(/Missing required environment variable: DATABASE_URL/);
+  });
+
   it('refuses to start in production without verified TLS (sslmode=disable)', async () => {
     // Bug this catches: production DB traffic (credentials, password hashes,
     // PII) running plaintext because someone copied a dev URL.
     vi.stubEnv('NODE_ENV', 'production');
-    stubUrl('postgresql://user:pass@db.example.com:5432/landmatch?sslmode=disable');
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.example.com:5432/landmatch?sslmode=disable');
 
     await expect(importConfig()).rejects.toThrow(/certificate-verified TLS/);
   });
 
   it('refuses to start in production with unverified TLS (sslmode=no-verify)', async () => {
     vi.stubEnv('NODE_ENV', 'production');
-    stubUrl('postgresql://user:pass@db.example.com:5432/landmatch?sslmode=no-verify');
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.example.com:5432/landmatch?sslmode=no-verify');
 
     await expect(importConfig()).rejects.toThrow(/certificate-verified TLS/);
   });
@@ -173,7 +180,7 @@ describe('database config — TLS', () => {
     // Bug this catches: migrations (DIRECT_URL) silently running plaintext
     // while the app pool is verified.
     vi.stubEnv('NODE_ENV', 'production');
-    stubUrl('postgresql://user:pass@db.example.com:5432/landmatch');
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.example.com:5432/landmatch');
     vi.stubEnv('DIRECT_URL', 'postgresql://user:pass@db.example.com:5432/landmatch?sslmode=disable');
 
     await expect(importConfig()).rejects.toThrow(/DIRECT_URL/);
