@@ -9,6 +9,7 @@ export const ErrorCode = {
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',
   CONFLICT: 'CONFLICT',
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
   RATE_LIMITED: 'RATE_LIMITED',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 
@@ -30,6 +31,7 @@ export const ErrorMessage: Record<ErrorCodeType, string> = {
   FORBIDDEN: 'Access denied',
   NOT_FOUND: 'Resource not found',
   CONFLICT: 'Resource conflict',
+  PAYLOAD_TOO_LARGE: 'Request body too large',
   RATE_LIMITED: 'Too many requests, please try again later',
   INTERNAL_ERROR: 'Internal server error',
   INVALID_CREDENTIALS: 'Invalid email or password',

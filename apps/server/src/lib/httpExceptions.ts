@@ -59,7 +59,16 @@ export function badRequest(message: string): never {
 export async function readJson(c: Context<Env>): Promise<unknown> {
   try {
     return await c.req.json();
-  } catch {
+  } catch (e) {
+    if (e instanceof HTTPException) throw e;
+    // Requests with Content-Length are 413'd by the bodyLimit middleware up
+    // front; bodies without it (chunked) are enforced lazily during this read
+    // and surface as BodyLimitError — keep that a 413, not a 400.
+    if (e instanceof Error && e.name === 'BodyLimitError') {
+      throw new HTTPException(413, {
+        res: jsonError(413, 'PAYLOAD_TOO_LARGE', ErrorMessage.PAYLOAD_TOO_LARGE),
+      });
+    }
     badRequest('Invalid JSON body');
   }
 }

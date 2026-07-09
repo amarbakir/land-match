@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import * as Sentry from '@sentry/node';
 
-import { ErrorMessage, type ApiErrorEnvelopeType } from '@landmatch/api';
+import { ErrorCode, ErrorMessage, type ApiErrorEnvelopeType } from '@landmatch/api';
 import { server } from './config';
 import { pool } from './db/client';
 import { registerEnrichmentMetrics } from './lib/enrichmentMetrics';
@@ -38,6 +39,20 @@ export function createApp() {
 
   // Request ID + child logger + access log
   app.use('*', requestLogging(logger));
+
+  // Every route buffers the body (c.req.json()) — cap it globally so a large
+  // or parallel-large body can't exhaust memory. All legitimate payloads
+  // (criteria JSON, addresses, credentials) are far under 100KB.
+  app.use(
+    '*',
+    bodyLimit({
+      maxSize: 100 * 1024,
+      onError: (c) => {
+        const body = { ok: false, code: ErrorCode.PAYLOAD_TOO_LARGE, error: ErrorMessage.PAYLOAD_TOO_LARGE } satisfies ApiErrorEnvelopeType;
+        return c.json(body, 413);
+      },
+    }),
+  );
 
   // Error handler
   app.onError((err, c) => {
