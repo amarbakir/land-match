@@ -10,8 +10,30 @@ import * as schema from '@landmatch/db';
 import { database } from '../config';
 import { logger } from '../lib/logger';
 
-// Create connection pool using parsed config object
-export const pool = new Pool(database.connection);
+// Lambda containers each hold their own pool behind the Supabase pooler —
+// keep them tiny so concurrent invocations don't exhaust pooler slots. The
+// long-lived node server gets a normal-sized pool.
+const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+const poolMax = parseInt(process.env.DB_POOL_MAX || (isLambda ? '2' : '10'), 10);
+
+export const pool = new Pool({
+  ...database.connection,
+  max: poolMax,
+  // Fail acquisition fast when the DB is unreachable instead of hanging requests
+  connectionTimeoutMillis: 10_000,
+  idleTimeoutMillis: 30_000,
+  // App queries are short; runaway statements must not pin a connection.
+  // (Migrations run on their own pool below, without this cap.)
+  statement_timeout: 30_000,
+});
+
+// node-postgres emits 'error' on the pool when an idle client's backend dies
+// (DB restart, failover, pgbouncer recycle). Without a listener that becomes
+// an uncaught exception and crashes the process — it's routine, just log it;
+// the pool replaces the dead client on next acquisition.
+pool.on('error', (err) => {
+  logger.warn({ err }, 'idle db pool client errored — connection will be replaced');
+});
 
 export const db = drizzle(pool, { schema });
 
