@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 import dotenv from 'dotenv';
 
 import { logger } from './lib/logger';
@@ -33,6 +35,40 @@ function optional(name: string, defaultValue: string): string {
   return process.env[name] || defaultValue;
 }
 
+type SslConfig = { rejectUnauthorized: boolean; ca?: string } | undefined;
+
+// DATABASE_SSL_CA holds either inline PEM or a path to a CA bundle file —
+// needed for providers whose server certs aren't signed by a public CA
+// (Supabase's own CA, the AWS RDS bundle).
+function resolveSslCa(): string | undefined {
+  const value = process.env.DATABASE_SSL_CA;
+  if (!value) return undefined;
+  return value.includes('-----BEGIN') ? value : fs.readFileSync(value, 'utf8');
+}
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+/**
+ * TLS policy for DB connections: any remote host gets certificate-verified
+ * TLS by default. Plaintext is only for local development — the default
+ * localhost URL, or an explicit sslmode=disable.
+ */
+function resolveSsl(host: string, params: URLSearchParams): SslConfig {
+  const sslmode = params.get('sslmode');
+
+  if (sslmode === 'disable') return undefined;
+  if (!sslmode && LOCAL_HOSTS.has(host)) return undefined;
+
+  // Encrypts but does not authenticate the server — an explicit, visible
+  // escape hatch for dev stages without a CA bundle. Rejected in production.
+  if (sslmode === 'no-verify') {
+    logger.warn({ host }, 'DB TLS certificate verification disabled via sslmode=no-verify');
+    return { rejectUnauthorized: false };
+  }
+
+  return { rejectUnauthorized: true, ca: resolveSslCa() };
+}
+
 /**
  * Parse a postgres URL into individual connection fields.
  */
@@ -58,7 +94,7 @@ function parseDatabaseUrl(url: string) {
     user,
     password,
     database,
-    ssl: host.includes('supabase.co') ? { rejectUnauthorized: false } : undefined,
+    ssl: resolveSsl(host, params),
     pgbouncer: params.has('pgbouncer'),
   };
 }
@@ -75,6 +111,22 @@ export const database = {
   directUrl,
   directConnection: parseDatabaseUrl(directUrl),
 } as const;
+
+// Production DB traffic carries credentials, password hashes, and PII —
+// refuse to start with plaintext or unverified TLS rather than run MITM-able.
+// Checked at import (not validateConfig) so the Lambda entrypoint is covered.
+if (isProduction) {
+  for (const [name, conn] of [
+    ['DATABASE_URL', database.connection],
+    ['DIRECT_URL', database.directConnection],
+  ] as const) {
+    if (conn.ssl?.rejectUnauthorized !== true) {
+      throw new Error(
+        `${name} must use certificate-verified TLS in production — remove sslmode=disable/no-verify and use a remote host (set DATABASE_SSL_CA for a provider CA bundle)`,
+      );
+    }
+  }
+}
 
 /**
  * Server configuration
