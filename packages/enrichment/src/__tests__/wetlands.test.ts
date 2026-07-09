@@ -97,3 +97,22 @@ describe('createWetlandsAdapter', () => {
     expect(params[2]).toBe(1000); // BUFFER_FT
   });
 });
+
+describe('inbound data caps', () => {
+  it('caps unbounded wetland strings before they reach storage', async () => {
+    const pool = mockPool([{
+      wetland_type: 'w'.repeat(3000),
+      attribute: 'a'.repeat(3000),
+      distance_ft: 120,
+    }]);
+
+    const adapter = createWetlandsAdapter(pool);
+    const result = await adapter.enrich({ lat: 43.1, lng: -72.78 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.wetlandType!.length).toBeLessThanOrEqual(100);
+      expect(result.data.wetlandDescription!.length).toBeLessThanOrEqual(500);
+    }
+  });
+});

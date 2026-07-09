@@ -1,8 +1,17 @@
 import { err, ok } from '@landmatch/api';
 import type { Pool } from 'pg';
+import { z } from 'zod';
+
 import type { EnrichmentAdapter, LatLng, Result, WetlandsData } from './types';
 
 const BUFFER_FT = 1000;
+
+// NWI attribute strings are ETL'd vendor text — cap before storage.
+const WetlandRow = z.object({
+  wetland_type: z.string().transform((s) => s.slice(0, 100)).nullable(),
+  attribute: z.string().transform((s) => s.slice(0, 500)).nullable(),
+  distance_ft: z.union([z.number(), z.string()]).pipe(z.coerce.number()),
+});
 
 export function createWetlandsAdapter(pool: Pool): EnrichmentAdapter<WetlandsData> {
   return {
@@ -45,10 +54,15 @@ export function createWetlandsAdapter(pool: Pool): EnrichmentAdapter<WetlandsDat
           });
         }
 
+        const parsed = WetlandRow.safeParse(rows[0]);
+        if (!parsed.success) {
+          return err('Wetlands row failed validation');
+        }
+
         return ok({
-          wetlandType: rows[0].wetland_type,
-          wetlandDescription: rows[0].attribute,
-          distanceFt: Number(rows[0].distance_ft),
+          wetlandType: parsed.data.wetland_type,
+          wetlandDescription: parsed.data.attribute,
+          distanceFt: parsed.data.distance_ft,
         });
       } catch (e) {
         return err(`Wetlands query failed: ${e instanceof Error ? e.message : String(e)}`);

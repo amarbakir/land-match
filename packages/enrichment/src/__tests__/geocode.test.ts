@@ -225,6 +225,45 @@ describe('geocode', () => {
     expect(String(fetchSpy.mock.calls[0][0])).toContain('geocoding.geo.census.gov');
   });
 
+  it('rejects Nominatim results with non-numeric coordinates instead of returning NaN', async () => {
+    // Bug this catches: Number('garbage') is NaN — it flowed downstream as a
+    // "successful" geocode and into the USDA query as POINT(NaN NaN), and the
+    // listing row itself was stored with NaN coordinates.
+    fetchSpy
+      .mockResolvedValueOnce(Response.json({ result: { addressMatches: [] } }))
+      .mockResolvedValueOnce(Response.json([{ lat: 'garbage', lon: 'more-garbage', display_name: 'x' }]));
+
+    const result = await geocode('123 Main St');
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects out-of-bounds coordinates from either provider', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        // lat/lng swapped by the vendor: y=137 is not a latitude
+        Response.json({ result: { addressMatches: [{ matchedAddress: 'X', coordinates: { x: 37.2, y: 137.9 } }] } }),
+      )
+      .mockResolvedValueOnce(Response.json([{ lat: '91.5', lon: '-93.2', display_name: 'x' }]));
+
+    const result = await geocode('123 Main St');
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('caps unbounded display names before they reach storage', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(Response.json({ result: { addressMatches: [] } }))
+      .mockResolvedValueOnce(
+        Response.json([{ lat: '37.215', lon: '-93.298', display_name: 'y'.repeat(5000) }]),
+      );
+
+    const result = await geocode('123 Main St');
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.matchedAddress.length).toBeLessThanOrEqual(500);
+  });
+
   it('handles Census response with malformed coordinates gracefully', async () => {
     fetchSpy.mockResolvedValueOnce(
       Response.json({

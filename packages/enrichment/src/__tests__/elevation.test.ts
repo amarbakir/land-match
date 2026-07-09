@@ -33,7 +33,7 @@ describe('createElevationAdapter', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toContain('No elevation data');
+      expect(result.error).toContain('elevation data');
     }
   });
 
@@ -57,5 +57,20 @@ describe('createElevationAdapter', () => {
     const params = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(params[0]).toBe(-72.78); // lng first
     expect(params[1]).toBe(43.1);   // lat second
+  });
+});
+
+describe('partial raster coverage', () => {
+  it('errors when slope is null instead of fabricating a flat 0% slope', async () => {
+    // Bug this catches: only elevation_ft was null-checked — a null slope_pct
+    // (point at a raster tile edge) became slopePct: 0, i.e. "perfectly flat",
+    // which inflates building-suitability scores.
+    const pool = mockPool([{ elevation_ft: '901.4', slope_pct: null }]);
+
+    const adapter = createElevationAdapter(pool);
+    const result = await adapter.enrich({ lat: 43.1, lng: -72.78 });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('levation');
   });
 });

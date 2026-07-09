@@ -36,7 +36,9 @@ const NfhlQueryResponse = z.object({
 // the first feature — the one we consume — so a degenerate polygon later in
 // the array can't discard an otherwise usable result.
 const NfhlFeature = z.object({
-  attributes: z.object({ FLD_ZONE: z.string() }),
+  // Real zone codes are <= 4 chars; the cap keeps unbounded vendor text out
+  // of storage without rejecting unknown-but-plausible codes.
+  attributes: z.object({ FLD_ZONE: z.string().transform((s) => s.slice(0, 30)) }),
 });
 
 export const floodAdapter: EnrichmentAdapter<FloodData> = {

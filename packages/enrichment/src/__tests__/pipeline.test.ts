@@ -64,6 +64,23 @@ describe('registerAdapter + pipeline integration', () => {
     expect(result.sourcesUsed).toContain('usda-soil');
   });
 
+  it('refuses invalid coordinates without calling any adapter', async () => {
+    // Bug this catches: NaN coords (from a garbage geocoder response or a bad
+    // DB row on the re-enrichment path) flowed into every adapter — e.g. the
+    // USDA query string as POINT(NaN NaN) — and burned vendor quota on
+    // requests that can never succeed.
+    const adapter = fakeAdapter({ elevationFt: 1200, slopePct: 5.3 });
+    registerAdapter('elevation', adapter);
+
+    const result = await runEnrichmentPipeline({ lat: NaN, lng: -92.1 });
+
+    expect(adapter.enrich).not.toHaveBeenCalled();
+    expect(result.sourcesUsed).toEqual([]);
+    expect(result.errors).toEqual([
+      { source: 'coordinates', error: expect.stringContaining('invalid coordinates') },
+    ]);
+  });
+
   it('unavailable registered adapter is skipped entirely', async () => {
     // Bug this catches: if the isAvailable() filter is bypassed,
     // disabled adapters would query PostGIS and fail or return stale data.

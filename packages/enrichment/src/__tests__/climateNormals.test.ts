@@ -71,7 +71,7 @@ describe('createClimateNormalsAdapter', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toContain('No climate normals data');
+      expect(result.error).toContain('climate normals data');
     }
   });
 
@@ -107,5 +107,26 @@ describe('createClimateNormalsAdapter', () => {
     const params = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(params[0]).toBe(-72.78); // lng first
     expect(params[1]).toBe(43.1);   // lat second
+  });
+});
+
+describe('partial raster coverage', () => {
+  it('errors when any field is null instead of fabricating zeros', async () => {
+    // Bug this catches: only frost_free_days was null-checked — a null precip
+    // with non-null frost days became annualPrecipIn: 0 (Number(null) === 0),
+    // which reads as "desert" to scoring rather than "unknown".
+    const pool = mockPool([{
+      frost_free_days: 158,
+      annual_precip_in: null,
+      avg_min_temp_f: 28.1,
+      avg_max_temp_f: 72.5,
+      growing_season_days: 165,
+    }]);
+
+    const adapter = createClimateNormalsAdapter(pool);
+    const result = await adapter.enrich({ lat: 43.1, lng: -72.78 });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('climate normals');
   });
 });

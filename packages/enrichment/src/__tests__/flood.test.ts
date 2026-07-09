@@ -165,3 +165,17 @@ describe('floodAdapter.enrich', () => {
     }
   });
 });
+
+describe('inbound data caps', () => {
+  it('caps an unbounded FLD_ZONE string before it reaches storage', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({ features: [{ attributes: { FLD_ZONE: 'Z'.repeat(500), ZONE_SUBTY: '' } }] }),
+    );
+
+    const result = await floodAdapter.enrich({ lat: 36.6, lng: -92.1 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.zone!.length).toBeLessThanOrEqual(30);
+  });
+});

@@ -1,9 +1,19 @@
 import { err, ok } from '@landmatch/api';
+import { z } from 'zod';
 
 import type { EnrichmentAdapter, LatLng, Result, SoilData } from './types';
 
 const SDM_URL = 'https://sdmdataaccess.sc.egov.usda.gov/tabular/post.rest';
 const TIMEOUT_MS = 15_000;
+
+// SDM rows are positional scalars (comppct, capability class, drainage,
+// texture). Validating — not asserting — the shape keeps maintenance HTML
+// pages and error objects from sliding through as soil rows; string caps keep
+// unbounded vendor text out of storage.
+const SdmCell = z.union([z.string().transform((s) => s.slice(0, 100)), z.number(), z.null()]);
+const SdmResponse = z.object({
+  Table: z.array(z.array(SdmCell)).optional(),
+});
 
 const CAPABILITY_SUITABILITY: Record<number, Record<string, number>> = {
   1: { crops: 95, pasture: 95, garden: 95, orchard: 90 },
@@ -60,10 +70,13 @@ export const soilAdapter: EnrichmentAdapter<SoilData> = {
         return err(`USDA SDM HTTP ${res.status}`);
       }
 
-      const json = (await res.json()) as { Table?: unknown[][] };
-      const table = json?.Table;
+      const parsed = SdmResponse.safeParse(await res.json());
+      if (!parsed.success) {
+        return err('USDA SDM unexpected response shape');
+      }
+      const table = parsed.data.Table;
 
-      if (!Array.isArray(table) || table.length === 0) {
+      if (!table || table.length === 0) {
         return err('No soil data found for this location');
       }
 

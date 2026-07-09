@@ -1,6 +1,7 @@
 import { err } from '@landmatch/api';
 
 import { climateAdapter } from './climate';
+import { isValidLatLng } from './coords';
 import { floodAdapter } from './flood';
 import { emitMetric } from './metrics';
 import { parcelAdapter } from './parcel';
@@ -78,6 +79,15 @@ export interface PipelineOptions {
 }
 
 export async function runEnrichmentPipeline(coords: LatLng, options: PipelineOptions = {}): Promise<EnrichmentResult> {
+  // Bad coordinates can't produce data from any vendor — refuse up front
+  // instead of burning quota on POINT(NaN NaN)-style requests.
+  if (!isValidLatLng(coords)) {
+    return {
+      sourcesUsed: [],
+      errors: [{ source: 'coordinates', error: `invalid coordinates (${coords.lat}, ${coords.lng})` }],
+    };
+  }
+
   const allAdapters = [...defaultAdapters, ...additionalAdapters];
   const available = allAdapters.filter((r) => r.adapter.isAvailable());
 

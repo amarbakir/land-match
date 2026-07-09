@@ -1,6 +1,15 @@
 import { err, ok } from '@landmatch/api';
 import type { Pool } from 'pg';
+import { z } from 'zod';
+
 import type { ElevationData, EnrichmentAdapter, LatLng, Result } from './types';
+
+// pg returns NUMERIC as strings; a null slope (raster tile edge) must not
+// cast to 0 — "perfectly flat" inflates building-suitability scores.
+const ElevationRow = z.object({
+  elevation_ft: z.union([z.number(), z.string()]).pipe(z.coerce.number()),
+  slope_pct: z.union([z.number(), z.string()]).pipe(z.coerce.number()),
+});
 
 export function createElevationAdapter(pool: Pool): EnrichmentAdapter<ElevationData> {
   return {
@@ -41,13 +50,18 @@ export function createElevationAdapter(pool: Pool): EnrichmentAdapter<ElevationD
 
         const { rows } = await pool.query(sql, [coords.lng, coords.lat]);
 
-        if (rows.length === 0 || rows[0].elevation_ft === null) {
+        if (rows.length === 0) {
           return err('No elevation data found for this location');
         }
 
+        const parsed = ElevationRow.safeParse(rows[0]);
+        if (!parsed.success) {
+          return err('Incomplete elevation data for this location');
+        }
+
         return ok({
-          elevationFt: Number(rows[0].elevation_ft),
-          slopePct: Number(rows[0].slope_pct),
+          elevationFt: parsed.data.elevation_ft,
+          slopePct: parsed.data.slope_pct,
         });
       } catch (e) {
         return err(`Elevation query failed: ${e instanceof Error ? e.message : String(e)}`);

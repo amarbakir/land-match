@@ -115,6 +115,40 @@ describe('soilAdapter.enrich', () => {
     }
   });
 
+  it('rejects a response whose envelope is not the expected shape', async () => {
+    // Bug this catches: `as { Table?: unknown[][] }` was a type assertion, not
+    // a check — a maintenance HTML page or error object parsed as JSON slid
+    // through and produced garbage soil rows.
+    fetchSpy.mockResolvedValueOnce(Response.json({ Table: 'not-an-array' }));
+
+    const result = await soilAdapter.enrich({ lat: 37.215, lng: -93.298 });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('unexpected response shape');
+  });
+
+  it('rejects rows whose cells are not scalar values', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({ Table: [[85, { nested: 'object' }, 'Well drained', 'Loam']] }),
+    );
+
+    const result = await soilAdapter.enrich({ lat: 37.215, lng: -93.298 });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('unexpected response shape');
+  });
+
+  it('caps unbounded vendor strings before they reach storage', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({ Table: [[85, '2e', 'x'.repeat(5000), 'Loam']] }),
+    );
+
+    const result = await soilAdapter.enrich({ lat: 37.215, lng: -93.298 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.drainageClass.length).toBeLessThanOrEqual(100);
+  });
+
   it('uses POST method with correct content type', async () => {
     fetchSpy.mockResolvedValueOnce(Response.json(VALID_SDM_RESPONSE));
 

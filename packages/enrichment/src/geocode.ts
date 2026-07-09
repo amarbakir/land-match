@@ -1,5 +1,7 @@
 import { err, ok } from '@landmatch/api';
+import { z } from 'zod';
 
+import { isValidLatLng } from './coords';
 import type { Result } from './types';
 
 export interface GeocodeData {
@@ -11,6 +13,34 @@ export interface GeocodeData {
 const CENSUS_URL = 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress';
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const TIMEOUT_MS = 10_000;
+
+// Both geocoders' responses are validated, not cast: garbage lat/lng would
+// otherwise flow downstream as NaN (into vendor queries and the listings
+// table), and display names are unbounded vendor text.
+const BoundedAddress = z.string().transform((s) => s.slice(0, 500));
+
+const CensusResponse = z.object({
+  result: z
+    .object({
+      addressMatches: z
+        .array(
+          z.object({
+            matchedAddress: BoundedAddress,
+            coordinates: z.object({ x: z.number(), y: z.number() }),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
+});
+
+const NominatimResponse = z.array(
+  z.object({
+    lat: z.coerce.number(),
+    lon: z.coerce.number(),
+    display_name: BoundedAddress,
+  }),
+);
 
 // OSM's usage policy requires an identifying UA with contact info — a bare
 // product name gets banned by UA/IP, silently killing the geocode fallback.
@@ -105,21 +135,27 @@ async function geocodeCensus(address: string): Promise<Result<GeocodeData>> {
       return err(`Census Geocoder HTTP ${res.status}`);
     }
 
-    const json = (await res.json()) as { result?: { addressMatches?: Array<{ coordinates: { x: number; y: number }; matchedAddress: string }> } };
-    const matches = json?.result?.addressMatches;
+    const parsed = CensusResponse.safeParse(await res.json());
+    if (!parsed.success) {
+      return err('Census Geocoder unexpected response shape');
+    }
+    const matches = parsed.data.result?.addressMatches;
 
-    if (!Array.isArray(matches) || matches.length === 0) {
+    if (!matches || matches.length === 0) {
       return err('No address matches from Census Geocoder');
     }
 
     const match = matches[0];
-    const coords = match.coordinates;
-
-    return ok({
-      lat: coords.y,
-      lng: coords.x,
+    const data = {
+      lat: match.coordinates.y,
+      lng: match.coordinates.x,
       matchedAddress: match.matchedAddress,
-    });
+    };
+    if (!isValidLatLng(data)) {
+      return err(`Census Geocoder returned invalid coordinates (${data.lat}, ${data.lng})`);
+    }
+
+    return ok(data);
   } catch (e) {
     return err(`Census Geocoder failed: ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -142,19 +178,25 @@ async function geocodeNominatim(address: string): Promise<Result<GeocodeData>> {
       return err(`Nominatim HTTP ${res.status}`);
     }
 
-    const json = await res.json();
-
-    if (!Array.isArray(json) || json.length === 0) {
+    const parsed = NominatimResponse.safeParse(await res.json());
+    if (!parsed.success) {
+      return err('Nominatim unexpected response shape');
+    }
+    if (parsed.data.length === 0) {
       return err('No results from Nominatim');
     }
 
-    const result = json[0];
-
-    return ok({
-      lat: Number(result.lat),
-      lng: Number(result.lon),
+    const result = parsed.data[0];
+    const data = {
+      lat: result.lat,
+      lng: result.lon,
       matchedAddress: result.display_name,
-    });
+    };
+    if (!isValidLatLng(data)) {
+      return err(`Nominatim returned invalid coordinates (${data.lat}, ${data.lng})`);
+    }
+
+    return ok(data);
   } catch (e) {
     return err(`Nominatim failed: ${e instanceof Error ? e.message : String(e)}`);
   }

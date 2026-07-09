@@ -1,6 +1,21 @@
 import { err, ok } from '@landmatch/api';
 import type { Pool } from 'pg';
+import { z } from 'zod';
+
 import type { ClimateNormalsData, EnrichmentAdapter, LatLng, Result } from './types';
+
+// pg returns NUMERIC as strings; null means the point missed a raster tile.
+// Number(null) is 0, so casting instead of validating fabricates values
+// (0°F temps, desert precipitation) for partial coverage.
+const FiniteNumeric = z.union([z.number(), z.string()]).pipe(z.coerce.number());
+
+const NormalsRow = z.object({
+  frost_free_days: FiniteNumeric,
+  annual_precip_in: FiniteNumeric,
+  avg_min_temp_f: FiniteNumeric,
+  avg_max_temp_f: FiniteNumeric,
+  growing_season_days: FiniteNumeric,
+});
 
 export function createClimateNormalsAdapter(pool: Pool): EnrichmentAdapter<ClimateNormalsData> {
   return {
@@ -30,17 +45,24 @@ export function createClimateNormalsAdapter(pool: Pool): EnrichmentAdapter<Clima
 
         const { rows } = await pool.query(sql, [coords.lng, coords.lat]);
 
-        if (rows.length === 0 || rows[0].frost_free_days === null) {
+        if (rows.length === 0) {
           return err('No climate normals data found for this location');
         }
 
-        const row = rows[0];
+        const parsed = NormalsRow.safeParse(rows[0]);
+        if (!parsed.success) {
+          // Point missed one or more raster tiles — partial data would read
+          // as extreme climate, not as unknown.
+          return err('Incomplete climate normals data for this location');
+        }
+
+        const row = parsed.data;
         return ok({
-          frostFreeDays: Math.round(Number(row.frost_free_days)),
-          annualPrecipIn: Math.round(Number(row.annual_precip_in) * 10) / 10,
-          avgMinTempF: Math.round(Number(row.avg_min_temp_f) * 10) / 10,
-          avgMaxTempF: Math.round(Number(row.avg_max_temp_f) * 10) / 10,
-          growingSeasonDays: Math.round(Number(row.growing_season_days)),
+          frostFreeDays: Math.round(row.frost_free_days),
+          annualPrecipIn: Math.round(row.annual_precip_in * 10) / 10,
+          avgMinTempF: Math.round(row.avg_min_temp_f * 10) / 10,
+          avgMaxTempF: Math.round(row.avg_max_temp_f * 10) / 10,
+          growingSeasonDays: Math.round(row.growing_season_days),
         });
       } catch (e) {
         return err(`Climate normals query failed: ${e instanceof Error ? e.message : String(e)}`);
