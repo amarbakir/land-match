@@ -185,7 +185,12 @@ describe('by-url visibility (integration)', () => {
   });
 
   it("prefers the caller's own listing over a feed listing with the same URL", async () => {
+    // Own-row-first, feed-row-later: since enrich dedupes against existing
+    // visible rows (land-match-0jx.10), coexistence now arises when the feed
+    // pipeline ingests a URL a user already enriched — not the reverse.
     const token = await registerUser(app, 'both@example.com');
+    const enriched = await postEnrich({ address: '123 Rural Rd, MO', price: 50000, url: LISTING_URL }, token);
+    expect(enriched.status).toBe(201);
     await listingRepo.insertListing({
       address: '789 Feed Rd, MO',
       latitude: 36.1,
@@ -193,8 +198,6 @@ describe('by-url visibility (integration)', () => {
       url: LISTING_URL,
       source: 'feed',
     });
-    const enriched = await postEnrich({ address: '123 Rural Rd, MO', price: 50000, url: LISTING_URL }, token);
-    expect(enriched.status).toBe(201);
 
     // Bug this catches: limit(1) with no ORDER BY returns an arbitrary row when
     // both a feed row and the caller's own row match, so the extension could
@@ -203,5 +206,26 @@ describe('by-url visibility (integration)', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { listing: { price: number | null } } };
     expect(body.data.listing.price).toBe(50000);
+  });
+
+  it('enriching a URL the feed already carries returns the feed row instead of forking a duplicate', async () => {
+    // Bug this catches (land-match-0jx.10): a feed row + a fresh owned row for
+    // the same property would BOTH score against the owner's profiles — two
+    // match entries and two alert emails for one listing.
+    const token = await registerUser(app, 'dedupe@example.com');
+    await listingRepo.insertListing({
+      address: '789 Feed Rd, MO',
+      latitude: 36.1,
+      longitude: -92.5,
+      url: LISTING_URL,
+      source: 'feed',
+    });
+
+    const res = await postEnrich({ address: '789 Feed Rd, MO', url: LISTING_URL }, token);
+    expect(res.status).toBe(201);
+
+    expect(mockEnrich).not.toHaveBeenCalled(); // no vendor quota burned
+    const count = await pool.query('SELECT count(*)::int AS n FROM listings');
+    expect(count.rows[0].n).toBe(1); // still just the feed row
   });
 });

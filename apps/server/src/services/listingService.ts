@@ -1,5 +1,5 @@
 import { err, isHttpUrl, ok, type Result, type EnrichListingRequest, type EnrichListingResponse, type ListingEnrichmentStatus, type PaginatedSavedListings, type SavedListingsFilters } from '@landmatch/api';
-import { deriveEnrichmentStatus, enrichListing, type EnrichmentResult } from '@landmatch/enrichment';
+import { deriveEnrichmentStatus, enrichListing, type EnrichmentResult, type EnrichmentStatus } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
 import { captureError } from '../lib/captureError';
@@ -116,11 +116,72 @@ function toEnrichListingResponse(
   };
 }
 
+// Dedupe for repeat enrichment of a URL (land-match-0jx.10). Returns null when
+// there's nothing to reuse and the full vendor pipeline should run.
+async function reuseExistingByUrl(
+  input: EnrichListingRequest & { url: string },
+  userId: string,
+): Promise<Result<EnrichListingResponse> | null> {
+  // Same contract as GET /by-url: the caller's own or a feed row for this URL
+  // is returned as-is — no vendor calls, no new row, no re-scoring (repeats
+  // multiplied alert emails). The re-enrichment cron owns healing incomplete rows.
+  const visible = await listingRepo.findByUrl(input.url, userId);
+  if (visible) return ok(toEnrichListingResponse(visible.listing, visible.enrichment));
+
+  // Another user already enriched this URL — invisible to the caller's by-url
+  // pre-check, so the request fell through to here. Copy the vendor-derived
+  // enrichment (not user-private) into a fresh caller-owned row instead of
+  // re-burning geocode + vendor quota. The caller's request fields win; the
+  // geocode rides along from the source row.
+  const source = await listingRepo.findEnrichmentSourceByUrl(input.url);
+  if (!source?.enrichment || source.listing.latitude == null || source.listing.longitude == null) {
+    return null; // nothing reusable (a coordinate-less copy could never be healed)
+  }
+  const { listing: srcListing, enrichment: srcEnrichment } = source;
+
+  const persisted = await db.transaction(async (tx) => {
+    const listing = await listingRepo.insertListing(
+      {
+        address: input.address,
+        latitude: srcListing.latitude!,
+        longitude: srcListing.longitude!,
+        price: input.price,
+        acreage: input.acreage,
+        url: input.url,
+        title: input.title,
+        source: input.source,
+        externalId: input.externalId,
+        userId,
+        // Completeness travels with the copied data, keeping the copy in the
+        // re-enrichment loop when the source was partial.
+        enrichmentStatus: srcListing.enrichmentStatus as EnrichmentStatus,
+      },
+      tx,
+    );
+    const enrichmentRow = await listingRepo.insertEnrichmentCopy(listing.id, srcEnrichment, tx);
+    const hs = computeHomestead(listing, enrichmentRow);
+    await listingRepo.updateHomesteadScore(listing.id, hs.homesteadScore, tx);
+    return { listing, enrichmentRow, hs };
+  });
+
+  matchListingAgainstProfiles(persisted.listing.id).catch((e) =>
+    captureError(e, 'listingService: background matching failed'),
+  );
+
+  return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, [], persisted.hs));
+}
+
 export async function enrichAndPersist(
   input: EnrichListingRequest,
   userId: string,
 ): Promise<Result<EnrichListingResponse>> {
   try {
+    // 0. Repeat of a known URL? Reuse instead of duplicating (0jx.10).
+    if (input.url) {
+      const reused = await reuseExistingByUrl({ ...input, url: input.url }, userId);
+      if (reused) return reused;
+    }
+
     // 1. Geocode + enrich via pipeline
     const enrichResult = await enrichListing(input.address);
 

@@ -17,7 +17,10 @@ vi.mock('../db/client', () => ({
 vi.mock('../repos/listingRepo', () => ({
   insertListing: vi.fn(),
   insertEnrichment: vi.fn(),
+  insertEnrichmentCopy: vi.fn(),
   updateHomesteadScore: vi.fn(),
+  findByUrl: vi.fn(),
+  findEnrichmentSourceByUrl: vi.fn(),
 }));
 
 vi.mock('../services/matchingService', () => ({
@@ -34,7 +37,10 @@ const mockEnrichListing = vi.mocked(enrichListing);
 const mockTransaction = vi.mocked(db.transaction);
 const mockInsertListing = vi.mocked(listingRepo.insertListing);
 const mockInsertEnrichment = vi.mocked(listingRepo.insertEnrichment);
+const mockInsertEnrichmentCopy = vi.mocked(listingRepo.insertEnrichmentCopy);
 const mockUpdateHomesteadScore = vi.mocked(listingRepo.updateHomesteadScore);
+const mockFindByUrl = vi.mocked(listingRepo.findByUrl);
+const mockFindEnrichmentSource = vi.mocked(listingRepo.findEnrichmentSourceByUrl);
 const mockMatchListing = vi.mocked(matchListingAgainstProfiles);
 
 // Realistic fixture matching what enrichListing actually returns
@@ -343,6 +349,111 @@ describe('enrichAndPersist', () => {
     expect(listingId).toBe(listingRow.id); // same listing inserted in this txn
     expect(typeof score).toBe('number');   // a real, enriched listing scores a number
     expect(tx).toBe('fake-tx');            // written inside the transaction
+  });
+
+  describe('dedupe by URL', () => {
+    // Bugs these catch (land-match-0jx.10): every repeat POST /enrich inserted
+    // a fresh listing row and re-ran the vendor fan-out — duplicate listings,
+    // each re-scored against every profile → multiplied alert emails.
+    const URL = 'https://www.landwatch.com/listing/123';
+
+    it('returns the existing visible listing without vendor calls, inserts, or re-matching', async () => {
+      mockFindByUrl.mockResolvedValue({ listing: { ...listingRow, url: URL }, enrichment: enrichmentRow });
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.data.listing.id).toBe(listingRow.id);
+      expect(mockEnrichListing).not.toHaveBeenCalled();   // no vendor quota burned
+      expect(mockInsertListing).not.toHaveBeenCalled();   // no duplicate row
+      expect(mockMatchListing).not.toHaveBeenCalled();    // no re-score → no duplicate alerts
+    });
+
+    it("returns a visible-but-unenriched feed row as-is — healing is the re-enrichment cron's job", async () => {
+      // Deliberate: forking an owned duplicate of a feed row would get BOTH
+      // scored against the owner's profiles → two alerts for one property.
+      mockFindByUrl.mockResolvedValue({
+        listing: { ...listingRow, url: URL, userId: null, enrichmentStatus: 'pending' },
+        enrichment: null,
+      });
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.data.listing.enrichmentStatus).toBe('pending');
+      expect(mockEnrichListing).not.toHaveBeenCalled();
+      expect(mockInsertListing).not.toHaveBeenCalled();
+    });
+
+    it("copies another user's enrichment into a caller-owned row instead of re-enriching", async () => {
+      // Post-0jx.1 the extension's by-url pre-check is visibility-scoped, so
+      // user B enriching a URL user A already enriched falls through to POST
+      // /enrich — that must reuse A's vendor data, not re-burn quota.
+      mockFindByUrl.mockResolvedValue(null);
+      mockFindEnrichmentSource.mockResolvedValue({
+        listing: { ...listingRow, url: URL, userId: 'user-a', latitude: 37.1, longitude: -91.5 },
+        enrichment: enrichmentRow,
+      });
+      mockInsertEnrichmentCopy.mockResolvedValue({ ...enrichmentRow, id: 'enr-copy' });
+
+      const result = await enrichAndPersist(
+        { address: '123 Rural Rd, MO', url: URL, price: 60000 },
+        'user-b',
+      );
+
+      expect(result.ok).toBe(true);
+      expect(mockEnrichListing).not.toHaveBeenCalled();
+      expect(mockInsertListing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-b',       // fresh row owned by the caller, not shared
+          latitude: 37.1,         // source row's geocode — no re-geocoding
+          longitude: -91.5,
+          url: URL,
+          price: 60000,           // caller's own request fields win
+        }),
+        'fake-tx',
+      );
+      expect(mockInsertEnrichmentCopy).toHaveBeenCalledWith(listingRow.id, enrichmentRow, 'fake-tx');
+      expect(mockMatchListing).toHaveBeenCalledWith(listingRow.id); // owner-scoped post-9vs
+    });
+
+    it('falls through to full enrichment when no row for the URL has enrichment data', async () => {
+      mockFindByUrl.mockResolvedValue(null);
+      mockFindEnrichmentSource.mockResolvedValue(null);
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
+
+      expect(result.ok).toBe(true);
+      expect(mockEnrichListing).toHaveBeenCalled();
+      expect(mockInsertListing).toHaveBeenCalled();
+    });
+
+    it('falls through to full enrichment when the source row lacks coordinates', async () => {
+      // A copy without lat/lng could never be healed by re-enrichment (the
+      // candidate query filters on non-null coordinates).
+      mockFindByUrl.mockResolvedValue(null);
+      mockFindEnrichmentSource.mockResolvedValue({
+        listing: { ...listingRow, url: URL, userId: 'user-a', latitude: null, longitude: null },
+        enrichment: enrichmentRow,
+      });
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
+
+      expect(result.ok).toBe(true);
+      expect(mockEnrichListing).toHaveBeenCalled();
+      expect(mockInsertEnrichmentCopy).not.toHaveBeenCalled();
+    });
+
+    it('skips the dedupe lookup entirely for URL-less manual submissions', async () => {
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+      await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
+
+      expect(mockFindByUrl).not.toHaveBeenCalled();
+      expect(mockFindEnrichmentSource).not.toHaveBeenCalled();
+    });
   });
 
   describe('homestead scoring in response', () => {

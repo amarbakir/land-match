@@ -88,6 +88,34 @@ export async function findByUrl(url: string, userId: string, tx?: Tx) {
   );
 }
 
+// Dedupe-source lookup for POST /enrich: the newest row for this URL that has
+// an enrichment row, ANY owner — deliberately bypasses visibleTo. Vendor-derived
+// enrichment isn't user-private; the caller copies it into a row it owns
+// (land-match-0jx.10) rather than surfacing this row to the user.
+export async function findEnrichmentSourceByUrl(url: string, tx?: Tx) {
+  return findOneWithEnrichment(
+    and(eq(listings.url, url), isNotNull(enrichments.listingId)),
+    tx,
+    sql`${listings.firstSeenAt} DESC`,
+  );
+}
+
+// Copy a source listing's enrichment verbatim onto another listing (fresh id).
+// homestead_score rides along but the caller must recompute it — price/acreage
+// belong to the listing, not the enrichment, and differ between the two rows.
+export async function insertEnrichmentCopy(
+  listingId: string,
+  source: typeof enrichments.$inferSelect,
+  tx?: Tx,
+) {
+  const { id: _id, listingId: _listingId, ...data } = source;
+  const [row] = await (tx ?? db)
+    .insert(enrichments)
+    .values({ id: generateId(), listingId, ...data })
+    .returning();
+  return row;
+}
+
 export async function saveListing(userId: string, listingId: string, tx?: Tx) {
   const id = generateId();
   const [row] = await (tx ?? db)
