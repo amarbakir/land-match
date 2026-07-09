@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { isLocalHost, parseDatabaseUrl } from '@landmatch/db';
 import { Pool } from 'pg';
 import type { RegionBounds } from '../types';
 
@@ -7,7 +8,31 @@ export function getDbUrl(): string {
 }
 
 export function getPool(): Pool {
-  return new Pool({ connectionString: getDbUrl() });
+  // Shared TLS policy from @landmatch/db — a raw connectionString would use
+  // pg-native URL semantics (plaintext without sslmode) against the same
+  // database the server connects to with verified TLS.
+  const { warnings, ...connection } = parseDatabaseUrl(getDbUrl());
+  for (const warning of warnings) console.warn(`[geodata] ${warning}`);
+  return new Pool(connection);
+}
+
+/**
+ * Guard a URL that gets handed to the psql CLI (raster loading). psql uses
+ * libpq semantics — sslmode=prefer by default, and even sslmode=require does
+ * NOT verify the server cert — so remote loads must pin verify-full
+ * explicitly (with PGSSLROOTCERT when the provider CA isn't public).
+ */
+export function psqlSafeUrl(url: string): string {
+  const { host } = parseDatabaseUrl(url);
+  if (isLocalHost(host)) return url;
+
+  if (!/[?&]sslmode=verify-full(&|$)/.test(url)) {
+    throw new Error(
+      `refusing to hand psql a remote database URL without sslmode=verify-full (host: ${host}); ` +
+        'append ?sslmode=verify-full and set PGSSLROOTCERT if the provider CA is not publicly trusted',
+    );
+  }
+  return url;
 }
 
 export async function ensurePostGIS(pool: Pool): Promise<void> {
@@ -30,6 +55,7 @@ export function clipToRegion(inputPath: string, outputPath: string, region: Regi
 }
 
 export async function loadRaster(pool: Pool, dbUrl: string, filePath: string, tableName: string): Promise<void> {
+  const safeUrl = psqlSafeUrl(dbUrl);
   await pool.query(`DROP TABLE IF EXISTS ${tableName} CASCADE`);
-  runShell(`${raster2pgsql(filePath, tableName)} | psql "${dbUrl}"`);
+  runShell(`${raster2pgsql(filePath, tableName)} | psql "${safeUrl}"`);
 }

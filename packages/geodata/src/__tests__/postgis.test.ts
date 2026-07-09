@@ -105,3 +105,58 @@ describe('clipToRegion', () => {
     expect(cmd).toMatch(/^gdalwarp /);
   });
 });
+
+describe('getPool TLS policy', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.stubEnv('DATABASE_SSL_CA', '');
+    vi.stubEnv('DIRECT_URL', '');
+  });
+
+  it('applies certificate-verified TLS to remote hosts, same as the server', async () => {
+    // Bug this catches: new Pool({ connectionString }) uses pg-native URL
+    // semantics — no sslmode means PLAINTEXT to the same database the server
+    // connects to with verified TLS. Same URL, different security level.
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@db.abc.supabase.co:5432/landmatch');
+
+    const { getPool } = await import('../lib/postgis');
+    const pool = getPool();
+
+    expect(pool.options.ssl).toEqual({ rejectUnauthorized: true, ca: undefined });
+  });
+
+  it('keeps localhost plaintext for local ETL runs', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/landmatch');
+
+    const { getPool } = await import('../lib/postgis');
+    const pool = getPool();
+
+    expect(pool.options.ssl).toBeUndefined();
+  });
+});
+
+describe('psqlSafeUrl', () => {
+  it('passes local URLs through untouched', async () => {
+    const { psqlSafeUrl } = await import('../lib/postgis');
+    const url = 'postgresql://postgres:postgres@localhost:5432/landmatch';
+
+    expect(psqlSafeUrl(url)).toBe(url);
+  });
+
+  it('passes a remote URL through when it pins sslmode=verify-full', async () => {
+    const { psqlSafeUrl } = await import('../lib/postgis');
+    const url = 'postgresql://u:p@db.example.com:5432/landmatch?sslmode=verify-full';
+
+    expect(psqlSafeUrl(url)).toBe(url);
+  });
+
+  it('refuses to hand psql a remote URL without verify-full', async () => {
+    // Bug this catches: psql defaults to sslmode=prefer — silently downgrades
+    // to plaintext (or unverified TLS) against a remote database while the
+    // rest of the stack requires verified TLS.
+    const { psqlSafeUrl } = await import('../lib/postgis');
+
+    expect(() => psqlSafeUrl('postgresql://u:p@db.example.com:5432/landmatch')).toThrow(/verify-full/);
+    expect(() => psqlSafeUrl('postgresql://u:p@db.example.com:5432/landmatch?sslmode=require')).toThrow(/verify-full/);
+  });
+});

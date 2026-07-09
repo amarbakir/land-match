@@ -1,6 +1,6 @@
-import fs from 'fs';
-
 import dotenv from 'dotenv';
+
+import { parseDatabaseUrl, type ParsedConnection } from '@landmatch/db';
 
 import { logger } from './lib/logger';
 
@@ -35,105 +35,15 @@ function optional(name: string, defaultValue: string): string {
   return process.env[name] || defaultValue;
 }
 
-type SslConfig = { rejectUnauthorized: boolean; ca?: string } | undefined;
-
-// DATABASE_SSL_CA holds either inline PEM or a path to a CA bundle file —
-// needed for providers whose server certs aren't signed by a public CA
-// (Supabase's own CA, the AWS RDS bundle). Resolved lazily (only when a
-// connection actually needs verified TLS, so a stale path in a dev .env
-// can't crash a plaintext-localhost setup) and memoized (env is fixed at
-// import time; a path-form value shouldn't be re-read per connection).
-let sslCaLoaded = false;
-let sslCaValue: string | undefined;
-function resolveSslCa(): string | undefined {
-  if (sslCaLoaded) return sslCaValue;
-  sslCaLoaded = true;
-
-  const value = process.env.DATABASE_SSL_CA;
-  if (!value) return undefined;
-
-  if (value.includes('-----BEGIN')) {
-    // Secrets managers (SSM, JSON env config) commonly flatten PEM newlines
-    // to literal "\n" sequences — restore them or the TLS layer can't parse.
-    sslCaValue = value.replace(/\\n/g, '\n');
-  } else {
-    try {
-      sslCaValue = fs.readFileSync(value, 'utf8');
-    } catch (e) {
-      throw new Error(`DATABASE_SSL_CA file not readable: ${value} (${e instanceof Error ? e.message : String(e)})`);
-    }
+// Connection/TLS policy lives in @landmatch/db (single owner across server,
+// geodata ETL, and drizzle-kit); this wrapper only surfaces its policy
+// warnings through the server logger.
+function parseConnection(url: string): Omit<ParsedConnection, 'warnings'> {
+  const { warnings, ...connection } = parseDatabaseUrl(url);
+  for (const warning of warnings) {
+    logger.warn({ host: connection.host }, warning);
   }
-  return sslCaValue;
-}
-
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
-
-/**
- * TLS policy for DB connections: any remote host gets certificate-verified
- * TLS by default. Plaintext is only for local development — the default
- * localhost URL, or an explicit sslmode=disable.
- */
-function resolveSsl(host: string, params: URLSearchParams): SslConfig {
-  const sslmode = params.get('sslmode');
-
-  if (sslmode === 'disable') return undefined;
-  // Hostnames are case-insensitive.
-  if (!sslmode && LOCAL_HOSTS.has(host.toLowerCase())) return undefined;
-
-  // Encrypts but does not authenticate the server — an explicit, visible
-  // escape hatch for dev stages without a CA bundle. Rejected in production.
-  if (sslmode === 'no-verify') {
-    logger.warn({ host }, 'DB TLS certificate verification disabled via sslmode=no-verify');
-    return { rejectUnauthorized: false };
-  }
-
-  return { rejectUnauthorized: true, ca: resolveSslCa() };
-}
-
-/**
- * Parse a postgres URL into individual connection fields.
- */
-function parseDatabaseUrl(url: string) {
-  const withoutScheme = url.replace(/^postgres(ql)?:\/\//, '');
-  const lastAtIndex = withoutScheme.lastIndexOf('@');
-  // No '@' means a credential-less URL (trust-auth local Postgres) — slicing
-  // with -1 would smear the host into bogus user/password fields.
-  const credentials = lastAtIndex === -1 ? '' : withoutScheme.slice(0, lastAtIndex);
-  const hostPart = withoutScheme.slice(lastAtIndex + 1);
-
-  let user: string | undefined;
-  let password: string | undefined;
-  if (credentials) {
-    const firstColonIndex = credentials.indexOf(':');
-    user = firstColonIndex === -1 ? credentials : credentials.slice(0, firstColonIndex);
-    password = firstColonIndex === -1 ? undefined : credentials.slice(firstColonIndex + 1);
-  }
-
-  const [hostAndPort, ...dbParts] = hostPart.split('/');
-  // IPv6 literals are bracketed ([::1]:5432) and contain colons, so they
-  // can't go through the plain host:port split.
-  let host: string;
-  let portStr: string | undefined;
-  if (hostAndPort.startsWith('[')) {
-    const closingBracket = hostAndPort.indexOf(']');
-    host = hostAndPort.slice(1, closingBracket);
-    portStr = hostAndPort.slice(closingBracket + 2) || undefined; // skip "]:"
-  } else {
-    [host, portStr] = hostAndPort.split(':');
-  }
-  const rawDb = dbParts.join('/');
-  const [database, queryString] = rawDb.split('?');
-  const params = new URLSearchParams(queryString || '');
-
-  return {
-    host,
-    port: parseInt(portStr || '5432', 10),
-    user,
-    password,
-    database,
-    ssl: resolveSsl(host, params),
-    pgbouncer: params.has('pgbouncer'),
-  };
+  return connection;
 }
 
 /**
@@ -164,9 +74,9 @@ function resolvePoolMax(): number {
 
 export const database = {
   url: databaseUrl,
-  connection: parseDatabaseUrl(databaseUrl),
+  connection: parseConnection(databaseUrl),
   directUrl,
-  directConnection: parseDatabaseUrl(directUrl),
+  directConnection: parseConnection(directUrl),
   poolMax: resolvePoolMax(),
 } as const;
 
