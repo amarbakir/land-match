@@ -57,11 +57,15 @@ function setClaimState(alertId: string, claimedAt: Date) {
 }
 
 describe('alert claiming (integration)', () => {
-  it('concurrent claim calls never claim the same alert twice', async () => {
-    // Bug this catches: the double-send — two delivery workers (scaled Fargate
-    // tasks or overlapping cron invocations) both reading the same pending
-    // alerts and both emailing the user. FOR UPDATE SKIP LOCKED partitions.
-    const ids = await Promise.all([1, 2, 3, 4].map((n) => seedPendingAlert(n)));
+  it('concurrent claim calls never claim the same alert twice, and never split a group', async () => {
+    // Bugs this catches: the double-send — two delivery workers both claiming
+    // the same alerts; and the split digest — one group's alerts partitioned
+    // across two workers, each of which passes the window check before the
+    // other marks sent → two partial digest emails in one window.
+    const groups = await Promise.all([1, 2, 3, 4].map((n) => seedGroup(n)));
+    const idsByGroup = await Promise.all(
+      groups.map(async (g) => [await addAlert(g), await addAlert(g)]),
+    );
 
     const [claimA, claimB] = await Promise.all([
       alertRepo.claimPending(),
@@ -70,7 +74,30 @@ describe('alert claiming (integration)', () => {
 
     const union = new Set([...claimA, ...claimB]);
     expect(union.size).toBe(claimA.length + claimB.length); // no overlap
-    expect([...union].sort()).toEqual([...ids].sort()); // nothing dropped
+    expect([...union].sort()).toEqual(idsByGroup.flat().sort()); // nothing dropped
+    for (const [first, second] of idsByGroup) {
+      // Whole groups: both alerts of a group land in the same worker's claim
+      const setA = new Set(claimA);
+      expect(setA.has(first)).toBe(setA.has(second));
+    }
+  });
+
+  it('bounds one claim to batchSize alerts, oldest first, leaving the rest pending', async () => {
+    // Bug this catches: the group-based rewrite dropped the per-run alert cap —
+    // one giant group (bulk import matching a broad profile) would claim an
+    // unbounded id list, blow the bind-parameter limit in
+    // findClaimedWithDetails, and stall delivery for everyone forever.
+    const g = await seedGroup(1);
+    const first = await addAlert(g);
+    const second = await addAlert(g);
+    await addAlert(g);
+
+    const claimed = await alertRepo.claimPending(undefined, 2);
+
+    expect(claimed.sort()).toEqual([first, second].sort());
+    // The overflow stays pending and claimable later (not lost, not processing)
+    const [row] = await db.select().from(alerts).where(eq(alerts.status, 'pending'));
+    expect(row).toBeDefined();
   });
 
   it('claims only email alerts — sms/push alerts must not be consumed by the email path', async () => {

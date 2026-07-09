@@ -130,26 +130,53 @@ function toEnrichListingResponse(
   };
 }
 
+// Loose address equality for the recycled-URL guard: same property extracted
+// twice yields the same string modulo case/punctuation; a different property
+// at a reused URL does not.
+function sameAddress(a: string, b: string) {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return norm(a) === norm(b);
+}
+
 // Dedupe for repeat enrichment of a URL (land-match-0jx.10). Returns null when
 // there's nothing to reuse and the full vendor pipeline should run.
 async function reuseExistingByUrl(
   input: EnrichListingRequest & { url: string },
   userId: string,
 ): Promise<Result<EnrichListingResponse> | null> {
-  // Same contract as GET /by-url: the caller's own or a feed row for this URL
-  // is returned as-is — no vendor calls, no new row, no re-scoring (repeats
-  // multiplied alert emails). The re-enrichment cron owns healing incomplete rows.
+  // The caller's own or a feed row for this URL is returned as-is — no vendor
+  // calls, no new row, no re-scoring (repeats multiplied alert emails). The
+  // re-enrichment cron owns healing incomplete rows. Exception: a row the
+  // cron can never heal (no enrichment data AND outside the healing loop's
+  // filters) must not permanently block the pipeline for this URL.
   const visible = await listingRepo.findByUrl(input.url, userId);
-  if (visible) return ok(toEnrichListingResponse(visible.listing, visible.enrichment));
+  if (visible) {
+    const l = visible.listing;
+    const healable =
+      l.enrichmentAttempts < listingRepo.MAX_ENRICHMENT_ATTEMPTS &&
+      l.latitude != null &&
+      l.longitude != null;
+    if (visible.enrichment || healable) {
+      return ok(toEnrichListingResponse(l, visible.enrichment));
+    }
+  }
 
   // Another user already enriched this URL — invisible to the caller's by-url
   // pre-check, so the request fell through to here. Copy the vendor-derived
   // enrichment (not user-private) into a fresh caller-owned row instead of
   // re-burning geocode + vendor quota. The caller's request fields win; the
-  // geocode rides along from the source row.
+  // geocode rides along from the source row. Address must match: listing
+  // sites recycle URLs, and copying would pin the OLD property's coordinates
+  // and soil/flood data onto the caller's listing.
   const source = await listingRepo.findEnrichmentSourceByUrl(input.url);
-  if (!source || source.latitude == null || source.longitude == null) {
-    return null; // nothing reusable (a coordinate-less copy could never be healed)
+  if (
+    !source ||
+    source.latitude == null ||
+    source.longitude == null || // a coordinate-less copy could never be healed
+    source.address == null ||
+    !sameAddress(source.address, input.address)
+  ) {
+    return null; // nothing reusable — run the full pipeline
   }
 
   const persisted = await db.transaction(async (tx) => {

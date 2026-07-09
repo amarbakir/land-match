@@ -66,6 +66,13 @@ export async function findVisibleListing(id: string, userId: string, tx?: Tx) {
   return row ?? null;
 }
 
+// Rows that hit the cap leave the re-enrichment loop — a listing that can
+// never enrich (bad coords, unmapped area) must not burn vendor quota on
+// every run. Mirrored in the listings_reenrich_idx partial-index predicate
+// (schema.ts). Lives here (not reEnrichmentService) so listingService can
+// read it without a service-to-service import cycle.
+export const MAX_ENRICHMENT_ATTEMPTS = 5;
+
 async function findOneWithEnrichment(where: SQL | undefined, tx?: Tx, orderBy?: SQL) {
   const query = (tx ?? db)
     .select()
@@ -98,6 +105,7 @@ export async function findEnrichmentSourceByUrl(url: string, tx?: Tx) {
   const rows = await (tx ?? db)
     .select({
       listingId: listings.id,
+      address: listings.address,
       latitude: listings.latitude,
       longitude: listings.longitude,
       enrichmentStatus: listings.enrichmentStatus,
@@ -106,7 +114,9 @@ export async function findEnrichmentSourceByUrl(url: string, tx?: Tx) {
     .from(listings)
     .innerJoin(enrichments, eq(enrichments.listingId, listings.id))
     .where(eq(listings.url, url))
-    .orderBy(desc(listings.firstSeenAt))
+    // Completeness beats recency: a partial copy made during yesterday's
+    // vendor outage must not shadow months-old complete data for the URL.
+    .orderBy(sql`(${listings.enrichmentStatus} = 'enriched') DESC, ${listings.firstSeenAt} DESC`)
     .limit(1);
 
   return rows.at(0) ?? null;
@@ -120,8 +130,10 @@ export async function insertEnrichmentCopy(
   source: typeof enrichments.$inferSelect,
   tx?: Tx,
 ) {
-  const { id: _id, listingId: _listingId, ...data } = source;
-  const values = { id: generateId(), listingId, ...data };
+  const { id: _id, listingId: _listingId, homesteadScore: _hs, ...data } = source;
+  // homesteadScore is nulled, not copied: it belongs to the SOURCE listing's
+  // price/acreage; updateHomesteadScore is the only writer of the real value.
+  const values = { id: generateId(), listingId, homesteadScore: null, ...data };
   // No .returning(): every column is caller-supplied, nothing to read back.
   await (tx ?? db).insert(enrichments).values(values);
   return values;

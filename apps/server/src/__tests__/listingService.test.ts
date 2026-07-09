@@ -15,6 +15,7 @@ vi.mock('../db/client', () => ({
 }));
 
 vi.mock('../repos/listingRepo', () => ({
+  MAX_ENRICHMENT_ATTEMPTS: 5,
   insertListing: vi.fn(),
   insertEnrichment: vi.fn(),
   insertEnrichmentCopy: vi.fn(),
@@ -385,6 +386,37 @@ describe('enrichAndPersist', () => {
       expect(mockInsertListing).not.toHaveBeenCalled();
     });
 
+    it('re-runs the pipeline when the visible row is a dead end the cron can never heal', async () => {
+      // Bug this catches: a row with no enrichment data and an exhausted retry
+      // budget (or missing coords) short-circuiting every future POST /enrich —
+      // the user could never obtain soil/flood data for that URL again.
+      mockFindByUrl.mockResolvedValue({
+        listing: { ...listingRow, url: URL, enrichmentStatus: 'failed', enrichmentAttempts: 5 },
+        enrichment: null,
+      });
+      mockFindEnrichmentSource.mockResolvedValue(null);
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
+
+      expect(result.ok).toBe(true);
+      expect(mockEnrichListing).toHaveBeenCalled();
+      expect(mockInsertListing).toHaveBeenCalled();
+    });
+
+    it('still short-circuits on an unenriched row the cron WILL heal (attempts remaining)', async () => {
+      mockFindByUrl.mockResolvedValue({
+        listing: { ...listingRow, url: URL, enrichmentStatus: 'pending', enrichmentAttempts: 1 },
+        enrichment: null,
+      });
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
+
+      expect(result.ok).toBe(true);
+      expect(mockEnrichListing).not.toHaveBeenCalled();
+      expect(mockInsertListing).not.toHaveBeenCalled();
+    });
+
     it("copies another user's enrichment into a caller-owned row instead of re-enriching", async () => {
       // Post-0jx.1 the extension's by-url pre-check is visibility-scoped, so
       // user B enriching a URL user A already enriched falls through to POST
@@ -392,6 +424,7 @@ describe('enrichAndPersist', () => {
       mockFindByUrl.mockResolvedValue(null);
       mockFindEnrichmentSource.mockResolvedValue({
         listingId: 'lst-source',
+        address: '123 rural rd,  MO', // same address modulo case/whitespace
         latitude: 37.1,
         longitude: -91.5,
         enrichmentStatus: 'enriched',
@@ -438,6 +471,7 @@ describe('enrichAndPersist', () => {
       mockFindByUrl.mockResolvedValue(null);
       mockFindEnrichmentSource.mockResolvedValue({
         listingId: 'lst-source',
+        address: '123 Rural Rd, MO',
         latitude: null,
         longitude: null,
         enrichmentStatus: 'enriched',
@@ -450,6 +484,28 @@ describe('enrichAndPersist', () => {
       expect(result.ok).toBe(true);
       expect(mockEnrichListing).toHaveBeenCalled();
       expect(mockInsertEnrichmentCopy).not.toHaveBeenCalled();
+    });
+
+    it("refuses to copy when the source address doesn't match — recycled URLs must re-geocode", async () => {
+      // Bug this catches: a listing site reusing a URL for a different
+      // property — copying would pin the OLD property's coordinates and
+      // soil/flood data onto the caller's listing, confidently wrong.
+      mockFindByUrl.mockResolvedValue(null);
+      mockFindEnrichmentSource.mockResolvedValue({
+        listingId: 'lst-source',
+        address: '999 Different Creek Ln, AR',
+        latitude: 37.1,
+        longitude: -91.5,
+        enrichmentStatus: 'enriched',
+        enrichment: enrichmentRow,
+      });
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
+
+      expect(result.ok).toBe(true);
+      expect(mockInsertEnrichmentCopy).not.toHaveBeenCalled();
+      expect(mockEnrichListing).toHaveBeenCalled(); // fresh geocode + vendors
     });
 
     it('skips the dedupe lookup entirely for URL-less manual submissions', async () => {

@@ -35,8 +35,12 @@ export async function seedOwnedListing(address: string, userId: string) {
 
 // Listing carrying a URL — the dedupe key for POST /enrich (land-match-0jx.10).
 // Ownerless unless a userId is given. Returns the full row.
-export async function seedUrlListing(url: string, userId?: string) {
-  return listingRepo.insertListing({ address: '1 Dedupe Rd, MO', ...FIXTURE_COORDS, url, userId });
+export async function seedUrlListing(
+  url: string,
+  userId?: string,
+  enrichmentStatus?: 'enriched' | 'partial' | 'failed',
+) {
+  return listingRepo.insertListing({ address: '1 Dedupe Rd, MO', ...FIXTURE_COORDS, url, userId, enrichmentStatus });
 }
 
 export async function seedProfile(

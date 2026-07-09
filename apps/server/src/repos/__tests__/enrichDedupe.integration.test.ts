@@ -47,6 +47,31 @@ describe('findEnrichmentSourceByUrl (integration)', () => {
 
     expect(source?.listingId).toBe(enriched.id);
   });
+
+  it('prefers an older COMPLETE enrichment over a newer partial one', async () => {
+    // Bug this catches: a copy made during a vendor outage yesterday (partial,
+    // null soil/flood) shadowing months-old complete data — every future
+    // caller inherits the degraded copy and the cron re-burns quota healing it.
+    const [userA, userB] = await seedTwoUsers();
+    const complete = await seedUrlListing(URL, userA, 'enriched');
+    await listingRepo.insertEnrichment(complete.id, ENRICHMENT);
+    const partial = await seedUrlListing(URL, userB, 'partial'); // newer
+    await listingRepo.insertEnrichment(partial.id, { sourcesUsed: ['usda-soil'], errors: [{ source: 'fema-flood', error: 'HTTP 503' }] });
+
+    const source = await listingRepo.findEnrichmentSourceByUrl(URL);
+
+    expect(source?.listingId).toBe(complete.id);
+  });
+
+  it('projects the source address so the copy path can detect recycled URLs', async () => {
+    const [userA] = await seedTwoUsers();
+    const owned = await seedUrlListing(URL, userA);
+    await listingRepo.insertEnrichment(owned.id, ENRICHMENT);
+
+    const source = await listingRepo.findEnrichmentSourceByUrl(URL);
+
+    expect(source?.address).toBe('1 Dedupe Rd, MO');
+  });
 });
 
 describe('insertEnrichmentCopy (integration)', () => {

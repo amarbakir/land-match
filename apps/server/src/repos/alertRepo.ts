@@ -61,12 +61,15 @@ export async function findAlertedProfileIds(listingId: string, tx?: Tx): Promise
 // user is emailed twice.
 const STALE_CLAIM_MS = 15 * 60_000;
 
-// One run claims at most this many user+profile groups (one email each); the
-// 5-minute cadence drains any backlog incrementally. Unbounded claims + a big
-// backlog would blow the Lambda timeout and leave everything stuck in
-// 'processing' for STALE_CLAIM_MS, stalling delivery entirely. Bounding by
-// group, not alert, keeps one group's digest from splitting across batches.
-const CLAIM_GROUP_BATCH_SIZE = 500;
+// One run claims at most this many alert ROWS (FIFO); the 5-minute cadence
+// drains any backlog incrementally. The cap is load-bearing twice over: an
+// unbounded claim blows the Lambda timeout (everything stuck 'processing' for
+// STALE_CLAIM_MS), and the claimed-id list feeds inArray() calls whose bind
+// parameters are capped by Postgres (~65535) — one pathological group past
+// that would stall delivery for everyone, forever, since FIFO re-claims it
+// first every cycle. Groups are claimed whole below this cap; a single group
+// larger than the cap splits across runs (two partial digests beat none).
+export const CLAIM_BATCH_SIZE = 500;
 
 // Transient failures release back to pending with attempts+1; past this many
 // attempts an alert is terminally 'failed'. Enforced both where failures are
@@ -75,21 +78,20 @@ const CLAIM_GROUP_BATCH_SIZE = 500;
 export const MAX_SEND_ATTEMPTS = 5;
 
 /**
- * Atomically claim every deliverable alert for this worker, whole user+profile
- * groups at a time. FOR UPDATE SKIP LOCKED means two workers running
- * concurrently (scaled Fargate tasks, overlapping cron invocations) partition
- * the pending set instead of both claiming — and double-sending — the same
- * alerts.
+ * Atomically claim deliverable alerts for this worker, whole user+profile
+ * groups at a time. Concurrent workers (scaled Fargate tasks, overlapping
+ * cron invocations) partition the pending set at GROUP granularity: each
+ * group's advisory xact lock assigns it to exactly one in-flight claim
+ * statement, FOR UPDATE SKIP LOCKED covers row-level overlap, and the
+ * group-idle guard covers the minutes between a commit and markSent.
  *
  * Eligibility lives here, not just in the delivery service: a digest group
  * whose frequency window hasn't elapsed since its last send is not claimed at
  * all (previously every 5-minute run claimed and released it — 2 row UPDATEs
- * per waiting alert per cycle). A group another live worker is mid-delivery on
- * is skipped whole, so a late-arriving alert can't split one window's digest
- * into two emails. The service's isWindowElapsed re-check stays as the
- * backstop for claim-to-send races.
+ * per waiting alert per cycle). The service's isWindowElapsed re-check stays
+ * as the backstop for claim-to-send races.
  */
-export async function claimPending(tx?: Tx): Promise<string[]> {
+export async function claimPending(tx?: Tx, batchSize: number = CLAIM_BATCH_SIZE): Promise<string[]> {
   const conn = tx ?? db;
   const staleCutoff = new Date(Date.now() - STALE_CLAIM_MS);
 
@@ -145,12 +147,26 @@ export async function claimPending(tx?: Tx): Promise<string[]> {
     .select({ userId: alerts.userId, searchProfileId: alerts.searchProfileId })
     .from(alerts)
     .innerJoin(searchProfiles, eq(searchProfiles.id, alerts.searchProfileId))
-    .where(and(claimable, windowElapsed, groupIdle))
+    .where(
+      and(
+        claimable,
+        windowElapsed,
+        groupIdle,
+        // Group-granular mutual exclusion between overlapping claim statements:
+        // the group-idle guard can't see a concurrent worker's UNCOMMITTED
+        // claim (READ COMMITTED), so without this a late-arriving alert could
+        // be claimed by a second worker mid-claim and split the digest. The
+        // xact lock lives exactly as long as this statement; a group whose
+        // lock is held elsewhere is skipped whole and picked up next cycle.
+        // (May over-lock rows the LIMIT then discards — harmless, same scope.)
+        sql`pg_try_advisory_xact_lock(hashtext(${alerts.userId}), hashtext(${alerts.searchProfileId}))`,
+      ),
+    )
     .groupBy(alerts.userId, alerts.searchProfileId)
     // FIFO by each group's oldest alert: a backlog bigger than the batch must
     // not starve old groups indefinitely.
     .orderBy(sql`min(${alerts.createdAt})`)
-    .limit(CLAIM_GROUP_BATCH_SIZE)
+    .limit(batchSize)
     .as('claim_groups');
 
   const claimableIds = conn
@@ -161,6 +177,10 @@ export async function claimPending(tx?: Tx): Promise<string[]> {
       and(eq(alerts.userId, groups.userId), eq(alerts.searchProfileId, groups.searchProfileId)),
     )
     .where(claimable)
+    // The row cap that keeps one claim bounded (see CLAIM_BATCH_SIZE). FIFO so
+    // a giant group's overflow is its newest alerts, not arbitrary ones.
+    .orderBy(alerts.createdAt)
+    .limit(batchSize)
     .for('update', { of: alerts, skipLocked: true });
 
   const rows = await conn

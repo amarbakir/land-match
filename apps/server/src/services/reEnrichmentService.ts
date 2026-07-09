@@ -7,10 +7,9 @@ import * as listingRepo from '../repos/listingRepo';
 import { persistEnrichment } from './listingService';
 import { matchListingAgainstProfiles } from './matchingService';
 
-// Rows that hit the cap stop being selected — a listing that can never enrich
-// (bad coords, unmapped area) must not burn vendor quota on every run.
-// Mirrored in the listings_reenrich_idx partial-index predicate (schema.ts).
-export const MAX_ENRICHMENT_ATTEMPTS = 5;
+export { MAX_ENRICHMENT_ATTEMPTS } from '../repos/listingRepo';
+import { MAX_ENRICHMENT_ATTEMPTS } from '../repos/listingRepo';
+
 const DEFAULT_BATCH_SIZE = 25;
 // Worst-case single listing: slowest adapter timeout (15s) + jittered sleep
 // + full retry, plus persistence. Never start a listing that can't finish
