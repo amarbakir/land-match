@@ -60,9 +60,10 @@ export default $config({
           ...baseEnvironment,
           // Behind the ALB: client IP is the rightmost X-Forwarded-For hop
           TRUST_PROXY: 'true',
-          // Alert delivery runs via the AlertDelivery cron on all stages —
-          // the in-process node-cron scheduler is for local dev only
-          EMAIL_INPROCESS_CRON: 'false',
+          // Deployed: the AlertDelivery cron owns delivery. In `sst dev` the
+          // service runs locally where that cron may not fire — keep the
+          // in-process scheduler as the delivery path there.
+          EMAIL_INPROCESS_CRON: $dev ? 'true' : 'false',
         },
       });
 
@@ -92,11 +93,14 @@ export default $config({
     // runs are safe — alertRepo.claimPending partitions work via
     // FOR UPDATE SKIP LOCKED.
     new sst.aws.Cron('AlertDelivery', {
+      // Deployed cadence. (EMAIL_CRON_SCHEDULE only tunes the local node-cron.)
       schedule: 'rate(5 minutes)',
       function: {
         handler: 'apps/server/src/jobs/alertDeliveryHandler.handler',
         runtime: 'nodejs22.x',
         memory: '512 MB',
+        // Must stay well under alertRepo's STALE_CLAIM_MS (15 min) — a run
+        // outliving that window gets its claims stolen → double-sends.
         timeout: '2 minutes',
         link: allSecrets,
         environment: baseEnvironment,

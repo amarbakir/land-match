@@ -47,15 +47,18 @@ export async function findAlertedProfileIds(listingId: string, tx?: Tx): Promise
   return new Set(rows.map((r) => r.searchProfileId));
 }
 
-export async function findPendingByUser(userId: string, tx?: Tx) {
-  return (tx ?? db).query.alerts.findMany({
-    where: and(eq(alerts.userId, userId), eq(alerts.status, 'pending')),
-  });
-}
-
 // A crashed worker leaves its claims in 'processing'; after this long they
-// become claimable again.
+// become claimable again. Invariant: this must stay comfortably ABOVE the
+// longest possible delivery run (the AlertDelivery Lambda timeout in
+// sst.config.ts) or a slow-but-alive worker gets its claims stolen and the
+// user is emailed twice.
 const STALE_CLAIM_MS = 15 * 60_000;
+
+// One run claims at most this many alerts; the 5-minute cadence drains any
+// backlog incrementally. Unbounded claims + a big backlog would blow the
+// Lambda timeout and leave everything stuck in 'processing' for
+// STALE_CLAIM_MS, stalling delivery entirely.
+const CLAIM_BATCH_SIZE = 500;
 
 /**
  * Atomically claim every deliverable alert for this worker. FOR UPDATE SKIP
@@ -73,6 +76,7 @@ export async function claimPending(tx?: Tx): Promise<string[]> {
         and(eq(alerts.status, 'processing'), lte(alerts.claimedAt, new Date(Date.now() - STALE_CLAIM_MS))),
       ),
     )
+    .limit(CLAIM_BATCH_SIZE)
     .for('update', { skipLocked: true });
 
   const rows = await (tx ?? db)

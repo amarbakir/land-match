@@ -2,36 +2,31 @@ import { describe, expect, it } from 'vitest';
 
 import { pool } from '../../db/client';
 import * as alertRepo from '../alertRepo';
-import * as listingRepo from '../listingRepo';
 import * as scoreRepo from '../scoreRepo';
 import * as searchProfileRepo from '../searchProfileRepo';
-import * as userRepo from '../userRepo';
+import { seedListing, seedUser } from './seed';
 
 async function seedPendingAlert(n: number) {
-  const user = await userRepo.insert({ email: `alerts-${n}@example.com`, passwordHash: 'not-a-real-hash' });
+  const userId = await seedUser(`alerts-${n}@example.com`);
   const profile = await searchProfileRepo.insert({
-    userId: user.id,
+    userId,
     name: `Profile ${n}`,
     alertFrequency: 'instant',
     alertThreshold: 70,
     criteria: {},
     isActive: true,
   });
-  const listing = await listingRepo.insertListing({
-    address: `${n} Alert Rd, MO`,
-    latitude: 36.6,
-    longitude: -92.1,
-  });
+  const listingId = await seedListing(`${n} Alert Rd, MO`);
   const score = await scoreRepo.insert({
-    listingId: listing.id,
+    listingId,
     searchProfileId: profile.id,
     overallScore: 80,
     componentScores: { soil: 80 },
   });
   const alert = await alertRepo.insert({
-    userId: user.id,
+    userId,
     searchProfileId: profile.id,
-    listingId: listing.id,
+    listingId,
     scoreId: score.id,
     channel: 'email',
   });

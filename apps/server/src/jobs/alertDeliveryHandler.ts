@@ -6,29 +6,17 @@ import '../init';
 
 import * as Sentry from '@sentry/node';
 
-import { deliverPendingAlerts } from '../services/alertDeliveryService';
-import { logger } from '../lib/logger';
+import { runDelivery } from './runDelivery';
 
 export async function handler() {
-  const startTime = Date.now();
-
   try {
-    const result = await deliverPendingAlerts();
+    const result = await runDelivery();
 
     if (!result.ok) {
-      logger.error({ durationMs: Date.now() - startTime, err: result.error }, 'alert delivery failed');
       // Throw so the invocation registers as a Lambda failure (CloudWatch errors metric)
       throw new Error(`alert delivery failed: ${result.error}`);
     }
 
-    if (result.data.errors.length > 0) {
-      logger.warn({ errors: result.data.errors.slice(0, 10) }, 'delivery errors');
-    }
-
-    logger.info(
-      { durationMs: Date.now() - startTime, emails: result.data.emailsSent, alerts: result.data.alertsProcessed, errors: result.data.errors.length },
-      'alert delivery complete',
-    );
     return result.data;
   } finally {
     // Lambda freezes the container as soon as the handler settles — flush

@@ -95,6 +95,7 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
     let emailsSent = 0;
     let alertsProcessed = 0;
     const errors: string[] = [];
+    const toRelease: string[] = [];
 
     // Process groups sequentially to respect Resend rate limits
     for (const group of groups.values()) {
@@ -104,7 +105,7 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
         // Check frequency window
         const lastSentAt = await alertRepo.findLastSentAt(group.userId, group.searchProfileId);
         if (!isWindowElapsed(group.alertFrequency, lastSentAt)) {
-          await alertRepo.releaseClaims(alertIds); // back to pending for the next run
+          toRelease.push(...alertIds); // back to pending; released in one batch below
           continue;
         }
 
@@ -173,6 +174,8 @@ export async function deliverPendingAlerts(): Promise<Result<DeliveryResult>> {
         errors.push(`Failed to deliver to ${group.userEmail}: ${message}`);
       }
     }
+
+    await alertRepo.releaseClaims(toRelease);
 
     return ok({ emailsSent, alertsProcessed, errors });
   } catch (error) {

@@ -3,17 +3,7 @@ import { describe, expect, it } from 'vitest';
 import * as listingRepo from '../listingRepo';
 import * as scoreRepo from '../scoreRepo';
 import * as searchProfileRepo from '../searchProfileRepo';
-import * as userRepo from '../userRepo';
-
-async function seedUser(email: string) {
-  const user = await userRepo.insert({ email, passwordHash: 'not-a-real-hash' });
-  return user.id;
-}
-
-async function seedListing(address: string, price: number, acreage: number) {
-  const row = await listingRepo.insertListing({ address, latitude: 36.6, longitude: -92.1, price, acreage });
-  return row.id;
-}
+import { seedListing, seedUser } from './seed';
 
 async function seedScoredProfile(userId: string, name: string, listingId: string, overallScore: number) {
   const profile = await searchProfileRepo.insert({

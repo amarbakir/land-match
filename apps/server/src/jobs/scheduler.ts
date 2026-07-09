@@ -2,9 +2,11 @@ import cron from 'node-cron';
 import * as Sentry from '@sentry/node';
 
 import { email } from '../config';
-import { deliverPendingAlerts } from '../services/alertDeliveryService';
+import { runDelivery } from './runDelivery';
 import { logger } from '../lib/logger';
 
+// Claiming makes overlapping runs safe (alertRepo.claimPending), but skipping
+// while a slow run is still in flight avoids pointless claim/release churn.
 let deliveryJobRunning = false;
 
 export function startScheduler(): void {
@@ -18,23 +20,8 @@ export function startScheduler(): void {
     }
 
     deliveryJobRunning = true;
-    const startTime = Date.now();
-
     try {
-      const result = await deliverPendingAlerts();
-
-      if (!result.ok) {
-        logger.error({ durationMs: Date.now() - startTime, err: result.error }, 'email delivery failed');
-        return;
-      }
-
-      if (result.data.emailsSent > 0 || result.data.errors.length > 0) {
-        logger.info({ durationMs: Date.now() - startTime, emails: result.data.emailsSent, alerts: result.data.alertsProcessed, errors: result.data.errors.length }, 'email delivery complete');
-      }
-
-      if (result.data.errors.length > 0) {
-        logger.warn({ errors: result.data.errors.slice(0, 10) }, 'delivery errors');
-      }
+      await runDelivery();
     } catch (error) {
       Sentry.captureException(error);
       logger.error({ err: error }, 'email delivery failed');
