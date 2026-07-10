@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SearchCriteria } from '../searchProfiles';
+import { CreateSearchProfile, SearchCriteria } from '../searchProfiles';
 
 describe('SearchCriteria validation', () => {
   // Bug guard: min > max produced a negative divisor in scorePrice's ramp,
@@ -68,8 +68,7 @@ describe('SearchCriteria validation', () => {
     expect(SearchCriteria.safeParse({ floodZoneExclude: ['AE', 'VE'], zoning: ['A-1'] }).success).toBe(true);
   });
 
-  it('caps profile names at 200 characters', async () => {
-    const { CreateSearchProfile } = await import('../searchProfiles');
+  it('caps profile names at 200 characters', () => {
     expect(CreateSearchProfile.safeParse({ name: 'x'.repeat(201), criteria: {} }).success).toBe(false);
     expect(CreateSearchProfile.safeParse({ name: 'Hudson Valley', criteria: {} }).success).toBe(true);
   });

@@ -22,6 +22,12 @@ describe('HttpUrl', () => {
   ])('rejects non-web scheme %s', (url) => {
     expect(HttpUrl.safeParse(url).success).toBe(false);
   });
+
+  it('rejects URLs longer than 2048 characters', () => {
+    const long = `https://example.com/${'x'.repeat(2048)}`;
+    expect(HttpUrl.safeParse(long).success).toBe(false);
+    expect(isHttpUrl(long)).toBe(false); // read-side sanitizer agrees
+  });
 });
 
 describe('isHttpUrl', () => {

@@ -49,7 +49,7 @@ export function raster2pgsql(inputFile: string, tableName: string, srid: number 
 // `env`, never inside `cmd` — the command line is echoed to the console.
 export function runShell(cmd: string, env?: NodeJS.ProcessEnv): void {
   console.log(`[geodata] $ ${cmd}`);
-  execSync(cmd, { stdio: 'inherit', env: env ? { ...process.env, ...env } : process.env });
+  execSync(cmd, { stdio: 'inherit', env: { ...process.env, ...env } });
 }
 
 export function clipToRegion(inputPath: string, outputPath: string, region: RegionBounds): void {

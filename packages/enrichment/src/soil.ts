@@ -1,6 +1,8 @@
 import { err, ok } from '@landmatch/api';
 import { z } from 'zod';
 
+import { isValidLatLng } from './coords';
+
 import type { EnrichmentAdapter, LatLng, Result, SoilData } from './types';
 import { boundedString } from './validate';
 
@@ -31,8 +33,8 @@ function buildSoilQuery(lat: number, lng: number): string {
   // Self-defending sink: coords interpolate into SQL text shipped to USDA.
   // The pipeline validates via isValidLatLng, but that guard lives two modules
   // away — a direct caller (or lying runtime types) must not reach the wire.
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    throw new Error(`soil query requires finite coordinates, got (${lat}, ${lng})`);
+  if (!isValidLatLng({ lat, lng })) {
+    throw new Error(`soil query requires valid coordinates, got (${lat}, ${lng})`);
   }
   return `
     SELECT TOP 1

@@ -42,11 +42,8 @@ function isWindowElapsed(frequency: AlertFrequency, lastSentAt: Date | null): bo
   return elapsedHours >= windowHours;
 }
 
-// Listing titles are scraped from third-party pages: strip control chars
-// (CRLF header-injection hygiene — Resend is a JSON API, but its MIME
-// handling isn't ours to trust) and bound the length (a >998-char subject
-// line can make the provider reject the send, burning the group's retry
-// budget on an unretryable input).
+// Presentation trim for scraped third-party titles; defense-in-depth on top
+// of sendEmail's transport-level sanitization (control chars, 998 bound).
 function subjectSafe(s: string): string {
   return s.replace(/[\x00-\x1f\x7f]+/g, ' ').trim().slice(0, 120);
 }
