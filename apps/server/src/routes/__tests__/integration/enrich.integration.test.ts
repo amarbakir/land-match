@@ -225,6 +225,28 @@ describe('by-url visibility (integration)', () => {
     expect(count.rows[0].n).toBe(1);
   });
 
+  it('re-enriching an own dead-end row heals it in place instead of dead-ending on the unique index', async () => {
+    // Bug this catches (review of land-match-ckt): the dead-row escape hatch
+    // ran the pipeline, then its INSERT conflicted with the caller's own row
+    // on listings_user_url_idx and served the dead row back — every retry
+    // burned vendor quota and returned null enrichment forever.
+    const token = await registerUser(app, 'healer@example.com');
+    expect((await postEnrich({ address: '123 Rural Rd, MO', url: LISTING_URL }, token)).status).toBe(201);
+    // Reduce the row to the unhealable state: no enrichment data, budget spent
+    await pool.query('DELETE FROM enrichments');
+    await pool.query("UPDATE listings SET enrichment_status = 'failed', enrichment_attempts = 5");
+
+    const res = await postEnrich({ address: '123 Rural Rd, MO', url: LISTING_URL }, token);
+
+    expect(res.status).toBe(201);
+    const rows = await pool.query('SELECT enrichment_status, enrichment_attempts FROM listings');
+    expect(rows.rows).toHaveLength(1); // healed in place, not forked
+    expect(rows.rows[0].enrichment_status).toBe('enriched');
+    expect(rows.rows[0].enrichment_attempts).toBe(0); // back in the healing loop
+    const enr = await pool.query('SELECT count(*)::int AS n FROM enrichments');
+    expect(enr.rows[0].n).toBe(1);
+  });
+
   it('enriching a URL the feed already carries returns the feed row instead of forking a duplicate', async () => {
     // Bug this catches (land-match-0jx.10): a feed row + a fresh owned row for
     // the same property would BOTH score against the owner's profiles — two

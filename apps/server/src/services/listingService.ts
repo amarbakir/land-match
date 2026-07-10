@@ -52,10 +52,11 @@ export async function persistEnrichment(
 }
 
 // Fire-and-forget: scoring/alerting must never block the enrich response.
-function startBackgroundMatching(listingId: string) {
-  matchListingAgainstProfiles(listingId).catch((e) =>
-    captureError(e, 'listingService: background matching failed'),
-  );
+function startBackgroundMatching(listingId: string, opts?: { rescore?: boolean }) {
+  const matching = opts
+    ? matchListingAgainstProfiles(listingId, opts)
+    : matchListingAgainstProfiles(listingId);
+  matching.catch((e) => captureError(e, 'listingService: background matching failed'));
 }
 
 // Recompute the homestead score from a saved-listings projection row. Used as a
@@ -139,30 +140,51 @@ function sameAddress(a: string, b: string) {
 }
 
 // After losing the (user_id, url) insert race: the winner has committed (the
-// conflicting insert blocks until it does) and is our own row, so getByUrl
+// conflicting insert blocks until it does) and is our own row, so findByUrl
 // always sees it. A conflict with no visible winner should be impossible —
-// surface it loudly rather than retrying the vendor fan-out.
-async function raceLoserResponse(url: string, userId: string): Promise<Result<EnrichListingResponse>> {
-  const winner = await getByUrl(url, userId);
-  if (winner.ok) return winner;
-  captureError(
-    new Error(`(user_id, url) conflict but no visible winner for ${url}`),
-    'listingService.raceLoserResponse',
-  );
-  return err('INTERNAL_ERROR');
+// surface it loudly rather than retrying the vendor fan-out. When the loser
+// already paid for a vendor fan-out, its result is merged onto the winner's
+// row (insertEnrichment coalesces) instead of being discarded — the winner's
+// run may have been the partial one.
+async function raceLoserResponse(
+  url: string,
+  userId: string,
+  enrichment?: EnrichmentResult,
+): Promise<Result<EnrichListingResponse>> {
+  const winner = await listingRepo.findByUrl(url, userId);
+  if (!winner) {
+    captureError(
+      new Error(`(user_id, url) conflict but no visible winner for ${url}`),
+      'listingService.raceLoserResponse',
+    );
+    return err('INTERNAL_ERROR');
+  }
+  if (!enrichment) return ok(toEnrichListingResponse(winner.listing, winner.enrichment));
+
+  const { enrichmentRow, hs } = await persistEnrichment(winner.listing, enrichment);
+  return ok(toEnrichListingResponse(winner.listing, enrichmentRow, enrichment.errors, hs));
 }
 
-// Dedupe for repeat enrichment of a URL (land-match-0jx.10). Returns null when
-// there's nothing to reuse and the full vendor pipeline should run.
+// Outcome of the URL dedupe check (land-match-0jx.10 / ckt):
+// serve — an existing row answers the request, no vendor work.
+// heal  — the caller's own dead-end row must be re-enriched IN PLACE: the
+//         (user_id, url) unique index forbids forking a second row.
+// fresh — nothing reusable, run the pipeline into a new row.
+type UrlReuseOutcome =
+  | { kind: 'serve'; response: Result<EnrichListingResponse> }
+  | { kind: 'heal'; listing: DbListingRow }
+  | { kind: 'fresh' };
+
 async function reuseExistingByUrl(
   input: EnrichListingRequest & { url: string },
   userId: string,
-): Promise<Result<EnrichListingResponse> | null> {
+): Promise<UrlReuseOutcome> {
   // The caller's own or a feed row for this URL is returned as-is — no vendor
   // calls, no new row, no re-scoring (repeats multiplied alert emails). The
   // re-enrichment cron owns healing incomplete rows. Exception: a row the
   // cron can never heal (no enrichment data AND outside the healing loop's
-  // filters) must not permanently block the pipeline for this URL.
+  // filters) must not permanently block the pipeline for this URL — the
+  // caller's own dead row is revived in place, a dead feed row is forked.
   const visible = await listingRepo.findByUrl(input.url, userId);
   if (visible) {
     const l = visible.listing;
@@ -171,8 +193,9 @@ async function reuseExistingByUrl(
       l.latitude != null &&
       l.longitude != null;
     if (visible.enrichment || healable) {
-      return ok(toEnrichListingResponse(l, visible.enrichment));
+      return { kind: 'serve', response: ok(toEnrichListingResponse(l, visible.enrichment)) };
     }
+    if (l.userId === userId) return { kind: 'heal', listing: l };
   }
 
   // Another user already enriched this URL — invisible to the caller's by-url
@@ -190,7 +213,7 @@ async function reuseExistingByUrl(
     source.address == null ||
     !sameAddress(source.address, input.address)
   ) {
-    return null; // nothing reusable — run the full pipeline
+    return { kind: 'fresh' }; // nothing reusable — run the full pipeline
   }
 
   const persisted = await db.transaction(async (tx) => {
@@ -218,11 +241,14 @@ async function reuseExistingByUrl(
     return { listing, ...scored };
   });
 
-  if (!persisted) return raceLoserResponse(input.url, userId);
+  if (!persisted) return { kind: 'serve', response: await raceLoserResponse(input.url, userId) };
 
   startBackgroundMatching(persisted.listing.id);
 
-  return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, [], persisted.hs));
+  return {
+    kind: 'serve',
+    response: ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, [], persisted.hs)),
+  };
 }
 
 export async function enrichAndPersist(
@@ -231,9 +257,11 @@ export async function enrichAndPersist(
 ): Promise<Result<EnrichListingResponse>> {
   try {
     // 0. Repeat of a known URL? Reuse instead of duplicating (0jx.10).
+    let healTarget: DbListingRow | null = null;
     if (input.url) {
-      const reused = await reuseExistingByUrl({ ...input, url: input.url }, userId);
-      if (reused) return reused;
+      const reuse = await reuseExistingByUrl({ ...input, url: input.url }, userId);
+      if (reuse.kind === 'serve') return reuse.response;
+      if (reuse.kind === 'heal') healTarget = reuse.listing;
     }
 
     // 1. Geocode + enrich via pipeline
@@ -245,24 +273,40 @@ export async function enrichAndPersist(
 
     const { geocode, enrichment } = enrichResult.data;
 
-    // 2. Persist listing + enrichment in a transaction
+    // 2. Persist listing + enrichment in a transaction. The listing write is
+    // deliberately the FIRST statement: returning null (lost race / vanished
+    // heal target) commits an empty transaction, which is only safe while
+    // nothing precedes it.
     const persisted = await db.transaction(async (tx) => {
-      const listing = await listingRepo.insertListing(
-        {
-          address: input.address,
-          latitude: geocode.lat,
-          longitude: geocode.lng,
-          price: input.price,
-          acreage: input.acreage,
-          url: input.url,
-          title: input.title,
-          source: input.source,
-          externalId: input.externalId,
-          userId,
-          enrichmentStatus: deriveEnrichmentStatus(enrichment),
-        },
-        tx,
-      );
+      const listing = healTarget
+        ? await listingRepo.reviveListing(
+            healTarget.id,
+            {
+              latitude: geocode.lat,
+              longitude: geocode.lng,
+              price: input.price,
+              acreage: input.acreage,
+              title: input.title,
+              enrichmentStatus: deriveEnrichmentStatus(enrichment),
+            },
+            tx,
+          )
+        : await listingRepo.insertListing(
+            {
+              address: input.address,
+              latitude: geocode.lat,
+              longitude: geocode.lng,
+              price: input.price,
+              acreage: input.acreage,
+              url: input.url,
+              title: input.title,
+              source: input.source,
+              externalId: input.externalId,
+              userId,
+              enrichmentStatus: deriveEnrichmentStatus(enrichment),
+            },
+            tx,
+          );
       if (!listing) return null; // lost the (user_id, url) race mid-fan-out
 
       const { enrichmentRow, hs } = await persistEnrichment(listing, enrichment, tx);
@@ -271,13 +315,18 @@ export async function enrichAndPersist(
     });
 
     if (!persisted) {
-      // Lost the (user_id, url) race mid-fan-out — a conflict is only possible
-      // with a URL (the index predicate requires one).
-      return input.url ? raceLoserResponse(input.url, userId) : err('INTERNAL_ERROR');
+      if (!input.url) {
+        // A conflict is only possible with a URL (the index predicate requires one).
+        captureError(new Error('listing insert conflict without a URL'), 'listingService.enrichAndPersist');
+        return err('INTERNAL_ERROR');
+      }
+      // Salvage the paid-for fan-out by merging it onto the winner's row.
+      return raceLoserResponse(input.url, userId, enrichment);
     }
 
-    // 3. Score against active search profiles
-    startBackgroundMatching(persisted.listing.id);
+    // 3. Score against active search profiles. A revived row may carry stale
+    // scores from its dead era — refresh them instead of skipping.
+    startBackgroundMatching(persisted.listing.id, healTarget ? { rescore: true } : undefined);
 
     // 4. Build response (reuse the score computed during persistence)
     return ok(toEnrichListingResponse(persisted.listing, persisted.enrichmentRow, enrichment.errors, persisted.hs));

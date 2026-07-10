@@ -52,8 +52,44 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
     })
     .returning();
 
-  // undefined when a concurrent insert for the same (user_id, url) won.
-  return rows.at(0);
+  // null when a concurrent insert for the same (user_id, url) won.
+  return rows.at(0) ?? null;
+}
+
+// Re-enrich a caller-owned dead-end row in place (land-match-ckt review): the
+// (user_id, url) unique index forbids forking a second row, so a fresh
+// pipeline run lands back on the existing one — new geocode, reset retry
+// budget, back into the healing loop.
+export async function reviveListing(
+  id: string,
+  input: {
+    latitude: number;
+    longitude: number;
+    price?: number;
+    acreage?: number;
+    title?: string;
+    enrichmentStatus: EnrichmentStatus;
+  },
+  tx?: Tx,
+) {
+  const rows = await (tx ?? db)
+    .update(listings)
+    .set({
+      latitude: input.latitude,
+      longitude: input.longitude,
+      // Caller-provided fields win; absent ones keep the row's values.
+      ...(input.price !== undefined ? { price: input.price } : {}),
+      ...(input.acreage !== undefined ? { acreage: input.acreage } : {}),
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      enrichmentStatus: input.enrichmentStatus,
+      enrichmentAttempts: 0,
+      lastSeenAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+
+  // null when the row vanished mid-request (deleted concurrently).
+  return rows.at(0) ?? null;
 }
 
 // Visibility policy: ownerless (global feed) listings are visible to everyone;

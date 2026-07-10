@@ -75,7 +75,7 @@ describe('findEnrichmentSourceByUrl (integration)', () => {
 });
 
 describe('listings (user_id, url) unique index (integration)', () => {
-  it('a second insert for the same user+url returns undefined instead of duplicating', async () => {
+  it('a second insert for the same user+url returns null instead of duplicating', async () => {
     // Bug this catches (land-match-ckt): the service-layer dedupe is an
     // advisory read-then-insert — two concurrent POST /enrich both pass the
     // lookups during the vendor fan-out and both insert. The partial unique
@@ -88,7 +88,7 @@ describe('listings (user_id, url) unique index (integration)', () => {
     const second = await insertUrlListing();
 
     expect(first).toBeDefined();
-    expect(second).toBeUndefined();
+    expect(second).toBeNull();
   });
 
   it('ownerless feed rows and URL-less manual rows stay unconstrained', async () => {
@@ -102,6 +102,43 @@ describe('listings (user_id, url) unique index (integration)', () => {
     const b = await listingRepo.insertListing({ address: '2 NoUrl Rd', latitude: 36.6, longitude: -92.1, userId: userA });
     expect(a).toBeDefined();
     expect(b).toBeDefined();
+  });
+});
+
+describe('external identity per ownership scope (integration)', () => {
+  it('two users can each own a row for the same external listing', async () => {
+    // Bug this catches (review of land-match-ckt): the global
+    // (external_id, source) unique index 500s user B enriching the same
+    // Zillow listing user A already owns — the exact case the cross-user
+    // copy path exists to serve.
+    const [userA, userB] = await seedTwoUsers();
+    const insertExt = (userId: string) =>
+      listingRepo.insertListing({
+        address: '1 Ext Rd, MO',
+        latitude: 36.6,
+        longitude: -92.1,
+        url: URL,
+        userId,
+        externalId: 'zpid-1',
+        source: 'zillow',
+      });
+
+    expect(await insertExt(userA)).toBeDefined();
+    expect(await insertExt(userB)).toBeDefined();
+  });
+
+  it('ownerless feed rows keep global external identity', async () => {
+    const feedRow = () =>
+      listingRepo.insertListing({
+        address: '1 Feed Rd, MO',
+        latitude: 36.6,
+        longitude: -92.1,
+        externalId: 'mls-1',
+        source: 'feed',
+      });
+
+    expect(await feedRow()).toBeDefined();
+    await expect(feedRow()).rejects.toThrow(); // duplicate feed identity still rejected
   });
 });
 

@@ -17,6 +17,7 @@ vi.mock('../db/client', () => ({
 vi.mock('../repos/listingRepo', () => ({
   MAX_ENRICHMENT_ATTEMPTS: 5,
   insertListing: vi.fn(),
+  reviveListing: vi.fn(),
   insertEnrichment: vi.fn(),
   insertEnrichmentCopy: vi.fn(),
   updateHomesteadScore: vi.fn(),
@@ -37,6 +38,7 @@ import { enrichAndPersist } from '../services/listingService';
 const mockEnrichListing = vi.mocked(enrichListing);
 const mockTransaction = vi.mocked(db.transaction);
 const mockInsertListing = vi.mocked(listingRepo.insertListing);
+const mockReviveListing = vi.mocked(listingRepo.reviveListing);
 const mockInsertEnrichment = vi.mocked(listingRepo.insertEnrichment);
 const mockInsertEnrichmentCopy = vi.mocked(listingRepo.insertEnrichmentCopy);
 const mockUpdateHomesteadScore = vi.mocked(listingRepo.updateHomesteadScore);
@@ -386,12 +388,12 @@ describe('enrichAndPersist', () => {
       expect(mockInsertListing).not.toHaveBeenCalled();
     });
 
-    it('re-runs the pipeline when the visible row is a dead end the cron can never heal', async () => {
-      // Bug this catches: a row with no enrichment data and an exhausted retry
-      // budget (or missing coords) short-circuiting every future POST /enrich —
-      // the user could never obtain soil/flood data for that URL again.
+    it('re-runs the pipeline into a fresh owned row when a FEED row is a dead end', async () => {
+      // Bug this catches: a feed row with no enrichment data and an exhausted
+      // retry budget short-circuiting every future POST /enrich — the user
+      // could never obtain soil/flood data for that URL again.
       mockFindByUrl.mockResolvedValue({
-        listing: { ...listingRow, url: URL, enrichmentStatus: 'failed', enrichmentAttempts: 5 },
+        listing: { ...listingRow, url: URL, userId: null, enrichmentStatus: 'failed', enrichmentAttempts: 5 },
         enrichment: null,
       });
       mockFindEnrichmentSource.mockResolvedValue(null);
@@ -401,7 +403,32 @@ describe('enrichAndPersist', () => {
 
       expect(result.ok).toBe(true);
       expect(mockEnrichListing).toHaveBeenCalled();
-      expect(mockInsertListing).toHaveBeenCalled();
+      expect(mockInsertListing).toHaveBeenCalled(); // ownerless dead row: fork an owned row, no index conflict
+    });
+
+    it("heals the caller's OWN dead-end row in place — the unique index forbids forking it", async () => {
+      // Bug this catches (review of land-match-ckt): the dead-row escape hatch
+      // falling through to an INSERT that conflicts with the caller's own row
+      // on listings_user_url_idx — the "loser" path then serves the dead row
+      // back, burning vendor quota and returning null enrichment forever.
+      mockFindByUrl.mockResolvedValue({
+        listing: { ...listingRow, url: URL, userId: 'user-1', enrichmentStatus: 'failed', enrichmentAttempts: 5 },
+        enrichment: null,
+      });
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+      mockReviveListing.mockResolvedValue({ ...listingRow, url: URL, userId: 'user-1', enrichmentStatus: 'enriched' });
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
+
+      expect(result.ok).toBe(true);
+      expect(mockInsertListing).not.toHaveBeenCalled(); // no second (user, url) row
+      expect(mockReviveListing).toHaveBeenCalledWith(
+        listingRow.id,
+        expect.objectContaining({ latitude: 36.6, longitude: -92.1, enrichmentStatus: 'enriched' }),
+        'fake-tx',
+      );
+      // Stale scores from the dead era must refresh, not be skipped
+      expect(mockMatchListing).toHaveBeenCalledWith(listingRow.id, { rescore: true });
     });
 
     it('still short-circuits on an unenriched row the cron WILL heal (attempts remaining)', async () => {
@@ -508,21 +535,25 @@ describe('enrichAndPersist', () => {
       expect(mockEnrichListing).toHaveBeenCalled(); // fresh geocode + vendors
     });
 
-    it('serves the concurrent winner when the insert loses the (user,url) race', async () => {
-      // Bug this catches (land-match-ckt): insertListing returning undefined
-      // (unique-index conflict) must not crash or persist orphaned enrichment —
-      // the loser re-fetches the committed winner and returns it.
+    it('serves the concurrent winner and merges the paid-for fan-out onto its row when losing the race', async () => {
+      // Bugs this catches (land-match-ckt): insertListing returning null
+      // (unique-index conflict) crashing or duplicating; and the loser
+      // discarding its completed vendor fan-out — if the winner's run was the
+      // partial one, the merge is what completes the row without the cron
+      // re-burning vendor quota.
       mockFindByUrl.mockResolvedValueOnce(null); // pre-check: nothing visible yet
       mockFindEnrichmentSource.mockResolvedValue(null);
       mockEnrichListing.mockResolvedValue(makeEnrichResult());
-      mockInsertListing.mockResolvedValue(undefined as never); // winner beat us
+      mockInsertListing.mockResolvedValue(null); // winner beat us
       mockFindByUrl.mockResolvedValueOnce({ listing: { ...listingRow, url: URL }, enrichment: enrichmentRow });
 
       const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
 
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.data.listing.id).toBe(listingRow.id);
-      expect(mockInsertEnrichment).not.toHaveBeenCalled(); // loser persists nothing
+      expect(mockInsertListing).toHaveBeenCalledTimes(1); // no retry-insert loop
+      // The loser's enrichment merges onto the WINNER's row (coalesce semantics)
+      expect(mockInsertEnrichment).toHaveBeenCalledWith(listingRow.id, expect.anything(), undefined);
     });
 
     it('skips the dedupe lookup entirely for URL-less manual submissions', async () => {

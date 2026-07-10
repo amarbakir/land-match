@@ -60,7 +60,16 @@ export const listings = pgTable('listings', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   delistedAt: timestamp('delisted_at', { withTimezone: true, mode: 'date' }),
 }, (table) => [
-  uniqueIndex('listings_external_id_source_idx').on(table.externalId, table.source),
+  // External identity is per ownership scope: ownerless feed rows keep global
+  // (external_id, source) identity, while owned rows are each user's private
+  // research copy (0jx.10 copies enrichment across users) — a global unique
+  // index would 500 the second user enriching the same Zillow/MLS listing.
+  uniqueIndex('listings_feed_external_id_idx')
+    .on(table.externalId, table.source)
+    .where(sql`${table.userId} IS NULL`),
+  uniqueIndex('listings_user_external_id_idx')
+    .on(table.userId, table.externalId, table.source)
+    .where(sql`${table.userId} IS NOT NULL`),
   index('listings_url_idx').on(table.url),
   // DB-enforced enrich dedupe (land-match-ckt): one owned row per (user, url).
   // The service-layer URL dedupe is an advisory read-then-insert; without this
