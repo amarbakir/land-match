@@ -208,6 +208,23 @@ describe('by-url visibility (integration)', () => {
     expect(body.data.listing.price).toBe(50000);
   });
 
+  it('concurrent enrich requests for one URL converge on a single listing row', async () => {
+    // Bug this catches (land-match-ckt): both requests pass the dedupe
+    // lookups during the vendor fan-out; without the (user_id, url) unique
+    // index both insert, and both rows match profiles → duplicate alerts.
+    const token = await registerUser(app, 'race@example.com');
+
+    const [r1, r2] = await Promise.all([
+      postEnrich({ address: '123 Rural Rd, MO', url: LISTING_URL }, token),
+      postEnrich({ address: '123 Rural Rd, MO', url: LISTING_URL }, token),
+    ]);
+
+    expect(r1.status).toBe(201);
+    expect(r2.status).toBe(201);
+    const count = await pool.query('SELECT count(*)::int AS n FROM listings');
+    expect(count.rows[0].n).toBe(1);
+  });
+
   it('enriching a URL the feed already carries returns the feed row instead of forking a duplicate', async () => {
     // Bug this catches (land-match-0jx.10): a feed row + a fresh owned row for
     // the same property would BOTH score against the owner's profiles — two

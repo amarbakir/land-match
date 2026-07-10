@@ -28,7 +28,7 @@ describe('search profile deletion (integration)', () => {
     // the user could never delete a profile again.
     const token = await registerUser(app, 'deleter@example.com');
     const profile = await createProfile(token);
-    const listing = await listingRepo.insertListing({ address: '1 Del Rd, MO', latitude: 36.6, longitude: -92.1 });
+    const listing = (await listingRepo.insertListing({ address: "1 Del Rd, MO", latitude: 36.6, longitude: -92.1 }))!;
     const score = await scoreRepo.insert({
       listingId: listing.id,
       searchProfileId: profile.id,

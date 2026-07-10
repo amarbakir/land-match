@@ -23,7 +23,7 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
   const id = generateId();
   const now = new Date();
 
-  const [row] = await (tx ?? db)
+  const rows = await (tx ?? db)
     .insert(listings)
     .values({
       id,
@@ -41,9 +41,19 @@ export async function insertListing(input: InsertListingInput, tx?: Tx) {
       firstSeenAt: now,
       lastSeenAt: now,
     })
+    // listings_user_url_idx: one owned row per (user, url). A concurrent
+    // insert for the same pair blocks until the winner commits, then lands
+    // here — undefined tells the service to re-fetch the winner instead of
+    // duplicating (land-match-ckt).
+    .onConflictDoNothing({
+      target: [listings.userId, listings.url],
+      // The partial index's predicate — ON CONFLICT must name it to match.
+      where: sql`${listings.url} IS NOT NULL AND ${listings.userId} IS NOT NULL`,
+    })
     .returning();
 
-  return row;
+  // undefined when a concurrent insert for the same (user_id, url) won.
+  return rows.at(0);
 }
 
 // Visibility policy: ownerless (global feed) listings are visible to everyone;

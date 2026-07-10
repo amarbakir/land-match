@@ -62,6 +62,14 @@ export const listings = pgTable('listings', {
 }, (table) => [
   uniqueIndex('listings_external_id_source_idx').on(table.externalId, table.source),
   index('listings_url_idx').on(table.url),
+  // DB-enforced enrich dedupe (land-match-ckt): one owned row per (user, url).
+  // The service-layer URL dedupe is an advisory read-then-insert; without this
+  // index two concurrent POST /enrich both pass the lookups and both insert.
+  // Ownerless feed rows are deliberately unconstrained (delist/relist may
+  // legitimately repeat URLs), as are URL-less manual entries.
+  uniqueIndex('listings_user_url_idx')
+    .on(table.userId, table.url)
+    .where(sql`${table.url} IS NOT NULL AND ${table.userId} IS NOT NULL`),
   // Re-enrichment candidate scan: cost tracks the (small) live-retryable set,
   // not the table. Predicate mirrors findListingsNeedingEnrichment — capped
   // (attempts >= 5, see MAX_ENRICHMENT_ATTEMPTS) and coordinate-less rows

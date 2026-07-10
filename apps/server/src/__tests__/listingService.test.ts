@@ -508,6 +508,23 @@ describe('enrichAndPersist', () => {
       expect(mockEnrichListing).toHaveBeenCalled(); // fresh geocode + vendors
     });
 
+    it('serves the concurrent winner when the insert loses the (user,url) race', async () => {
+      // Bug this catches (land-match-ckt): insertListing returning undefined
+      // (unique-index conflict) must not crash or persist orphaned enrichment —
+      // the loser re-fetches the committed winner and returns it.
+      mockFindByUrl.mockResolvedValueOnce(null); // pre-check: nothing visible yet
+      mockFindEnrichmentSource.mockResolvedValue(null);
+      mockEnrichListing.mockResolvedValue(makeEnrichResult());
+      mockInsertListing.mockResolvedValue(undefined as never); // winner beat us
+      mockFindByUrl.mockResolvedValueOnce({ listing: { ...listingRow, url: URL }, enrichment: enrichmentRow });
+
+      const result = await enrichAndPersist({ address: '123 Rural Rd, MO', url: URL }, 'user-1');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.data.listing.id).toBe(listingRow.id);
+      expect(mockInsertEnrichment).not.toHaveBeenCalled(); // loser persists nothing
+    });
+
     it('skips the dedupe lookup entirely for URL-less manual submissions', async () => {
       mockEnrichListing.mockResolvedValue(makeEnrichResult());
 

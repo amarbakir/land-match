@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "listings_user_url_idx" ON "listings" USING btree ("user_id","url") WHERE "listings"."url" IS NOT NULL AND "listings"."user_id" IS NOT NULL;

@@ -169,6 +169,13 @@
       "when": 1783633436118,
       "tag": "0023_cute_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783648769870,
+      "tag": "0024_known_wind_dancer",
+      "breakpoints": true
     }
   ]
 }

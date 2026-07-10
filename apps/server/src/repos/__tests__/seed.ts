@@ -17,19 +17,27 @@ export function seedTwoUsers() {
   return Promise.all([seedUser('a@example.com'), seedUser('b@example.com')]);
 }
 
+// Seeds never deliberately collide with the (user_id, url) unique index — an
+// undefined insert result here is a broken fixture, so fail loudly. Tests that
+// WANT the conflict call listingRepo.insertListing directly.
+function seeded<T>(row: T | undefined): T {
+  if (!row) throw new Error('seed insert unexpectedly hit the (user_id, url) unique index');
+  return row;
+}
+
 export async function seedListing(
   address: string,
   price?: number,
   acreage?: number,
   enrichmentStatus?: 'enriched' | 'partial' | 'failed',
 ) {
-  const row = await listingRepo.insertListing({ address, ...FIXTURE_COORDS, price, acreage, enrichmentStatus });
+  const row = seeded(await listingRepo.insertListing({ address, ...FIXTURE_COORDS, price, acreage, enrichmentStatus }));
   return row.id;
 }
 
 // Owned (user-enriched) listing — private to its owner under the visibility policy.
 export async function seedOwnedListing(address: string, userId: string) {
-  const row = await listingRepo.insertListing({ address, ...FIXTURE_COORDS, userId });
+  const row = seeded(await listingRepo.insertListing({ address, ...FIXTURE_COORDS, userId }));
   return row.id;
 }
 
@@ -40,7 +48,7 @@ export async function seedUrlListing(
   userId?: string,
   enrichmentStatus?: 'enriched' | 'partial' | 'failed',
 ) {
-  return listingRepo.insertListing({ address: '1 Dedupe Rd, MO', ...FIXTURE_COORDS, url, userId, enrichmentStatus });
+  return seeded(await listingRepo.insertListing({ address: '1 Dedupe Rd, MO', ...FIXTURE_COORDS, url, userId, enrichmentStatus }));
 }
 
 export async function seedProfile(

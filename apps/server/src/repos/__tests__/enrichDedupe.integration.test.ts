@@ -74,6 +74,37 @@ describe('findEnrichmentSourceByUrl (integration)', () => {
   });
 });
 
+describe('listings (user_id, url) unique index (integration)', () => {
+  it('a second insert for the same user+url returns undefined instead of duplicating', async () => {
+    // Bug this catches (land-match-ckt): the service-layer dedupe is an
+    // advisory read-then-insert — two concurrent POST /enrich both pass the
+    // lookups during the vendor fan-out and both insert. The partial unique
+    // index is the real defense; onConflictDoNothing surfaces the loss as
+    // undefined for the service to re-fetch.
+    const [userA] = await seedTwoUsers();
+    const insertUrlListing = () =>
+      listingRepo.insertListing({ address: '1 Dedupe Rd, MO', latitude: 36.6, longitude: -92.1, url: URL, userId: userA });
+    const first = await insertUrlListing();
+    const second = await insertUrlListing();
+
+    expect(first).toBeDefined();
+    expect(second).toBeUndefined();
+  });
+
+  it('ownerless feed rows and URL-less manual rows stay unconstrained', async () => {
+    // Feed delist/relist may legitimately repeat URLs; manual entries have no
+    // URL at all — the index predicate must exclude both.
+    const [userA] = await seedTwoUsers();
+    expect(await seedUrlListing(URL)).toBeDefined();
+    expect(await seedUrlListing(URL)).toBeDefined(); // second ownerless row OK
+
+    const a = await listingRepo.insertListing({ address: '1 NoUrl Rd', latitude: 36.6, longitude: -92.1, userId: userA });
+    const b = await listingRepo.insertListing({ address: '2 NoUrl Rd', latitude: 36.6, longitude: -92.1, userId: userA });
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+  });
+});
+
 describe('insertEnrichmentCopy (integration)', () => {
   it('clones the data columns onto the target listing under a fresh id', async () => {
     const [userA, userB] = await seedTwoUsers();

@@ -138,6 +138,13 @@ function sameAddress(a: string, b: string) {
   return norm(a) === norm(b);
 }
 
+// After losing the (user_id, url) insert race: the winner has committed (the
+// conflicting insert blocks until it does), so serve its row.
+async function existingByUrlResponse(url: string, userId: string) {
+  const existing = await listingRepo.findByUrl(url, userId);
+  return existing ? ok(toEnrichListingResponse(existing.listing, existing.enrichment)) : null;
+}
+
 // Dedupe for repeat enrichment of a URL (land-match-0jx.10). Returns null when
 // there's nothing to reuse and the full vendor pipeline should run.
 async function reuseExistingByUrl(
@@ -198,10 +205,13 @@ async function reuseExistingByUrl(
       },
       tx,
     );
+    if (!listing) return null; // lost the (user_id, url) race
     const enrichmentRow = await listingRepo.insertEnrichmentCopy(listing.id, source.enrichment, tx);
     const scored = await scoreEnrichmentRow(listing, enrichmentRow, tx);
     return { listing, ...scored };
   });
+
+  if (!persisted) return existingByUrlResponse(input.url, userId);
 
   startBackgroundMatching(persisted.listing.id);
 
@@ -246,11 +256,20 @@ export async function enrichAndPersist(
         },
         tx,
       );
+      if (!listing) return null; // lost the (user_id, url) race mid-fan-out
 
       const { enrichmentRow, hs } = await persistEnrichment(listing, enrichment, tx);
 
       return { listing, enrichmentRow, hs };
     });
+
+    if (!persisted) {
+      // A concurrent request for the same URL won while we were in the vendor
+      // fan-out — serve its committed row rather than erroring or duplicating.
+      const winner = input.url ? await existingByUrlResponse(input.url, userId) : null;
+      if (winner) return winner;
+      return err('INTERNAL_ERROR'); // conflict without a visible winner — shouldn't happen
+    }
 
     // 3. Score against active search profiles
     startBackgroundMatching(persisted.listing.id);
