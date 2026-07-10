@@ -28,6 +28,12 @@ const CAPABILITY_SUITABILITY: Record<number, Record<string, number>> = {
 };
 
 function buildSoilQuery(lat: number, lng: number): string {
+  // Self-defending sink: coords interpolate into SQL text shipped to USDA.
+  // The pipeline validates via isValidLatLng, but that guard lives two modules
+  // away — a direct caller (or lying runtime types) must not reach the wire.
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    throw new Error(`soil query requires finite coordinates, got (${lat}, ${lng})`);
+  }
   return `
     SELECT TOP 1
       c.comppct_r,
@@ -57,9 +63,8 @@ export const soilAdapter: EnrichmentAdapter<SoilData> = {
   },
 
   async enrich(coords: LatLng): Promise<Result<SoilData>> {
-    const query = buildSoilQuery(coords.lat, coords.lng);
-
     try {
+      const query = buildSoilQuery(coords.lat, coords.lng);
       const res = await fetch(SDM_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

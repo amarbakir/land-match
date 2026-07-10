@@ -39,4 +39,38 @@ describe('SearchCriteria validation', () => {
     const result = SearchCriteria.safeParse({ weights: { flood: 2, soil: 0.5 } });
     expect(result.success).toBe(true);
   });
+
+  // Bugs these catch (tcd.3 audit): unbounded criteria stored verbatim in
+  // search_profiles.criteria jsonb and fed to the scoring engine.
+  it('rejects weights above 100 (relative weights need no more headroom)', () => {
+    expect(SearchCriteria.safeParse({ weights: { flood: 101 } }).success).toBe(false);
+    expect(SearchCriteria.safeParse({ weights: { flood: 100 } }).success).toBe(true);
+  });
+
+  it('rejects out-of-range geography centers', () => {
+    const geo = (lat: number, lng: number) =>
+      SearchCriteria.safeParse({ geography: { type: 'radius', center: { lat, lng }, radiusMiles: 25 } });
+    expect(geo(91, 0).success).toBe(false);
+    expect(geo(-91, 0).success).toBe(false);
+    expect(geo(0, 181).success).toBe(false);
+    expect(geo(0, -181).success).toBe(false);
+    expect(geo(36.6, -92.1).success).toBe(true);
+  });
+
+  it('rejects non-positive radiusMiles', () => {
+    expect(SearchCriteria.safeParse({ geography: { type: 'radius', radiusMiles: 0 } }).success).toBe(false);
+    expect(SearchCriteria.safeParse({ geography: { type: 'radius', radiusMiles: -5 } }).success).toBe(false);
+  });
+
+  it('bounds string-array filters in element length and count', () => {
+    expect(SearchCriteria.safeParse({ floodZoneExclude: ['x'.repeat(101)] }).success).toBe(false);
+    expect(SearchCriteria.safeParse({ zoning: Array.from({ length: 51 }, (_, i) => `z${i}`) }).success).toBe(false);
+    expect(SearchCriteria.safeParse({ floodZoneExclude: ['AE', 'VE'], zoning: ['A-1'] }).success).toBe(true);
+  });
+
+  it('caps profile names at 200 characters', async () => {
+    const { CreateSearchProfile } = await import('../searchProfiles');
+    expect(CreateSearchProfile.safeParse({ name: 'x'.repeat(201), criteria: {} }).success).toBe(false);
+    expect(CreateSearchProfile.safeParse({ name: 'Hudson Valley', criteria: {} }).success).toBe(true);
+  });
 });

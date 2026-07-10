@@ -43,9 +43,13 @@ export function raster2pgsql(inputFile: string, tableName: string, srid: number 
   return `raster2pgsql -s ${srid} -I -C -M -t 100x100 "${inputFile}" ${tableName}`;
 }
 
-export function runShell(cmd: string): void {
+// Deliberately a shell (not execFile): the raster load is a real pipe and
+// every interpolated value is operator-controlled (hardcoded table names,
+// region-allowlisted paths, env-supplied DB URL). Secrets must arrive via
+// `env`, never inside `cmd` — the command line is echoed to the console.
+export function runShell(cmd: string, env?: NodeJS.ProcessEnv): void {
   console.log(`[geodata] $ ${cmd}`);
-  execSync(cmd, { stdio: 'inherit' });
+  execSync(cmd, { stdio: 'inherit', env: env ? { ...process.env, ...env } : process.env });
 }
 
 export function clipToRegion(inputPath: string, outputPath: string, region: RegionBounds): void {
@@ -55,5 +59,8 @@ export function clipToRegion(inputPath: string, outputPath: string, region: Regi
 export async function loadRaster(pool: Pool, dbUrl: string, filePath: string, tableName: string): Promise<void> {
   const safeUrl = psqlSafeUrl(dbUrl);
   await pool.query(`DROP TABLE IF EXISTS ${tableName} CASCADE`);
-  runShell(`${raster2pgsql(filePath, tableName)} | psql "${safeUrl}"`);
+  // The URL rides in env, not the command string: no credentials in the
+  // echoed command line, and quote/metacharacter content in an operator's
+  // URL can't break the shell line.
+  runShell(`${raster2pgsql(filePath, tableName)} | psql "$GEODATA_PSQL_URL"`, { GEODATA_PSQL_URL: safeUrl });
 }

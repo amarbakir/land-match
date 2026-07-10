@@ -19,6 +19,32 @@ describe('RegisterRequest password validation', () => {
   });
 });
 
+describe('login and field length caps', () => {
+  // Bug these catch (tcd.3 audit): LoginRequest had no password cap while
+  // register enforces 128 — login would argon2-hash up to a 100KB body's
+  // worth of password per request. A >128 login can never succeed anyway.
+  it('rejects login passwords longer than 128 characters', () => {
+    const result = LoginRequest.safeParse({ email: 'a@b.com', password: 'x'.repeat(129) });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a 128-character login password', () => {
+    const result = LoginRequest.safeParse({ email: 'a@b.com', password: 'x'.repeat(128) });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects emails longer than 254 characters (RFC upper bound)', () => {
+    const long = `${'x'.repeat(250)}@example.com`;
+    expect(RegisterRequest.safeParse({ email: long, password: 'password123' }).success).toBe(false);
+    expect(LoginRequest.safeParse({ email: long, password: 'password123' }).success).toBe(false);
+  });
+
+  it('rejects names longer than 200 characters (stored + rendered in alert emails)', () => {
+    const result = RegisterRequest.safeParse({ email: 'a@b.com', password: 'password123', name: 'x'.repeat(201) });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('email normalization', () => {
   // Bug this catches: without trim()+toLowerCase() at the schema boundary, the
   // service does an exact-match lookup, so " Foo@X.com " registers a second

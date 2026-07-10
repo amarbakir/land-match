@@ -9,14 +9,19 @@ export const ListingEnrichmentStatus = z.enum(['pending', 'enriched', 'partial',
 
 export type ListingEnrichmentStatus = z.infer<typeof ListingEnrichmentStatus>;
 
+// Length caps (tcd.3 audit): everything here is user-supplied or scraped from
+// third-party pages, then forwarded to geocoders, stored, and rendered into
+// email subjects — the global 100KB body limit alone left fields absurdly wide.
 export const EnrichListingRequest = z.object({
-  address: z.string().min(1),
+  // 500 matches the bound applied to geocoder RESPONSES (boundedString in
+  // @landmatch/enrichment) — no legitimate address is longer.
+  address: z.string().min(1).max(500),
   price: z.number().positive().optional(),
   acreage: z.number().positive().optional(),
   url: HttpUrl.optional(),
-  title: z.string().optional(),
-  source: z.string().optional(),
-  externalId: z.string().optional(),
+  title: z.string().max(200).optional(),
+  source: z.string().max(100).optional(),
+  externalId: z.string().max(100).optional(),
 });
 
 export type EnrichListingRequest = z.infer<typeof EnrichListingRequest>;

@@ -56,9 +56,11 @@ export async function loadWetlands(regionName: string): Promise<void> {
 
     // -select is incompatible with -append in ogr2ogr, so use -sql for
     // field selection which works in both overwrite and append modes.
+    // The DB URL rides in env (see runShell) — no credentials on the echoed
+    // command line.
     runShell([
       'ogr2ogr -f "PostgreSQL"',
-      `"PG:${dbUrl}"`,
+      '"PG:$GEODATA_PSQL_URL"',
       `"${gdbPath}"`,
       '-nln nwi_wetlands',
       '-nlt PROMOTE_TO_MULTI',
@@ -66,7 +68,7 @@ export async function loadWetlands(regionName: string): Promise<void> {
       '-t_srs EPSG:4326',
       appendFlag,
       `-sql "SELECT WETLAND_TYPE, ATTRIBUTE FROM ${layerName}"`,
-    ].join(' '));
+    ].join(' '), { GEODATA_PSQL_URL: dbUrl });
   }
 
   // Create spatial indexes

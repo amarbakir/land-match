@@ -18,7 +18,6 @@ All endpoints return `{ ok: true, data }` or `{ ok: false, code, error }`.
 - Timestamps: `timestamp with timezone` (Drizzle mode `'date'`) — stored as PostgreSQL timestamps, returned as JS `Date` objects
 - Column names: snake_case in schema
 - Repos accept optional `Tx` param for transactions; services use `db.transaction()` to wrap multi-repo calls
-  - Exception: writes that maintain a denormalized counter (e.g. voteRepo.recordVote bumping studies.vote_count) require Tx so the row insert and counter update can't be split.
 
 ## Request handling
 

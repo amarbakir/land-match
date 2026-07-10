@@ -24,6 +24,22 @@ afterEach(() => {
 });
 
 describe('soilAdapter.enrich', () => {
+  it('refuses non-finite coordinates without touching the network', async () => {
+    // Bug this catches (tcd.3 audit): coords interpolate into the SDA SQL text.
+    // The pipeline gates on isValidLatLng two modules away — the sink itself
+    // must not emit POINT(Infinity NaN) (or worse, if a caller's types lie at
+    // runtime) into a query shipped to USDA.
+    for (const coords of [
+      { lat: Infinity, lng: -93.298 },
+      { lat: 37.215, lng: NaN },
+      { lat: '37.215; DROP TABLE' as unknown as number, lng: -93.298 },
+    ]) {
+      const result = await soilAdapter.enrich(coords);
+      expect(result.ok).toBe(false);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    }
+  });
+
   it('parses capability class, drainage, and texture from USDA response', async () => {
     fetchSpy.mockResolvedValueOnce(Response.json(VALID_SDM_RESPONSE));
 

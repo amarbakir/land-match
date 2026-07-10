@@ -42,11 +42,20 @@ function isWindowElapsed(frequency: AlertFrequency, lastSentAt: Date | null): bo
   return elapsedHours >= windowHours;
 }
 
+// Listing titles are scraped from third-party pages: strip control chars
+// (CRLF header-injection hygiene — Resend is a JSON API, but its MIME
+// handling isn't ours to trust) and bound the length (a >998-char subject
+// line can make the provider reject the send, burning the group's retry
+// budget on an unretryable input).
+function subjectSafe(s: string): string {
+  return s.replace(/[\x00-\x1f\x7f]+/g, ' ').trim().slice(0, 120);
+}
+
 function buildSubject(alerts: AlertItem[], profileName: string, frequency: AlertFrequency): string {
   if (frequency === 'instant' && alerts.length === 1) {
-    return `New match: ${alerts[0].listingTitle} — ${alerts[0].overallScore} score`;
+    return `New match: ${subjectSafe(alerts[0].listingTitle)} — ${alerts[0].overallScore} score`;
   }
-  return `${alerts.length} new match${alerts.length === 1 ? '' : 'es'} for ${profileName}`;
+  return `${alerts.length} new match${alerts.length === 1 ? '' : 'es'} for ${subjectSafe(profileName)}`;
 }
 
 function buildMapUrl(lat: number | null, lng: number | null): string {

@@ -101,6 +101,41 @@ describe('deliverPendingAlerts', () => {
     expect(mockAlertRepo.markSent).toHaveBeenCalledWith(['alert-1']);
   });
 
+  it('strips control characters from scraped titles and bounds the subject length', async () => {
+    // Bug this catches (tcd.3 audit): listing titles come from extension-scraped
+    // third-party pages. CRLF in a subject is a header-injection vector if the
+    // provider ever splices it into MIME headers, and a >998-char subject can
+    // make Resend reject the send — burning the group's retry budget.
+    const hostileTitle = `Nice land\r\nBcc: victim@example.com\r\n${'x'.repeat(2000)}`;
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ alertFrequency: 'instant' }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([{ ...LISTING, title: hostileTitle }]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
+
+    const result = await deliverPendingAlerts();
+
+    expect(result.ok).toBe(true);
+    const subject = mockEmail.sendEmail.mock.calls[0][0].subject;
+    expect(subject).not.toMatch(/[\r\n\t\x00-\x1f\x7f]/);
+    expect(subject.length).toBeLessThanOrEqual(160);
+    expect(subject).toContain('Nice land'); // benign text survives sanitization
+  });
+
+  it('leaves ordinary punctuation in subjects untouched', async () => {
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ alertFrequency: 'instant' }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([{ ...LISTING, title: '40-Acre Lot #3, Ozark Co.' }]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
+
+    await deliverPendingAlerts();
+
+    expect(mockEmail.sendEmail.mock.calls[0][0].subject).toContain('40-Acre Lot #3, Ozark Co.');
+  });
+
   it('skips daily digest when window has not elapsed and releases the claim', async () => {
     mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([makePendingAlert()]);
     mockAlertRepo.findLastSentAt.mockResolvedValueOnce(new Date(Date.now() - 1 * 60 * 60 * 1000)); // 1h ago

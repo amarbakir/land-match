@@ -12,33 +12,41 @@ const Range = z
     message: 'min must be <= max',
   });
 
+// Filter values are short vocabulary codes (flood zones, zoning codes) — cap
+// element length and list size so criteria jsonb stays bounded (tcd.3 audit).
+const filterList = z.array(z.string().max(100)).max(50);
+
 export const SearchCriteria = z.object({
   acreage: Range.optional(),
   price: Range.optional(),
   soilCapabilityClass: z.object({ max: z.number() }).optional(),
-  floodZoneExclude: z.array(z.string()).optional(),
+  floodZoneExclude: filterList.optional(),
   geography: z
     .object({
       type: z.enum(['radius', 'counties', 'driveTime']),
-      center: z.object({ lat: z.number(), lng: z.number() }).optional(),
-      radiusMiles: z.number().optional(),
+      center: z
+        .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
+        .optional(),
+      radiusMiles: z.number().positive().optional(),
     })
     .optional(),
-  zoning: z.array(z.string()).optional(),
-  infrastructure: z.array(z.string()).optional(),
+  zoning: filterList.optional(),
+  infrastructure: filterList.optional(),
   climateRisk: z
     .object({
       maxFireRisk: z.number().optional(),
       maxFloodRisk: z.number().optional(),
     })
     .optional(),
-  weights: z.partialRecord(ScoringComponent, z.number().min(0)).optional(),
+  // Relative weights — 100 gives ample headroom over the ~1.0-scale defaults.
+  weights: z.partialRecord(ScoringComponent, z.number().min(0).max(100)).optional(),
 });
 
 export type SearchCriteria = z.infer<typeof SearchCriteria>;
 
 export const CreateSearchProfile = z.object({
-  name: z.string().min(1),
+  // Stored and rendered in alert emails ("N new matches for <name>").
+  name: z.string().min(1).max(200),
   alertFrequency: z.enum(['instant', 'daily', 'weekly']).default('daily'),
   alertThreshold: z.number().int().min(0).max(100).default(60),
   criteria: SearchCriteria,
