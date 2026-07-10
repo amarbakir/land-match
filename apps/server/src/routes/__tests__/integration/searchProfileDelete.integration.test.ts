@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { createApp } from '../../../app';
 import { pool } from '../../../db/client';
 import * as alertRepo from '../../../repos/alertRepo';
-import * as listingRepo from '../../../repos/listingRepo';
 import * as scoreRepo from '../../../repos/scoreRepo';
+import { seedListing } from '../../../repos/__tests__/seed';
 import { authHeaders, registerUser } from './helpers';
 
 const app = createApp();
@@ -28,9 +28,9 @@ describe('search profile deletion (integration)', () => {
     // the user could never delete a profile again.
     const token = await registerUser(app, 'deleter@example.com');
     const profile = await createProfile(token);
-    const listing = (await listingRepo.insertListing({ address: "1 Del Rd, MO", latitude: 36.6, longitude: -92.1 }))!;
+    const listingId = await seedListing('1 Del Rd, MO');
     const score = await scoreRepo.insert({
-      listingId: listing.id,
+      listingId,
       searchProfileId: profile.id,
       overallScore: 80,
       componentScores: { soil: 80 },
@@ -38,7 +38,7 @@ describe('search profile deletion (integration)', () => {
     await alertRepo.insert({
       userId: profile.userId,
       searchProfileId: profile.id,
-      listingId: listing.id,
+      listingId,
       scoreId: score.id,
       channel: 'email',
     });

@@ -95,8 +95,8 @@ describe('listings (user_id, url) unique index (integration)', () => {
     // Feed delist/relist may legitimately repeat URLs; manual entries have no
     // URL at all — the index predicate must exclude both.
     const [userA] = await seedTwoUsers();
-    expect(await seedUrlListing(URL)).toBeDefined();
-    expect(await seedUrlListing(URL)).toBeDefined(); // second ownerless row OK
+    await seedUrlListing(URL);
+    await seedUrlListing(URL); // second ownerless row OK — seed throws on conflict
 
     const a = await listingRepo.insertListing({ address: '1 NoUrl Rd', latitude: 36.6, longitude: -92.1, userId: userA });
     const b = await listingRepo.insertListing({ address: '2 NoUrl Rd', latitude: 36.6, longitude: -92.1, userId: userA });

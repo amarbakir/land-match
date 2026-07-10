@@ -139,10 +139,17 @@ function sameAddress(a: string, b: string) {
 }
 
 // After losing the (user_id, url) insert race: the winner has committed (the
-// conflicting insert blocks until it does), so serve its row.
-async function existingByUrlResponse(url: string, userId: string) {
-  const existing = await listingRepo.findByUrl(url, userId);
-  return existing ? ok(toEnrichListingResponse(existing.listing, existing.enrichment)) : null;
+// conflicting insert blocks until it does) and is our own row, so getByUrl
+// always sees it. A conflict with no visible winner should be impossible —
+// surface it loudly rather than retrying the vendor fan-out.
+async function raceLoserResponse(url: string, userId: string): Promise<Result<EnrichListingResponse>> {
+  const winner = await getByUrl(url, userId);
+  if (winner.ok) return winner;
+  captureError(
+    new Error(`(user_id, url) conflict but no visible winner for ${url}`),
+    'listingService.raceLoserResponse',
+  );
+  return err('INTERNAL_ERROR');
 }
 
 // Dedupe for repeat enrichment of a URL (land-match-0jx.10). Returns null when
@@ -211,7 +218,7 @@ async function reuseExistingByUrl(
     return { listing, ...scored };
   });
 
-  if (!persisted) return existingByUrlResponse(input.url, userId);
+  if (!persisted) return raceLoserResponse(input.url, userId);
 
   startBackgroundMatching(persisted.listing.id);
 
@@ -264,11 +271,9 @@ export async function enrichAndPersist(
     });
 
     if (!persisted) {
-      // A concurrent request for the same URL won while we were in the vendor
-      // fan-out — serve its committed row rather than erroring or duplicating.
-      const winner = input.url ? await existingByUrlResponse(input.url, userId) : null;
-      if (winner) return winner;
-      return err('INTERNAL_ERROR'); // conflict without a visible winner — shouldn't happen
+      // Lost the (user_id, url) race mid-fan-out — a conflict is only possible
+      // with a URL (the index predicate requires one).
+      return input.url ? raceLoserResponse(input.url, userId) : err('INTERNAL_ERROR');
     }
 
     // 3. Score against active search profiles
