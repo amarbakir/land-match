@@ -23,10 +23,13 @@ describe('HttpUrl', () => {
     expect(HttpUrl.safeParse(url).success).toBe(false);
   });
 
-  it('rejects URLs longer than 2048 characters', () => {
+  it('accepts long stored URLs — length is a write-boundary concern, not a render-safety one', () => {
+    // Bug this catches: capping the shared HttpUrl retroactively nulled the
+    // links of already-stored long-URL listings (isHttpUrl → '#') and made
+    // GET /by-url 400 on the very page URL the extension pre-checks with.
     const long = `https://example.com/${'x'.repeat(2048)}`;
-    expect(HttpUrl.safeParse(long).success).toBe(false);
-    expect(isHttpUrl(long)).toBe(false); // read-side sanitizer agrees
+    expect(HttpUrl.safeParse(long).success).toBe(true);
+    expect(isHttpUrl(long)).toBe(true);
   });
 });
 

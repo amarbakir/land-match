@@ -18,8 +18,14 @@ export const EnrichListingRequest = z.object({
   address: z.string().min(1).max(500),
   price: z.number().positive().optional(),
   acreage: z.number().positive().optional(),
-  url: HttpUrl.optional(),
-  title: z.string().max(200).optional(),
+  url: HttpUrl.max(2048, 'URL too long').optional(),
+  // Scraped third-party titles TRUNCATE rather than reject (without leaving a
+  // split surrogate pair) — display data must never block enrichment. The
+  // identifier-like fields below stay hard caps: truncation would corrupt them.
+  title: z
+    .string()
+    .transform((s) => s.slice(0, 200).replace(/[\uD800-\uDBFF]$/, ''))
+    .optional(),
   source: z.string().max(100).optional(),
   externalId: z.string().max(100).optional(),
 });

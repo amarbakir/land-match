@@ -36,6 +36,16 @@ describe('sendEmail subject sanitization (transport invariants)', () => {
     expect(sendMock.mock.calls[0][0].subject.length).toBeLessThanOrEqual(998);
   });
 
+  it('never leaves a split surrogate pair at the truncation point', async () => {
+    // A lone surrogate is ill-formed UTF-16: it renders as U+FFFD and strict
+    // JSON layers may reject the payload, failing the send.
+    await sendEmail({ to: 'a@b.com', subject: `${'x'.repeat(997)}🌲`, html: '<p/>' });
+
+    const subject = sendMock.mock.calls[0][0].subject;
+    expect(subject).toBe('x'.repeat(997));
+    expect(subject.isWellFormed?.() ?? true).toBe(true);
+  });
+
   it('throws on a Resend error response', async () => {
     sendMock.mockResolvedValue({ data: null, error: { message: 'rate limited' } });
 

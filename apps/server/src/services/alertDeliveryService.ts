@@ -2,6 +2,7 @@ import { err, isHttpUrl, ok, type Result } from '@landmatch/api';
 
 import { captureError } from '../lib/captureError';
 import { FREQUENCY_WINDOW_HOURS } from '../lib/alertWindows';
+import { sanitizeSubject } from '../lib/subject';
 import * as alertRepo from '../repos/alertRepo';
 import * as listingRepo from '../repos/listingRepo';
 import * as scoreRepo from '../repos/scoreRepo';
@@ -42,10 +43,10 @@ function isWindowElapsed(frequency: AlertFrequency, lastSentAt: Date | null): bo
   return elapsedHours >= windowHours;
 }
 
-// Presentation trim for scraped third-party titles; defense-in-depth on top
-// of sendEmail's transport-level sanitization (control chars, 998 bound).
+// Presentation trim for scraped third-party titles; sendEmail applies the
+// same sanitizer at the transport bound (998).
 function subjectSafe(s: string): string {
-  return s.replace(/[\x00-\x1f\x7f]+/g, ' ').trim().slice(0, 120);
+  return sanitizeSubject(s, 120);
 }
 
 function buildSubject(alerts: AlertItem[], profileName: string, frequency: AlertFrequency): string {
