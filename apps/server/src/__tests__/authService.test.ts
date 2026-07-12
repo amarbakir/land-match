@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import argon2 from 'argon2';
 
 import * as userRepo from '../repos/userRepo';
 import * as refreshTokenRepo from '../repos/refreshTokenRepo';
 import * as jwt from '../lib/jwt';
+import * as password from '../lib/password';
 import { db } from '../db/client';
 import { register, login, refresh, logout } from '../services/authService';
 
 vi.mock('../repos/userRepo');
 vi.mock('../repos/refreshTokenRepo');
 vi.mock('../lib/jwt');
+vi.mock('../lib/password');
 vi.mock('../db/client', () => ({
   db: { transaction: vi.fn() },
 }));
@@ -17,6 +18,7 @@ vi.mock('../db/client', () => ({
 const mockUserRepo = vi.mocked(userRepo);
 const mockRefreshRepo = vi.mocked(refreshTokenRepo);
 const mockJwt = vi.mocked(jwt);
+const mockPassword = vi.mocked(password);
 
 const LIVE_RECORD = {
   id: 'rt-1',
@@ -41,9 +43,7 @@ const STORED_USER = {
   name: 'Test',
   phone: null,
   authProvider: 'email',
-  // Real argon2id hash of "password123" with the service's production params
-  passwordHash:
-    '$argon2id$v=19$m=19456,t=2,p=1$Mqgxad6Tx4P47ud7uj246Q$Y33F8hmVA3/5JtaiAanufqf7tr62/TblrZdNXB9vDtk',
+  passwordHash: 'stored-argon2-hash',
   subscriptionTier: 'free',
   notificationPrefs: null,
   createdAt: new Date(),
@@ -59,6 +59,9 @@ beforeEach(() => {
   mockJwt.refreshTokenExpiry.mockReturnValue(new Date(Date.now() + 30 * 86_400_000));
   mockRefreshRepo.consume.mockResolvedValue(true);
   mockRefreshRepo.deleteExpiredForUser.mockResolvedValue(undefined);
+  mockPassword.hashPassword.mockResolvedValue('argon2-hash-of-password');
+  // Rejecting is the default; tests that log in successfully opt in.
+  mockPassword.verifyPassword.mockResolvedValue(false);
 });
 
 describe('register', () => {
@@ -69,11 +72,12 @@ describe('register', () => {
     const result = await register('new@example.com', 'password123', 'New User');
 
     expect(result).toEqual({ ok: true, data: TOKEN_PAIR });
-    // Verify password was hashed (not stored in plain text)
+    // Bug this catches: storing the raw password instead of hashPassword's
+    // output. (That the hash itself is sound is lib/password.ts's contract.)
+    expect(mockPassword.hashPassword).toHaveBeenCalledWith('password123');
     const insertCall = mockUserRepo.insert.mock.calls[0][0];
     expect(insertCall.email).toBe('new@example.com');
-    expect(insertCall.passwordHash).not.toBe('password123');
-    expect(insertCall.passwordHash).toMatch(/^\$argon2id\$/);
+    expect(insertCall.passwordHash).toBe('argon2-hash-of-password');
   });
 
   // Bug: if hashing or DB throws, service should degrade to INTERNAL_ERROR, not crash the request
@@ -111,13 +115,15 @@ describe('register', () => {
 
 describe('login', () => {
   it('returns tokens when password matches', async () => {
-    // STORED_USER carries a real argon2id hash of "password123" made with the
-    // service's production params — a real verification, not a stubbed one.
     mockUserRepo.findByEmail.mockResolvedValue(STORED_USER);
+    mockPassword.verifyPassword.mockResolvedValue(true);
 
     const result = await login('test@example.com', 'password123');
 
     expect(result).toEqual({ ok: true, data: TOKEN_PAIR });
+    // Verifies the candidate against the STORED hash — not a re-hash, not
+    // some other field.
+    expect(mockPassword.verifyPassword).toHaveBeenCalledWith('password123', STORED_USER.passwordHash);
     expect(mockJwt.generateTokenPair).toHaveBeenCalledWith(STORED_USER.id);
   });
 
@@ -131,53 +137,30 @@ describe('login', () => {
     expect(mockJwt.generateTokenPair).not.toHaveBeenCalled();
   });
 
-  it('rejects nonexistent email with same error as wrong password', async () => {
+  // Bug this catches: an early `if (!user) return` (the pre-cge.4 behavior)
+  // skips verification entirely for unknown emails, so they respond measurably
+  // faster than a wrong-password attempt — a timing oracle for account
+  // enumeration. The dummy-hash equalization itself is lib/password.ts's
+  // contract; the service's job is to reach verifyPassword unconditionally,
+  // with the same error either way.
+  it('rejects an unknown email with the same error, still spending a verification', async () => {
     mockUserRepo.findByEmail.mockResolvedValue(undefined);
 
     const result = await login('nobody@example.com', 'password123');
 
     expect(result).toEqual({ ok: false, error: 'INVALID_CREDENTIALS' });
-  });
-
-  // Bug this catches: an early `if (!user) return` (the pre-cge.4 behavior) skips
-  // hashing entirely for unknown emails, so they respond measurably faster than a
-  // wrong-password attempt — a timing oracle for account enumeration. Login must
-  // spend an argon2 verification even when the email doesn't exist.
-  it('still performs an argon2 verification when the email is unknown (constant-time)', async () => {
-    mockUserRepo.findByEmail.mockResolvedValue(undefined);
-    const compareSpy = vi.spyOn(argon2, 'verify');
-
-    const result = await login('nobody@example.com', 'password123');
-
-    expect(result).toEqual({ ok: false, error: 'INVALID_CREDENTIALS' });
-    expect(compareSpy).toHaveBeenCalledTimes(1);
-    // never a truthy match against the dummy hash
-    await expect(compareSpy.mock.results[0].value).resolves.toBe(false);
-
-    compareSpy.mockRestore();
+    expect(mockPassword.verifyPassword).toHaveBeenCalledWith('password123', undefined);
   });
 
   // Same side-channel for OAuth accounts that have no password hash: must not
-  // short-circuit before the comparison.
-  it('still performs an argon2 verification for a passwordless (OAuth) user', async () => {
-    mockUserRepo.findByEmail.mockResolvedValue({ ...STORED_USER, passwordHash: null });
-    const compareSpy = vi.spyOn(argon2, 'verify');
-
-    const result = await login('test@example.com', 'password123');
-
-    expect(result).toEqual({ ok: false, error: 'INVALID_CREDENTIALS' });
-    expect(compareSpy).toHaveBeenCalledTimes(1);
-
-    compareSpy.mockRestore();
-  });
-
-  // Bug: user exists via OAuth (no password) — verifying against null crashes
-  it('rejects user with no password hash (OAuth user)', async () => {
+  // short-circuit before the verification.
+  it('rejects a passwordless (OAuth) user without skipping verification', async () => {
     mockUserRepo.findByEmail.mockResolvedValue({ ...STORED_USER, passwordHash: null });
 
     const result = await login('test@example.com', 'password123');
 
     expect(result).toEqual({ ok: false, error: 'INVALID_CREDENTIALS' });
+    expect(mockPassword.verifyPassword).toHaveBeenCalledWith('password123', null);
   });
 });
 
