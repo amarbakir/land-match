@@ -1,57 +1,8 @@
 import type { ListingExtractor, ExtractedListing } from './types';
+import { extractListingFromLdJson } from './ld-json';
 
 // Matches LandWatch listing detail pages (e.g. /property/land-for-sale-...-/12345678)
 const DETAIL_URL_PATTERN = /^https:\/\/www\.landwatch\.com\/.*\/\d+$/;
-
-const LISTING_TYPES = new Set([
-  'Product', 'RealEstateListing', 'SingleFamilyResidence',
-  'Residence', 'House', 'LandForm',
-]);
-
-function hasListingType(type: unknown): boolean {
-  if (typeof type === 'string') return LISTING_TYPES.has(type);
-  if (Array.isArray(type)) return type.some((t) => LISTING_TYPES.has(t));
-  return false;
-}
-
-function extractAddress(data: Record<string, any>): string | undefined {
-  // Try direct address, then mainEntity.address, then contentLocation.address
-  const addr = data.address ?? data.mainEntity?.address ?? data.contentLocation?.address;
-  if (!addr) return undefined;
-
-  const parts = [
-    addr.streetAddress,
-    addr.addressLocality,
-    addr.addressRegion,
-    addr.postalCode,
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(', ') : undefined;
-}
-
-function extractFromLdJson(doc: Document): Partial<ExtractedListing> | null {
-  const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
-  const result: Partial<ExtractedListing> = {};
-
-  for (const script of scripts) {
-    try {
-      const data = JSON.parse(script.textContent ?? '');
-      if (!hasListingType(data['@type'])) continue;
-
-      if (data.name && !result.title) result.title = data.name;
-      if (!result.address) result.address = extractAddress(data);
-      if (!result.price && data.offers?.price) result.price = parseFloat(data.offers.price);
-      if (!result.acreage) {
-        // Try to extract acreage from name like "157 acres in Monroe County"
-        const acreMatch = (data.name ?? '').match(/([\d,.]+)\s*acres?/i);
-        if (acreMatch) result.acreage = parseFloat(acreMatch[1].replace(/,/g, ''));
-      }
-    } catch {
-      // Invalid JSON, skip
-    }
-  }
-
-  return Object.keys(result).length > 0 ? result : null;
-}
 
 function extractFromDOM(doc: Document): Partial<ExtractedListing> {
   const result: Partial<ExtractedListing> = {};
@@ -117,7 +68,7 @@ export const landwatchExtractor: ListingExtractor = {
 
   extract(doc: Document): ExtractedListing | null {
     // Try structured data first, then fall back to DOM scraping
-    const ldJson = extractFromLdJson(doc);
+    const ldJson = extractListingFromLdJson(doc);
     const dom = extractFromDOM(doc);
     const merged = { ...dom, ...ldJson }; // ld+json takes priority
 
