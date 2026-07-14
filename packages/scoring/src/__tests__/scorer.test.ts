@@ -56,6 +56,40 @@ describe('floodZoneExclude with unverified flood zone', () => {
     expect(result.hardFilterFailed).toBe(true);
     expect(result.failedFilters).toContain('flood_zone_excluded');
   });
+
+  it('passes the hard filter on an unknown zone when the profile opts in', () => {
+    const result = scoreListing(
+      { price: 100_000, acreage: 10 },
+      {}, // no floodZone
+      { floodZoneExclude: ['A', 'AE', 'VE'], includeUnverifiedFloodZone: true },
+    );
+
+    expect(result.hardFilterFailed).toBe(false);
+    expect(result.failedFilters).not.toContain('flood_zone_unverified');
+    expect(result.componentScores.flood).toBe(50); // neutral component score, as before
+  });
+
+  it('opt-in never admits a KNOWN excluded zone', () => {
+    const result = scoreListing(
+      { price: 100_000 },
+      { floodZone: 'AE' },
+      { floodZoneExclude: ['AE'], includeUnverifiedFloodZone: true },
+    );
+
+    expect(result.hardFilterFailed).toBe(true);
+    expect(result.failedFilters).toContain('flood_zone_excluded');
+  });
+
+  it('explicit false behaves like the fail-closed default', () => {
+    const result = scoreListing(
+      { price: 100_000 },
+      {},
+      { floodZoneExclude: ['A'], includeUnverifiedFloodZone: false },
+    );
+
+    expect(result.hardFilterFailed).toBe(true);
+    expect(result.failedFilters).toContain('flood_zone_unverified');
+  });
 });
 
 describe('scoreListing NaN/bounds hardening', () => {
