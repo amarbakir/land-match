@@ -9,7 +9,8 @@ export function parsePrice(text?: string | null): number | undefined {
 }
 
 export function parseAcreage(text?: string | null): number | undefined {
-  const match = text?.match(/([\d,.]+)\s*(?:acres?|ac\b)/i);
+  // [\s-]* covers hyphenated forms like "12.4-Acre Building Lot"
+  const match = text?.match(/([\d,.]+)[\s-]*(?:acres?|ac\b)/i);
   return match ? parseFloat(match[1].replace(/,/g, '')) : undefined;
 }
 

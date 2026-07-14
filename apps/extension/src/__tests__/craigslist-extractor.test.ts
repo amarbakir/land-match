@@ -97,6 +97,22 @@ describe('craigslistExtractor.extract', () => {
     expect(craigslistExtractor.extract(document, url)).toBeNull();
   });
 
+  it('parses hyphenated acreage like "12.4-Acre" in the title', () => {
+    // Seen on a real Vermont posting: "12.4-Acre Building Lot Near Lake
+    // Bomoseen". Bug this catches: \s* between number and "acre" misses the
+    // hyphenated form, silently dropping lot size
+    const url = 'https://vermont.craigslist.org/reo/d/bomoseen-lot/7731604351.html';
+
+    document.body.innerHTML = `
+      <span id="titletextonly">12.4-Acre Building Lot Near Lake Bomoseen</span>
+      <div class="mapaddress">North Road</div>
+      <section id="postingbody">Quiet back road near the lake.</section>
+    `;
+
+    const result = craigslistExtractor.extract(document, url);
+    expect(result!.acreage).toBe(12.4);
+  });
+
   it('ignores an acreage-like number in an unrelated context over a real one', () => {
     const url = 'https://madison.craigslist.org/reo/d/land/7756789012.html';
 

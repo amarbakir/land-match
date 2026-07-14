@@ -92,6 +92,50 @@ describe('landflipExtractor.extract', () => {
     expect(result!.acreage).toBe(12.5);
   });
 
+  it('extracts from DOM on real pages whose only JSON-LD is a BreadcrumbList', () => {
+    // Real FLIP-platform pages (verified against archived FARMFLIP pages from
+    // 2026) carry no listing JSON-LD — only BreadcrumbList. Bug this catches:
+    // a JSON-LD-only extractor returns null on every live LandFlip listing.
+    const url = 'https://www.landflip.com/land/102751';
+
+    document.head.innerHTML = `
+      <title>Mcdaniel Tract, Land for Sale in Alabama, #102751 : LANDFLIP</title>
+      <meta name="description" content="Mcdaniel Tract. View this land for sale with 33 acres by Akron in Hale County, Alabama 35441.">
+    `;
+    document.body.innerHTML = `
+      ${ldJsonScript({ '@type': 'BreadcrumbList', itemListElement: [] })}
+      <h1>Mcdaniel Tract</h1>
+      <div class="address"><address><p>948 Ford Road : Akron, AL 35441</p><p>Hale County, Alabama</p></address></div>
+      <div class="acres">33 Acres</div>
+    `;
+
+    const result = landflipExtractor.extract(document, url);
+
+    expect(result).not.toBeNull();
+    // First <p> only — the county line would concatenate without a separator
+    // and poison geocoding ("…35441Hale County, Alabama")
+    expect(result!.address).toBe('948 Ford Road, Akron, AL 35441');
+    expect(result!.title).toBe('Mcdaniel Tract');
+    expect(result!.acreage).toBe(33);
+    expect(result!.externalId).toBe('102751');
+  });
+
+  it('takes acreage from the page title when the meta description lacks it', () => {
+    const url = 'https://www.landflip.com/land/100183';
+
+    document.head.innerHTML = '<title>50 Acres, Land for Sale in Missouri, #100183</title>';
+    document.body.innerHTML = `
+      <h1>Pike County Farm</h1>
+      <div class="address">Curryville, MO 63339</div>
+    `;
+
+    const result = landflipExtractor.extract(document, url);
+
+    expect(result).not.toBeNull();
+    expect(result!.address).toBe('Curryville, MO 63339');
+    expect(result!.acreage).toBe(50);
+  });
+
   it('handles malformed JSON-LD gracefully and returns null', () => {
     const url = 'https://www.landflip.com/land/broken/111';
 
