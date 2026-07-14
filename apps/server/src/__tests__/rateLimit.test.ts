@@ -118,7 +118,10 @@ describe('rateLimit', () => {
     // Bug this catches: failing fully open on store errors — a rate_limits
     // table hiccup would strip brute-force protection from login exactly when
     // the DB is struggling. Requests must still be served AND still limited.
-    const store = { increment: () => Promise.reject(new Error('store down')) };
+    const store = {
+      increment: () => Promise.reject(new Error('store down')),
+      decrement: async () => {},
+    };
     const app = buildApp({ windowMs: 60_000, max: 1, store });
 
     expect((await lambdaRequest(app, '1.2.3.4')).status).toBe(200); // still served

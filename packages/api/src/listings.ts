@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { truncateUtf16Safe } from './strings';
 import { HttpUrl } from './url';
 
 // Full lifecycle of listings.enrichment_status — single owner of the
@@ -24,7 +25,7 @@ export const EnrichListingRequest = z.object({
   // identifier-like fields below stay hard caps: truncation would corrupt them.
   title: z
     .string()
-    .transform((s) => s.slice(0, 200).replace(/[\uD800-\uDBFF]$/, ''))
+    .transform((s) => truncateUtf16Safe(s, 200))
     .optional(),
   source: z.string().max(100).optional(),
   externalId: z.string().max(100).optional(),

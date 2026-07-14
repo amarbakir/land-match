@@ -7,9 +7,9 @@ export interface RateLimitStore {
   /** Record one hit against the key, opening a fresh window if the current one expired. */
   increment(key: string, windowMs: number): Promise<RateLimitWindow>;
   /** Return one hit to the key's live window (floored at 0; no-op if the
-   *  window is missing or expired). Optional so minimal fallback stores can
-   *  stay increment-only. */
-  decrement?(key: string): Promise<void>;
+   *  window is missing or expired). Required: a store that silently lacked
+   *  refunds would leak summary budget on every failed generation. */
+  decrement(key: string): Promise<void>;
 }
 
 // Sweep expired entries once the map grows past this size, so long-running

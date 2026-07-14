@@ -2,7 +2,7 @@ import { err, isHttpUrl, ok, type Result, type EnrichListingRequest, type Enrich
 import { deriveEnrichmentStatus, enrichListing, type EnrichmentResult, type EnrichmentStatus } from '@landmatch/enrichment';
 import { homesteadScore, mapEnrichmentRow, mapListingRow, type ListingRow, type EnrichmentRow } from '@landmatch/scoring';
 
-import { captureError } from '../lib/captureError';
+import { captureError, runBestEffort } from '../lib/captureError';
 import { isForeignKeyViolation } from '../lib/pgErrors';
 import { db, type Tx } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
@@ -53,10 +53,9 @@ export async function persistEnrichment(
 
 // Fire-and-forget: scoring/alerting must never block the enrich response.
 function startBackgroundMatching(listingId: string, opts?: { rescore?: boolean }) {
-  const matching = opts
-    ? matchListingAgainstProfiles(listingId, opts)
-    : matchListingAgainstProfiles(listingId);
-  matching.catch((e) => captureError(e, 'listingService: background matching failed'));
+  void runBestEffort('listingService: background matching failed', () =>
+    matchListingAgainstProfiles(listingId, opts),
+  );
 }
 
 // Recompute the homestead score from a saved-listings projection row. Used as a

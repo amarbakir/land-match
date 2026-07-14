@@ -1,7 +1,7 @@
 import { and, eq, gt, lte, sql } from 'drizzle-orm';
 import { rateLimits } from '@landmatch/db';
 
-import { captureError } from './captureError';
+import { runBestEffort } from './captureError';
 import { db } from '../db/client';
 import type { RateLimitStore, RateLimitWindow } from './rateLimitStore';
 
@@ -42,11 +42,9 @@ export class PostgresRateLimitStore implements RateLimitStore {
     const now = Date.now();
     if (now - this.lastSweepAt >= SWEEP_INTERVAL_MS) {
       this.lastSweepAt = now;
-      try {
-        await db.delete(rateLimits).where(lte(rateLimits.resetAt, new Date(now - SWEEP_GRACE_MS)));
-      } catch (e) {
-        captureError(e, 'postgresRateLimitStore: expired-window sweep failed');
-      }
+      await runBestEffort('postgresRateLimitStore: expired-window sweep failed', () =>
+        db.delete(rateLimits).where(lte(rateLimits.resetAt, new Date(now - SWEEP_GRACE_MS))),
+      );
     }
 
     return { count: row.count, resetAt: row.resetAt.getTime() };

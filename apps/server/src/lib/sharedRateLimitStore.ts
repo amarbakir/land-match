@@ -16,3 +16,10 @@ export function getSharedRateLimitStore(): RateLimitStore {
     : new InMemoryRateLimitStore();
   return store;
 }
+
+/** Test-only: drop the singleton so each test starts with fresh windows —
+ *  integration tests wipe DB state between tests and need the in-memory
+ *  windows wiped to match. */
+export function resetSharedRateLimitStore(): void {
+  store = undefined;
+}

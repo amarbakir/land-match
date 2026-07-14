@@ -1,6 +1,6 @@
 import { llm as llmConfig } from '../config';
 
-import { captureError } from './captureError';
+import { runBestEffort } from './captureError';
 import { getSharedRateLimitStore } from './sharedRateLimitStore';
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -15,10 +15,8 @@ export async function consumeSummaryBudget(userId: string): Promise<boolean> {
 /** Return one consumed unit after a generation that produced nothing (LLM
  *  threw) — an Anthropic outage day must not burn the daily budget for zero
  *  summaries. Best-effort: a failed refund never surfaces to the caller. */
-export async function refundSummaryBudget(userId: string): Promise<void> {
-  try {
-    await getSharedRateLimitStore().decrement?.(`llm-summary:${userId}`);
-  } catch (e) {
-    captureError(e, 'summaryBudget: refund failed');
-  }
+export function refundSummaryBudget(userId: string): Promise<void> {
+  return runBestEffort('summaryBudget: refund failed', () =>
+    getSharedRateLimitStore().decrement(`llm-summary:${userId}`),
+  );
 }

@@ -52,3 +52,4 @@ export {
   getAlertChannels,
 } from './notifications';
 export { HttpUrl, isHttpUrl } from './url';
+export { truncateUtf16Safe } from './strings';

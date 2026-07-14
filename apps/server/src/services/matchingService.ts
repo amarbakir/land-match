@@ -2,7 +2,7 @@ import { err, ok, getAlertChannels, type Result } from '@landmatch/api';
 import { generateSummary, mapEnrichmentRow, mapListingRow, scoreListing } from '@landmatch/scoring';
 import type { SearchCriteria, SummaryInput } from '@landmatch/scoring';
 
-import { captureError } from '../lib/captureError';
+import { captureError, runBestEffort } from '../lib/captureError';
 import { llmClient } from '../lib/llm';
 import { consumeSummaryBudget, refundSummaryBudget } from '../lib/summaryBudget';
 import { features } from '../config';
@@ -142,8 +142,8 @@ export async function matchListingAgainstProfiles(
   }
 }
 
-async function generateSummaryBestEffort(scoreId: string, userId: string, input: SummaryInput): Promise<void> {
-  try {
+function generateSummaryBestEffort(scoreId: string, userId: string, input: SummaryInput): Promise<void> {
+  return runBestEffort('matchingService.generateSummaryBestEffort', async () => {
     if (!(await consumeSummaryBudget(userId))) return;
     let summary: string;
     try {
@@ -156,7 +156,5 @@ async function generateSummaryBestEffort(scoreId: string, userId: string, input:
       throw error;
     }
     if (summary) await scoreRepo.updateLlmSummary(scoreId, summary);
-  } catch (error) {
-    captureError(error, 'matchingService.generateSummaryBestEffort');
-  }
+  });
 }

@@ -317,7 +317,7 @@ describe('enrichAndPersist', () => {
 
     await enrichAndPersist({ address: '123 Rural Rd, MO' }, 'user-1');
 
-    expect(mockMatchListing).toHaveBeenCalledWith('lst-001');
+    expect(mockMatchListing).toHaveBeenCalledWith('lst-001', undefined);
   });
 
   it('does not block response if matching fails', async () => {
@@ -477,7 +477,7 @@ describe('enrichAndPersist', () => {
         'fake-tx',
       );
       expect(mockInsertEnrichmentCopy).toHaveBeenCalledWith(listingRow.id, enrichmentRow, 'fake-tx');
-      expect(mockMatchListing).toHaveBeenCalledWith(listingRow.id); // owner-scoped post-9vs
+      expect(mockMatchListing).toHaveBeenCalledWith(listingRow.id, undefined); // owner-scoped post-9vs
     });
 
     it('falls through to full enrichment when no row for the URL has enrichment data', async () => {

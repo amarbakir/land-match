@@ -128,7 +128,7 @@ afterEach(() => {
   delete process.env.ENABLE_LLM_SUMMARY;
 });
 
-function arrangeAlertWorthyMatch(scoreOverrides: Record<string, unknown> = {}) {
+function arrangeAlertWorthyMatch() {
   mockScoring.scoreListing.mockReturnValueOnce({
     overallScore: 75,
     componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
@@ -152,7 +152,6 @@ function arrangeAlertWorthyMatch(scoreOverrides: Record<string, unknown> = {}) {
     status: 'inbox',
     readAt: null,
     scoredAt: new Date(),
-    ...scoreOverrides,
   });
   mockUserRepo.findById.mockResolvedValueOnce(USER);
   mockAlertRepo.insert.mockResolvedValue({} as any);

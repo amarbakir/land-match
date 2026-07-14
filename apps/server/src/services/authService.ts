@@ -1,6 +1,6 @@
 import { ok, err, type Result, type AuthTokenResponseType } from '@landmatch/api';
 
-import { captureError } from '../lib/captureError';
+import { captureError, runBestEffort } from '../lib/captureError';
 import { generateTokenPair, hashToken, refreshTokenExpiry, verifyToken } from '../lib/jwt';
 import { hashPassword, verifyPassword } from '../lib/password';
 import { generateId } from '../lib/id';
@@ -71,8 +71,8 @@ export async function login(
 
     const [, tokens] = await Promise.all([
       // Bounded housekeeping: expired rows are useless for reuse detection.
-      // Own catch — a failed cleanup must never fail an otherwise-valid login.
-      refreshTokenRepo.deleteExpiredForUser(user.id).catch((e) => captureError(e, 'authService.login: token cleanup failed')),
+      // Best-effort — a failed cleanup must never fail an otherwise-valid login.
+      runBestEffort('authService.login: token cleanup failed', () => refreshTokenRepo.deleteExpiredForUser(user.id)),
       issueTokens(user.id),
     ]);
     return ok(tokens);

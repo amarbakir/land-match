@@ -1,3 +1,5 @@
+import { truncateUtf16Safe } from '@landmatch/api';
+
 import type { EnrichmentData, ScoringResult, SearchCriteria } from './types';
 
 export type LlmClient = (prompt: string) => Promise<string>;
@@ -19,16 +21,14 @@ export async function generateSummary(input: SummaryInput, llm: LlmClient): Prom
 // strings come from third-party vendors (Regrid/FEMA/USDA) — all untrusted.
 // Strip <>/control chars and cap length so a value can neither close the
 // <listing-data> fence nor smuggle multi-line instruction blocks. The cap
-// never splits a surrogate pair (a lone surrogate is ill-formed UTF-16 and
-// can make strict JSON layers reject the whole request).
+// never splits a surrogate pair.
 function sanitizeUntrusted(value: string, maxLen: number): string {
-  return value
+  const collapsed = value
     .replace(/[<>]/g, '')
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, maxLen)
-    .replace(/[\uD800-\uDBFF]$/, '');
+    .trim();
+  return truncateUtf16Safe(collapsed, maxLen);
 }
 
 export function buildPrompt(input: SummaryInput): string {
