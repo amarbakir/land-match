@@ -1,5 +1,5 @@
 import type { ExtractedListing } from './types';
-import { joinAddressParts, parseAcreage } from './parse';
+import { joinAddressParts, parseAcreage, parsePrice } from './parse';
 
 const LISTING_TYPES = new Set([
   'Product', 'RealEstateListing', 'SingleFamilyResidence',
@@ -50,19 +50,32 @@ export function extractListingFromLdJson(doc: Document): Partial<ExtractedListin
     }
 
     for (const data of Array.isArray(parsed) ? parsed : [parsed]) {
-      if (!data || !hasListingType(data['@type'])) continue;
+      try {
+        if (!data || !hasListingType(data['@type'])) continue;
 
-      if (data.name && !result.title) result.title = data.name;
-      if (!result.address) {
-        const address = extractAddress(data);
-        if (address) result.address = address;
-      }
-      if (!result.price && data.offers?.price) result.price = parseFloat(data.offers.price);
-      if (!result.acreage) {
-        // Acreage is rarely a structured field — scan name then description,
-        // e.g. "157 acres in Monroe County"
-        const acreage = parseAcreage(data.name) ?? parseAcreage(data.description);
-        if (acreage) result.acreage = acreage;
+        const name = typeof data.name === 'string' ? data.name : undefined;
+        const description = typeof data.description === 'string' ? data.description : undefined;
+
+        if (name && !result.title) result.title = name;
+        if (!result.address) {
+          const address = extractAddress(data);
+          if (address) result.address = address;
+        }
+        if (!result.price) {
+          // offers may be a single Offer or an array; price may be a
+          // comma-formatted string ("1,250,000"), which parseFloat mangles
+          const offer = Array.isArray(data.offers) ? data.offers[0] : data.offers;
+          const price = offer?.price != null ? parsePrice(String(offer.price)) : undefined;
+          if (price) result.price = price;
+        }
+        if (!result.acreage) {
+          // Acreage is rarely a structured field — scan name then description,
+          // e.g. "157 acres in Monroe County"
+          const acreage = parseAcreage(name) ?? parseAcreage(description);
+          if (acreage) result.acreage = acreage;
+        }
+      } catch {
+        // Structurally unexpected block (e.g. non-string fields) — skip it
       }
     }
   }

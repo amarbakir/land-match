@@ -7,6 +7,7 @@ const DETAIL_URL_PATTERN = /^https:\/\/www\.zillow\.com\/homedetails\//;
 const SQFT_PER_ACRE = 43560;
 
 interface ZillowProperty {
+  zpid?: number | string;
   streetAddress?: string;
   city?: string;
   state?: string;
@@ -51,7 +52,7 @@ function toAcres(property: ZillowProperty): number | undefined {
   return undefined;
 }
 
-function extractFromNextData(doc: Document): Partial<ExtractedListing> | null {
+function extractFromNextData(doc: Document, urlZpid?: string): Partial<ExtractedListing> | null {
   const script = doc.getElementById('__NEXT_DATA__');
   if (!script?.textContent) return null;
 
@@ -62,6 +63,10 @@ function extractFromNextData(doc: Document): Partial<ExtractedListing> | null {
     return null;
   }
   if (!property) return null;
+
+  // __NEXT_DATA__ is not rewritten on client-side navigation — if its zpid
+  // is for a different listing than the URL, it's stale; use the DOM instead
+  if (urlZpid && property.zpid != null && String(property.zpid) !== urlZpid) return null;
 
   return {
     address: joinAddressParts(
@@ -102,10 +107,9 @@ export const zillowExtractor: ListingExtractor = {
   },
 
   extract(doc: Document, url: string): ExtractedListing | null {
-    const nextData = extractFromNextData(doc);
-    // The DOM can only supply address and price — skip scraping it when the
-    // structured data already has both
-    const dom = nextData?.address && nextData.price ? {} : extractFromDOM(doc);
+    const urlZpid = url.match(/\/(\d+)_zpid/)?.[1];
+    const nextData = extractFromNextData(doc, urlZpid);
+    const dom = extractFromDOM(doc);
 
     const address = nextData?.address ?? dom.address;
     if (!address) return null;
@@ -117,7 +121,7 @@ export const zillowExtractor: ListingExtractor = {
       title: nextData?.title,
       url,
       source: 'zillow',
-      externalId: url.match(/\/(\d+)_zpid/)?.[1],
+      externalId: urlZpid,
     };
   },
 };

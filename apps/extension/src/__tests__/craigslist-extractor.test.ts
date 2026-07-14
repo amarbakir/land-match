@@ -113,6 +113,99 @@ describe('craigslistExtractor.extract', () => {
     expect(result!.acreage).toBe(12.4);
   });
 
+  it('treats the "$0" call-for-price placeholder as no price', () => {
+    // Bug this catches: price 0 fails the server's z.number().positive()
+    // validation and the whole enrich request 400s
+    const url = 'https://madison.craigslist.org/reo/d/land/7756789013.html';
+
+    document.body.innerHTML = `
+      <span id="titletextonly">Land, call for price</span>
+      <span class="price">$0</span>
+      <div class="mapaddress">456 Valley View, Boise, ID 83702</div>
+      <section id="postingbody">Call me.</section>
+    `;
+
+    const result = craigslistExtractor.extract(document, url);
+    expect(result).not.toBeNull();
+    expect(result!.price).toBeUndefined();
+  });
+
+  it('does not mistake lowercase prose for a street address', () => {
+    // Bug this catches: /i on the state abbreviation lets any two letters
+    // pass as a state, so directions prose gets geocoded as an address
+    const url = 'https://madison.craigslist.org/reo/d/land/7756789014.html';
+
+    document.body.innerHTML = `
+      <span id="titletextonly">Remote parcel</span>
+      <section id="postingbody">just 2 miles down the highway, turn at mile 12345 and follow the signs</section>
+    `;
+
+    expect(craigslistExtractor.extract(document, url)).toBeNull();
+  });
+
+  it('skips a punctuation-only acreage match instead of returning NaN', () => {
+    // Bug this catches: "land. Acres" captures "." → parseFloat NaN, which is
+    // not nullish, so the ?? chain never scans the body for the real value
+    const url = 'https://madison.craigslist.org/reo/d/land/7756789015.html';
+
+    document.body.innerHTML = `
+      <span id="titletextonly">Beautiful land. Acres of privacy</span>
+      <div class="mapaddress">456 Valley View, Boise, ID 83702</div>
+      <section id="postingbody">40 acres of pasture with fencing.</section>
+    `;
+
+    const result = craigslistExtractor.extract(document, url);
+    expect(result!.acreage).toBe(40);
+  });
+
+  it('does not read "2 AC units" as 2 acres, but still parses lowercase "40 ac"', () => {
+    const url = 'https://madison.craigslist.org/reo/d/land/7756789016.html';
+
+    document.body.innerHTML = `
+      <span id="titletextonly">Country home</span>
+      <div class="mapaddress">456 Valley View, Boise, ID 83702</div>
+      <section id="postingbody">Includes 2 AC units and a shed.</section>
+    `;
+    expect(craigslistExtractor.extract(document, url)!.acreage).toBeUndefined();
+
+    document.body.innerHTML = `
+      <span id="titletextonly">Country land</span>
+      <div class="mapaddress">456 Valley View, Boise, ID 83702</div>
+      <section id="postingbody">40 ac parcel with road frontage.</section>
+    `;
+    expect(craigslistExtractor.extract(document, url)!.acreage).toBe(40);
+  });
+
+  it('falls back to the body address when .mapaddress is present but empty', () => {
+    const url = 'https://vermont.craigslist.org/grd/d/farm/7723456790.html';
+
+    document.body.innerHTML = `
+      <span id="titletextonly">Small farm</span>
+      <div class="mapaddress">   </div>
+      <section id="postingbody">Visit us at 123 Farm Lane, Stowe, VT 05672 anytime.</section>
+    `;
+
+    const result = craigslistExtractor.extract(document, url);
+    expect(result).not.toBeNull();
+    expect(result!.address).toBe('123 Farm Lane, Stowe, VT 05672');
+  });
+
+  it('skips a "(google map)" link block in favor of the real mapaddress', () => {
+    // Real postings render both a p.mapaddress holding only the map link and
+    // the actual address block
+    const url = 'https://madison.craigslist.org/reo/d/land/7756789017.html';
+
+    document.body.innerHTML = `
+      <span id="titletextonly">Hunting land</span>
+      <p class="mapaddress">(google map)</p>
+      <div class="mapaddress">21881 Kale Rd, Sparta, WI 54656</div>
+      <section id="postingbody">Wooded parcel.</section>
+    `;
+
+    const result = craigslistExtractor.extract(document, url);
+    expect(result!.address).toBe('21881 Kale Rd, Sparta, WI 54656');
+  });
+
   it('ignores an acreage-like number in an unrelated context over a real one', () => {
     const url = 'https://madison.craigslist.org/reo/d/land/7756789012.html';
 

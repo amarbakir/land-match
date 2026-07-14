@@ -13,6 +13,13 @@ const POSTING_URL_PATTERN =
 const ADDRESS_PATTERN =
   /(\d+\s+[\w ]{1,60}(?:Road|Rd|Street|St|Avenue|Ave|Drive|Dr|Lane|Ln|Way|Highway|Hwy)[^,\n]{0,40},\s*\w+(?:\s+\w+){0,3},?\s*[A-Z]{2}\s*\d{5})/i;
 
+function extractBodyAddress(bodyText: string): string | undefined {
+  const match = bodyText.match(ADDRESS_PATTERN)?.[1]?.trim();
+  // Re-check the state+zip tail case-sensitively — the /i needed for street
+  // suffixes would otherwise accept any two letters as a "state"
+  return match && /[A-Z]{2}\s*\d{5}$/.test(match) ? match : undefined;
+}
+
 export const craigslistExtractor: ListingExtractor = {
   name: 'craigslist',
 
@@ -25,10 +32,13 @@ export const craigslistExtractor: ListingExtractor = {
     const bodyText = doc.getElementById('postingbody')?.textContent ?? '';
 
     // Craigslist has no structured data — the map address block is the most
-    // reliable source, then a street-address pattern in the posting body
-    const address =
-      doc.querySelector('.mapaddress')?.textContent?.trim() ??
-      bodyText.match(ADDRESS_PATTERN)?.[1]?.trim();
+    // reliable source, then a street-address pattern in the posting body.
+    // Postings can render several .mapaddress elements (one holds only the
+    // "(google map)" link) and empty ones, so filter rather than take first.
+    const mapAddress = Array.from(doc.querySelectorAll('.mapaddress'))
+      .map((el) => el.textContent?.trim() ?? '')
+      .find((text) => text && !/google map/i.test(text));
+    const address = mapAddress || extractBodyAddress(bodyText);
 
     if (!address) return null;
 

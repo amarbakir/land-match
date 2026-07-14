@@ -173,6 +173,38 @@ describe('zillowExtractor.extract', () => {
     expect(result!.price).toBe(199000);
   });
 
+  it('ignores stale __NEXT_DATA__ whose zpid does not match the URL', () => {
+    // Next.js does not rewrite __NEXT_DATA__ on client-side navigation, so on
+    // SPA nav the script still holds the PREVIOUS listing. Bug this catches:
+    // enriching property A's address under property B's URL
+    const url = 'https://www.zillow.com/homedetails/9-Pine-Ct-Sparta-WI-54656/77777_zpid/';
+
+    document.body.innerHTML = `
+      ${nextDataScript({
+        props: {
+          pageProps: {
+            property: {
+              zpid: 11111, // previous page
+              streetAddress: '1 A St',
+              city: 'Elko',
+              state: 'NV',
+              zipcode: '89801',
+              price: 60000,
+            },
+          },
+        },
+      })}
+      <h1>9 Pine Ct, Sparta, WI 54656</h1>
+      <span data-testid="price">$199,000</span>
+    `;
+
+    const result = zillowExtractor.extract(document, url);
+
+    expect(result).not.toBeNull();
+    expect(result!.address).toBe('9 Pine Ct, Sparta, WI 54656');
+    expect(result!.price).toBe(199000);
+  });
+
   it('returns null when no address can be extracted', () => {
     // Bug this catches: enrichment requests without an address fail server
     // geocoding and burn quota

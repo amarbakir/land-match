@@ -201,6 +201,68 @@ describe('landwatchExtractor.extract', () => {
     expect(result!.address).toBe('123 Farm Lane , Stowe, VT 05672');
   });
 
+  it('skips an ld+json block whose name is not a string instead of crashing', () => {
+    // Bug this catches: parseAcreage(data.name) on a numeric name throws a
+    // TypeError that propagates out of the content script — no message is
+    // ever sent for the page
+    const url = 'https://www.landwatch.com/land/pid/888888';
+
+    document.body.innerHTML = `
+      <script type="application/ld+json">${JSON.stringify({
+        '@type': 'Product',
+        name: 12345,
+      })}</script>
+      <script type="application/ld+json">${JSON.stringify({
+        '@type': 'Product',
+        name: '60 acres in Vernon County',
+        address: {
+          streetAddress: '10 Ridge Rd',
+          addressLocality: 'Viroqua',
+          addressRegion: 'WI',
+        },
+      })}</script>
+    `;
+
+    const result = landwatchExtractor.extract(document, url);
+    expect(result).not.toBeNull();
+    expect(result!.address).toBe('10 Ridge Rd, Viroqua, WI');
+    expect(result!.acreage).toBe(60);
+  });
+
+  it('parses comma-formatted string prices in ld+json offers', () => {
+    // Bug this catches: parseFloat("1,250,000") === 1 — the listing would be
+    // created with price $1 and the truthy value blocks the DOM fallback
+    const url = 'https://www.landwatch.com/land/pid/999999';
+
+    document.body.innerHTML = `
+      <script type="application/ld+json">${JSON.stringify({
+        '@type': 'Product',
+        name: '300 acres in Grant County',
+        address: { addressLocality: 'Lancaster', addressRegion: 'WI' },
+        offers: { price: '1,250,000' },
+      })}</script>
+    `;
+
+    const result = landwatchExtractor.extract(document, url);
+    expect(result!.price).toBe(1250000);
+  });
+
+  it('reads the price from an offers array', () => {
+    const url = 'https://www.landwatch.com/land/pid/101010';
+
+    document.body.innerHTML = `
+      <script type="application/ld+json">${JSON.stringify({
+        '@type': 'Product',
+        name: '80 acres in Iowa County',
+        address: { addressLocality: 'Dodgeville', addressRegion: 'WI' },
+        offers: [{ '@type': 'Offer', price: 320000 }],
+      })}</script>
+    `;
+
+    const result = landwatchExtractor.extract(document, url);
+    expect(result!.price).toBe(320000);
+  });
+
   it('handles malformed ld+json gracefully without crashing', () => {
     const url = 'https://www.landwatch.com/tx-land/44556677';
 
