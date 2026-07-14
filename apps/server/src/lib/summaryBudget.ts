@@ -1,5 +1,6 @@
 import { llm as llmConfig, server } from '../config';
 
+import { captureError } from './captureError';
 import { InMemoryRateLimitStore, type RateLimitStore } from './rateLimitStore';
 import { PostgresRateLimitStore } from './postgresRateLimitStore';
 
@@ -21,4 +22,15 @@ function getStore(): RateLimitStore {
 export async function consumeSummaryBudget(userId: string): Promise<boolean> {
   const window = await getStore().increment(`llm-summary:${userId}`, DAY_MS);
   return window.count <= llmConfig.dailyLimit;
+}
+
+/** Return one consumed unit after a generation that produced nothing (LLM
+ *  threw) — an Anthropic outage day must not burn the daily budget for zero
+ *  summaries. Best-effort: a failed refund never surfaces to the caller. */
+export async function refundSummaryBudget(userId: string): Promise<void> {
+  try {
+    await getStore().decrement?.(`llm-summary:${userId}`);
+  } catch (e) {
+    captureError(e, 'summaryBudget: refund failed');
+  }
 }

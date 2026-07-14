@@ -8,7 +8,7 @@ import * as alertRepo from '../repos/alertRepo';
 import * as userRepo from '../repos/userRepo';
 import * as scoring from '@landmatch/scoring';
 import { llmClient } from '../lib/llm';
-import { consumeSummaryBudget } from '../lib/summaryBudget';
+import { consumeSummaryBudget, refundSummaryBudget } from '../lib/summaryBudget';
 import { matchListingAgainstProfiles } from '../services/matchingService';
 
 vi.mock('../db/client', () => ({
@@ -21,7 +21,7 @@ vi.mock('../repos/alertRepo');
 vi.mock('../repos/userRepo');
 vi.mock('@landmatch/scoring');
 vi.mock('../lib/llm', () => ({ llmClient: vi.fn() }));
-vi.mock('../lib/summaryBudget', () => ({ consumeSummaryBudget: vi.fn() }));
+vi.mock('../lib/summaryBudget', () => ({ consumeSummaryBudget: vi.fn(), refundSummaryBudget: vi.fn() }));
 
 const mockListingRepo = vi.mocked(listingRepo);
 const mockProfileRepo = vi.mocked(searchProfileRepo);
@@ -30,6 +30,7 @@ const mockAlertRepo = vi.mocked(alertRepo);
 const mockUserRepo = vi.mocked(userRepo);
 const mockScoring = vi.mocked(scoring);
 const mockConsumeBudget = vi.mocked(consumeSummaryBudget);
+const mockRefundBudget = vi.mocked(refundSummaryBudget);
 
 const LISTING = {
   id: 'listing-1',
@@ -710,6 +711,31 @@ describe('LLM summary generation', () => {
     expect(result.data.scored).toBe(1);
     expect(result.data.alertsCreated).toBe(1);
     expect(mockScoreRepo.updateLlmSummary).not.toHaveBeenCalled();
+  });
+
+  it('refunds the consumed budget when the LLM call throws', async () => {
+    // Bug this catches: an Anthropic outage day silently burning the user's
+    // whole daily budget while producing zero summaries.
+    arrangeAlertWorthyMatch();
+    mockScoring.generateSummary.mockRejectedValueOnce(new Error('anthropic 529'));
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockRefundBudget).toHaveBeenCalledWith('user-1');
+  });
+
+  it('does not refund when generation succeeds but the summary write fails', async () => {
+    // The LLM spend actually happened — refunding here would let a flaky DB
+    // stretch the daily cap past its cost bound.
+    arrangeAlertWorthyMatch();
+    mockScoring.generateSummary.mockResolvedValueOnce('A solid verdict.');
+    mockScoreRepo.updateLlmSummary.mockRejectedValueOnce(new Error('db down'));
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockRefundBudget).not.toHaveBeenCalled();
   });
 
   it('does not generate for a rescored row the user dismissed', async () => {

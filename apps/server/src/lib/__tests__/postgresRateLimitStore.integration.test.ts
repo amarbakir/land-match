@@ -37,6 +37,28 @@ describe('PostgresRateLimitStore (integration)', () => {
     expect(fresh.resetAt).toBeGreaterThan(Date.now());
   });
 
+  it('decrement returns one unit to the live window', async () => {
+    // Bug this catches: summary-budget refunds that never reach the shared
+    // store — each Lambda container would refund only its own phantom copy.
+    const store = new PostgresRateLimitStore();
+
+    await store.increment('llm-summary:int-user', WINDOW);
+    await store.increment('llm-summary:int-user', WINDOW);
+    await store.decrement('llm-summary:int-user');
+
+    const next = await store.increment('llm-summary:int-user', WINDOW);
+    expect(next.count).toBe(2);
+  });
+
+  it('decrement on a missing key mints no negative budget', async () => {
+    const store = new PostgresRateLimitStore();
+
+    await store.decrement('llm-summary:ghost');
+
+    const first = await store.increment('llm-summary:ghost', WINDOW);
+    expect(first.count).toBe(1);
+  });
+
   it('counts keys independently', async () => {
     const store = new PostgresRateLimitStore();
 

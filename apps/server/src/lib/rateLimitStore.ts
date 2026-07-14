@@ -6,6 +6,10 @@ export interface RateLimitWindow {
 export interface RateLimitStore {
   /** Record one hit against the key, opening a fresh window if the current one expired. */
   increment(key: string, windowMs: number): Promise<RateLimitWindow>;
+  /** Return one hit to the key's live window (floored at 0; no-op if the
+   *  window is missing or expired). Optional so minimal fallback stores can
+   *  stay increment-only. */
+  decrement?(key: string): Promise<void>;
 }
 
 // Sweep expired entries once the map grows past this size, so long-running
@@ -33,5 +37,12 @@ export class InMemoryRateLimitStore implements RateLimitStore {
 
     entry.count++;
     return entry;
+  }
+
+  async decrement(key: string): Promise<void> {
+    const entry = this.windows.get(key);
+    if (entry && Date.now() < entry.resetAt && entry.count > 0) {
+      entry.count--;
+    }
   }
 }

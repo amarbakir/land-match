@@ -4,7 +4,7 @@ import type { SearchCriteria, SummaryInput } from '@landmatch/scoring';
 
 import { captureError } from '../lib/captureError';
 import { llmClient } from '../lib/llm';
-import { consumeSummaryBudget } from '../lib/summaryBudget';
+import { consumeSummaryBudget, refundSummaryBudget } from '../lib/summaryBudget';
 import { features } from '../config';
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
@@ -145,7 +145,16 @@ export async function matchListingAgainstProfiles(
 async function generateSummaryBestEffort(scoreId: string, userId: string, input: SummaryInput): Promise<void> {
   try {
     if (!(await consumeSummaryBudget(userId))) return;
-    const summary = await generateSummary(input, llmClient);
+    let summary: string;
+    try {
+      summary = await generateSummary(input, llmClient);
+    } catch (error) {
+      // Nothing was generated, so nothing was spent — refund the unit. A
+      // successful generation whose DB write fails below is NOT refunded:
+      // the LLM cost is real either way.
+      await refundSummaryBudget(userId);
+      throw error;
+    }
     if (summary) await scoreRepo.updateLlmSummary(scoreId, summary);
   } catch (error) {
     captureError(error, 'matchingService.generateSummaryBestEffort');

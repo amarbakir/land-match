@@ -1,4 +1,4 @@
-import { lte, sql } from 'drizzle-orm';
+import { and, eq, gt, lte, sql } from 'drizzle-orm';
 import { rateLimits } from '@landmatch/db';
 
 import { captureError } from './captureError';
@@ -50,5 +50,14 @@ export class PostgresRateLimitStore implements RateLimitStore {
     }
 
     return { count: row.count, resetAt: row.resetAt.getTime() };
+  }
+
+  async decrement(key: string): Promise<void> {
+    // Floored at 0 and gated on a live window: refunding into an expired row
+    // would pre-spend the next window's budget.
+    await db
+      .update(rateLimits)
+      .set({ count: sql`GREATEST(${rateLimits.count} - 1, 0)` })
+      .where(and(eq(rateLimits.key, key), gt(rateLimits.resetAt, sql`now()`)));
   }
 }
