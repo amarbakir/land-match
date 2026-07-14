@@ -108,8 +108,16 @@ export async function matchListingAgainstProfiles(
       // profile's score/alert transaction. Collecting and generating after
       // all transactions commit keeps every profile's score safe regardless
       // of how long summary generation takes.
+      //
+      // Never on the rescore path (land-match-rf1): the re-enrichment cron
+      // AWAITS this call under a 35s-per-listing Lambda deadline budget that
+      // was calibrated to the enrichment pipeline alone — awaited generation
+      // (up to ~30s per qualifying profile) blows the deadline, and a
+      // hard-killed run rolls back the attempt record so the same slow
+      // listing leads (and re-burns summary budget) every subsequent run.
       if (
         features.enableLlmSummary &&
+        !opts.rescore &&
         !result.hardFilterFailed &&
         result.overallScore >= profile.alertThreshold &&
         written.scoreRow.status === 'inbox'

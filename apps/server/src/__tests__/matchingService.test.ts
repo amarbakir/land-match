@@ -769,7 +769,12 @@ describe('LLM summary generation', () => {
     expect(mockScoring.generateSummary).not.toHaveBeenCalled();
   });
 
-  it('rescore regenerates the summary for an alert-worthy inbox row', async () => {
+  it('never generates summaries on the rescore path, even for an alert-worthy inbox row', async () => {
+    // Bug this catches (land-match-rf1): the re-enrichment cron budgets 35s
+    // per listing against its Lambda deadline; an awaited LLM generation (up
+    // to ~30s per qualifying profile) inside the rescore call blows that
+    // budget, and a hard-killed run rolls back the attempt record so the same
+    // slow listing leads — and re-burns summary budget — every following run.
     mockScoring.scoreListing.mockReturnValueOnce({
       overallScore: 80,
       componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
@@ -789,16 +794,17 @@ describe('LLM summary generation', () => {
       searchProfileId: 'profile-1',
       overallScore: 80,
       componentScores: {},
-      llmSummary: 'stale summary',
+      llmSummary: null,
       status: 'inbox',
       readAt: null,
       scoredAt: new Date(),
     });
-    mockScoring.generateSummary.mockResolvedValueOnce('fresh summary');
 
     const result = await matchListingAgainstProfiles('listing-1', { rescore: true });
 
     expect(result.ok).toBe(true);
-    expect(mockScoreRepo.updateLlmSummary).toHaveBeenCalledWith('score-existing', 'fresh summary');
+    expect(mockScoring.generateSummary).not.toHaveBeenCalled();
+    expect(mockConsumeBudget).not.toHaveBeenCalled();
+    expect(mockScoreRepo.updateLlmSummary).not.toHaveBeenCalled();
   });
 });
