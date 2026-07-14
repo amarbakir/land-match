@@ -1,4 +1,5 @@
 import type { ListingExtractor, ExtractedListing } from './types';
+import { joinAddressParts, parsePrice, US_STATE_ZIP_PATTERN } from './parse';
 
 // Matches Zillow property detail pages (e.g. /homedetails/21881-Kale-Rd-.../123456789_zpid/)
 const DETAIL_URL_PATTERN = /^https:\/\/www\.zillow\.com\/homedetails\//;
@@ -62,15 +63,13 @@ function extractFromNextData(doc: Document): Partial<ExtractedListing> | null {
   }
   if (!property) return null;
 
-  const addressParts = [
-    property.streetAddress,
-    property.city,
-    property.state,
-    property.zipcode,
-  ].filter(Boolean);
-
   return {
-    address: addressParts.length > 0 ? addressParts.join(', ') : undefined,
+    address: joinAddressParts(
+      property.streetAddress,
+      property.city,
+      property.state,
+      property.zipcode,
+    ),
     title: property.streetAddress,
     price: property.price ?? property.listPrice,
     acreage: toAcres(property),
@@ -83,23 +82,16 @@ function extractFromDOM(doc: Document): Partial<ExtractedListing> {
   // Zillow's h1 is the street address; require a state+zip pattern so an
   // error/interstitial heading is never geocoded
   const h1Text = doc.querySelector('h1')?.textContent?.replace(/\s+/g, ' ').trim();
-  if (h1Text && /\b[A-Z]{2}\s+\d{5}/.test(h1Text)) {
+  if (h1Text && US_STATE_ZIP_PATTERN.test(h1Text)) {
     result.address = h1Text;
   }
 
-  const priceText =
+  result.price = parsePrice(
     doc.querySelector('[data-testid="price"]')?.textContent ??
-    doc.querySelector('[data-testid="bdp-price"]')?.textContent;
-  if (priceText) {
-    const digits = priceText.replace(/[^0-9.]/g, '');
-    if (digits) result.price = parseFloat(digits);
-  }
+      doc.querySelector('[data-testid="bdp-price"]')?.textContent,
+  );
 
   return result;
-}
-
-function extractZpid(url: string): string | undefined {
-  return url.match(/\/(\d+)_zpid/)?.[1];
 }
 
 export const zillowExtractor: ListingExtractor = {
@@ -109,26 +101,23 @@ export const zillowExtractor: ListingExtractor = {
     return DETAIL_URL_PATTERN.test(url);
   },
 
-  extract(doc: Document): ExtractedListing | null {
-    const nextData = extractFromNextData(doc) ?? {};
-    const dom = extractFromDOM(doc);
-    // Structured data takes priority, but must not erase DOM values with
-    // fields it doesn't have
-    const defined = Object.fromEntries(
-      Object.entries(nextData).filter(([, v]) => v !== undefined),
-    );
-    const merged: Partial<ExtractedListing> = { ...dom, ...defined };
+  extract(doc: Document, url: string): ExtractedListing | null {
+    const nextData = extractFromNextData(doc);
+    // The DOM can only supply address and price — skip scraping it when the
+    // structured data already has both
+    const dom = nextData?.address && nextData.price ? {} : extractFromDOM(doc);
 
-    if (!merged.address) return null;
+    const address = nextData?.address ?? dom.address;
+    if (!address) return null;
 
     return {
-      address: merged.address,
-      price: merged.price,
-      acreage: merged.acreage,
-      title: merged.title,
-      url: window.location.href,
+      address,
+      price: nextData?.price ?? dom.price,
+      acreage: nextData?.acreage,
+      title: nextData?.title,
+      url,
       source: 'zillow',
-      externalId: extractZpid(window.location.href),
+      externalId: url.match(/\/(\d+)_zpid/)?.[1],
     };
   },
 };

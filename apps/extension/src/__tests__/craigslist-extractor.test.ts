@@ -4,14 +4,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { craigslistExtractor } from '../content/extractors/craigslist';
 
-function setUrl(url: string) {
-  Object.defineProperty(window, 'location', {
-    value: { href: url },
-    writable: true,
-    configurable: true,
-  });
-}
-
 describe('craigslistExtractor.matches', () => {
   it('matches real-estate posting URLs (by owner and by broker)', () => {
     expect(
@@ -50,7 +42,7 @@ describe('craigslistExtractor.extract', () => {
   });
 
   it('extracts title, price, acreage, and mapaddress', () => {
-    setUrl('https://madison.craigslist.org/reo/d/sparta-hunting-land/7712345678.html');
+    const url = 'https://madison.craigslist.org/reo/d/sparta-hunting-land/7712345678.html';
 
     document.body.innerHTML = `
       <span id="titletextonly">40 acres hunting land near Sparta</span>
@@ -59,7 +51,7 @@ describe('craigslistExtractor.extract', () => {
       <section id="postingbody">Beautiful wooded parcel with creek frontage.</section>
     `;
 
-    const result = craigslistExtractor.extract(document);
+    const result = craigslistExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.title).toBe('40 acres hunting land near Sparta');
@@ -68,10 +60,11 @@ describe('craigslistExtractor.extract', () => {
     expect(result!.address).toBe('21881 Kale Rd, Sparta, WI 54656');
     expect(result!.source).toBe('craigslist');
     expect(result!.externalId).toBe('7712345678');
+    expect(result!.url).toBe(url);
   });
 
   it('falls back to a street address found in the posting body', () => {
-    setUrl('https://vermont.craigslist.org/grd/d/stowe-small-farm/7723456789.html');
+    const url = 'https://vermont.craigslist.org/grd/d/stowe-small-farm/7723456789.html';
 
     document.body.innerHTML = `
       <span id="titletextonly">Small farm for sale</span>
@@ -81,7 +74,7 @@ describe('craigslistExtractor.extract', () => {
       </section>
     `;
 
-    const result = craigslistExtractor.extract(document);
+    const result = craigslistExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('123 Farm Lane, Stowe, VT 05672');
@@ -94,18 +87,18 @@ describe('craigslistExtractor.extract', () => {
   it('returns null when no address can be found', () => {
     // Bug this catches: Craigslist posts routinely omit addresses; pushing
     // an address-less enrichment request fails server geocoding and burns quota
-    setUrl('https://sfbay.craigslist.org/pen/reo/d/mystery-land/7745678901.html');
+    const url = 'https://sfbay.craigslist.org/pen/reo/d/mystery-land/7745678901.html';
 
     document.body.innerHTML = `
       <span id="titletextonly">Nice land, call for details</span>
       <section id="postingbody">Great opportunity! Serious inquiries only.</section>
     `;
 
-    expect(craigslistExtractor.extract(document)).toBeNull();
+    expect(craigslistExtractor.extract(document, url)).toBeNull();
   });
 
   it('ignores an acreage-like number in an unrelated context over a real one', () => {
-    setUrl('https://madison.craigslist.org/reo/d/land/7756789012.html');
+    const url = 'https://madison.craigslist.org/reo/d/land/7756789012.html';
 
     document.body.innerHTML = `
       <span id="titletextonly">Land with road frontage</span>
@@ -113,7 +106,7 @@ describe('craigslistExtractor.extract', () => {
       <section id="postingbody">Parcel is 10 acres. Priced to sell.</section>
     `;
 
-    const result = craigslistExtractor.extract(document);
+    const result = craigslistExtractor.extract(document, url);
     expect(result!.acreage).toBe(10);
   });
 });

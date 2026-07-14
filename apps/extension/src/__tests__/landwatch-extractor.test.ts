@@ -4,15 +4,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { landwatchExtractor } from '../content/extractors/landwatch';
 
-function setUrl(url: string) {
-  // jsdom's window.location is not configurable, but we can replace href
-  Object.defineProperty(window, 'location', {
-    value: { href: url },
-    writable: true,
-    configurable: true,
-  });
-}
-
 describe('landwatchExtractor.matches', () => {
   it('matches LandWatch detail pages with numeric ID suffix', () => {
     expect(landwatchExtractor.matches('https://www.landwatch.com/land/some-slug/12345678')).toBe(true);
@@ -35,7 +26,7 @@ describe('landwatchExtractor.extract', () => {
   });
 
   it('extracts address, price, and title from ld+json structured data', () => {
-    setUrl('https://www.landwatch.com/elko-county-nevada-land-for-sale/pid/99887766');
+    const url = 'https://www.landwatch.com/elko-county-nevada-land-for-sale/pid/99887766';
 
     document.body.innerHTML = `
       <script type="application/ld+json">${JSON.stringify({
@@ -52,7 +43,7 @@ describe('landwatchExtractor.extract', () => {
       <h1>40 Acres in Elko County</h1>
     `;
 
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('123 Range Rd, Elko, NV, 89801');
@@ -65,15 +56,15 @@ describe('landwatchExtractor.extract', () => {
   it('returns null when no address can be extracted', () => {
     // Bug this catches: if we push enrichment requests without an address,
     // the server geocode fails and we waste API calls
-    setUrl('https://www.landwatch.com/something/12345');
+    const url = 'https://www.landwatch.com/something/12345';
     document.body.innerHTML = '<h1>Some Page</h1>';
 
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
     expect(result).toBeNull();
   });
 
   it('falls back to DOM scraping when ld+json is missing', () => {
-    setUrl('https://www.landwatch.com/boise-land/55667788');
+    const url = 'https://www.landwatch.com/boise-land/55667788';
 
     document.body.innerHTML = `
       <h1>Beautiful 10 Acre Ranch</h1>
@@ -82,7 +73,7 @@ describe('landwatchExtractor.extract', () => {
       <div class="property-detail">10.5 acres</div>
     `;
 
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('456 Valley View, Boise, ID 83702');
@@ -93,7 +84,7 @@ describe('landwatchExtractor.extract', () => {
   it('ld+json takes priority over DOM when both are present', () => {
     // Bug this catches: if merge order is wrong, unreliable DOM data
     // overwrites the more reliable structured data
-    setUrl('https://www.landwatch.com/land/11223344');
+    const url = 'https://www.landwatch.com/land/11223344';
 
     document.body.innerHTML = `
       <script type="application/ld+json">${JSON.stringify({
@@ -109,14 +100,14 @@ describe('landwatchExtractor.extract', () => {
       <div class="property-address">Wrong Address from DOM</div>
     `;
 
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
 
     expect(result!.address).toBe('Correct Address, Correct City, NV');
     expect(result!.title).toBe('Structured Title');
   });
 
   it('handles SingleFamilyResidence @type with direct address', () => {
-    setUrl('https://www.landwatch.com/monroe-county-land/pid/426490658');
+    const url = 'https://www.landwatch.com/monroe-county-land/pid/426490658';
 
     document.body.innerHTML = `
       <script type="application/ld+json">${JSON.stringify({
@@ -133,7 +124,7 @@ describe('landwatchExtractor.extract', () => {
       <h1>21881 Kale Road , Sparta, WI 54656(Monroe County)</h1>
     `;
 
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('21881 Kale Road, Sparta, WI, 54656');
@@ -141,7 +132,7 @@ describe('landwatchExtractor.extract', () => {
   });
 
   it('handles array @type like [RealEstateListing, Product]', () => {
-    setUrl('https://www.landwatch.com/land/pid/123456');
+    const url = 'https://www.landwatch.com/land/pid/123456';
 
     document.body.innerHTML = `
       <script type="application/ld+json">${JSON.stringify({
@@ -161,7 +152,7 @@ describe('landwatchExtractor.extract', () => {
       <h1>100 Oak St , Madison, WI 53703</h1>
     `;
 
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('100 Oak St, Madison, WI, 53703');
@@ -169,7 +160,7 @@ describe('landwatchExtractor.extract', () => {
   });
 
   it('merges data across multiple LD+JSON blocks', () => {
-    setUrl('https://www.landwatch.com/land/pid/555555');
+    const url = 'https://www.landwatch.com/land/pid/555555';
 
     document.body.innerHTML = `
       <script type="application/ld+json">${JSON.stringify({
@@ -189,7 +180,7 @@ describe('landwatchExtractor.extract', () => {
       <h1>50 River Rd , Burlington, VT 05401</h1>
     `;
 
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('50 River Rd, Burlington, VT, 05401');
@@ -198,20 +189,20 @@ describe('landwatchExtractor.extract', () => {
   });
 
   it('extracts address from h1 when it contains street address pattern', () => {
-    setUrl('https://www.landwatch.com/land/pid/777777');
+    const url = 'https://www.landwatch.com/land/pid/777777';
 
     document.body.innerHTML = `
       <h1>123 Farm Lane , Stowe, VT 05672(Lamoille County)</h1>
     `;
 
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('123 Farm Lane , Stowe, VT 05672');
   });
 
   it('handles malformed ld+json gracefully without crashing', () => {
-    setUrl('https://www.landwatch.com/tx-land/44556677');
+    const url = 'https://www.landwatch.com/tx-land/44556677';
 
     document.body.innerHTML = `
       <script type="application/ld+json">{ not valid json }</script>
@@ -219,20 +210,20 @@ describe('landwatchExtractor.extract', () => {
     `;
 
     // Should not throw, and should fall back to DOM
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
     expect(result).not.toBeNull();
     expect(result!.address).toBe('Fallback Address, TX 75001');
   });
 
   it('extracts acreage from text with commas and varying formats', () => {
-    setUrl('https://www.landwatch.com/mt-land/99001122');
+    const url = 'https://www.landwatch.com/mt-land/99001122';
 
     document.body.innerHTML = `
       <div class="property-address">Rural Route, MT 59001</div>
       <dd>1,200.5 acres available</dd>
     `;
 
-    const result = landwatchExtractor.extract(document);
+    const result = landwatchExtractor.extract(document, url);
     expect(result!.acreage).toBe(1200.5);
   });
 });

@@ -1,4 +1,5 @@
 import type { ListingExtractor, ExtractedListing } from './types';
+import { parseAcreage, parsePrice } from './parse';
 
 // Matches Craigslist posting pages in land-relevant categories:
 // real estate (rea/reo/reb) and farm+garden (grd/grq/grp), e.g.
@@ -6,19 +7,11 @@ import type { ListingExtractor, ExtractedListing } from './types';
 const POSTING_URL_PATTERN =
   /^https:\/\/[^/]+\.craigslist\.org\/(?:[^/]+\/)*(?:rea|reo|reb|grd|grq|grp)\/(?:[^/]+\/)*\d+\.html/;
 
-// Street address like "123 Farm Lane, Stowe, VT 05672" inside free-form text
+// Street address like "123 Farm Lane, Stowe, VT 05672" inside free-form text.
+// Quantifiers are bounded so a long address-less posting body can't trigger
+// pathological backtracking.
 const ADDRESS_PATTERN =
-  /(\d+\s+[\w\s]+(?:Road|Rd|Street|St|Avenue|Ave|Drive|Dr|Lane|Ln|Way|Highway|Hwy)[^,]*,\s*\w+(?:\s+\w+)*,?\s*[A-Z]{2}\s*\d{5}?)/i;
-
-function parsePrice(text?: string | null): number | undefined {
-  const digits = text?.replace(/[^0-9.]/g, '');
-  return digits ? parseFloat(digits) : undefined;
-}
-
-function parseAcreage(text: string): number | undefined {
-  const match = text.match(/([\d,.]+)\s*(?:acres?|ac\b)/i);
-  return match ? parseFloat(match[1].replace(/,/g, '')) : undefined;
-}
+  /(\d+\s+[\w ]{1,60}(?:Road|Rd|Street|St|Avenue|Ave|Drive|Dr|Lane|Ln|Way|Highway|Hwy)[^,\n]{0,40},\s*\w+(?:\s+\w+){0,3},?\s*[A-Z]{2}\s*\d{5})/i;
 
 export const craigslistExtractor: ListingExtractor = {
   name: 'craigslist',
@@ -27,7 +20,7 @@ export const craigslistExtractor: ListingExtractor = {
     return POSTING_URL_PATTERN.test(url);
   },
 
-  extract(doc: Document): ExtractedListing | null {
+  extract(doc: Document, url: string): ExtractedListing | null {
     const title = doc.getElementById('titletextonly')?.textContent?.trim();
     const bodyText = doc.getElementById('postingbody')?.textContent ?? '';
 
@@ -42,11 +35,11 @@ export const craigslistExtractor: ListingExtractor = {
     return {
       address,
       price: parsePrice(doc.querySelector('.price')?.textContent),
-      acreage: parseAcreage(`${title ?? ''} ${bodyText}`),
+      acreage: parseAcreage(title) ?? parseAcreage(bodyText),
       title,
-      url: window.location.href,
+      url,
       source: 'craigslist',
-      externalId: window.location.href.match(/(\d+)\.html/)?.[1],
+      externalId: url.match(/(\d+)\.html/)?.[1],
     };
   },
 };

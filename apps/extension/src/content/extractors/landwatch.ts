@@ -1,5 +1,6 @@
 import type { ListingExtractor, ExtractedListing } from './types';
 import { extractListingFromLdJson } from './ld-json';
+import { extractTrailingId, parseAcreage, parsePrice, US_STATE_ZIP_PATTERN } from './parse';
 
 // Matches LandWatch listing detail pages (e.g. /property/land-for-sale-...-/12345678)
 const DETAIL_URL_PATTERN = /^https:\/\/www\.landwatch\.com\/.*\/\d+$/;
@@ -13,7 +14,7 @@ function extractFromDOM(doc: Document): Partial<ExtractedListing> {
   if (h1?.textContent) {
     const h1Text = h1.textContent.trim();
     // If h1 looks like an address (contains a US state abbreviation + zip), use as address
-    if (/\b[A-Z]{2}\s+\d{5}/.test(h1Text)) {
+    if (US_STATE_ZIP_PATTERN.test(h1Text)) {
       // Clean up formatting: "Sparta, WI 54656(Monroe County)" → "Sparta, WI 54656"
       result.address = h1Text.replace(/\(.*?\)/g, '').replace(/\s+/g, ' ').trim();
     } else {
@@ -35,28 +36,20 @@ function extractFromDOM(doc: Document): Partial<ExtractedListing> {
     doc.querySelector('[data-testid="listing-price"]') ??
     doc.querySelector('.property-price') ??
     doc.querySelector('[class*="price"]');
-  if (priceEl?.textContent) {
-    const priceMatch = priceEl.textContent.replace(/[^0-9.]/g, '');
-    if (priceMatch) result.price = parseFloat(priceMatch);
-  }
+  const price = parsePrice(priceEl?.textContent);
+  if (price) result.price = price;
 
   // Acreage — look for acreage in details
   const detailEls = doc.querySelectorAll('[class*="detail"], [class*="attribute"], dt, dd');
   for (const el of detailEls) {
-    const text = el.textContent?.toLowerCase() ?? '';
-    const acreMatch = text.match(/([\d,.]+)\s*(?:acres?|ac)/);
-    if (acreMatch) {
-      result.acreage = parseFloat(acreMatch[1].replace(/,/g, ''));
+    const acreage = parseAcreage(el.textContent);
+    if (acreage) {
+      result.acreage = acreage;
       break;
     }
   }
 
   return result;
-}
-
-function extractExternalId(url: string): string | undefined {
-  const match = url.match(/\/(\d+)$/);
-  return match?.[1];
 }
 
 export const landwatchExtractor: ListingExtractor = {
@@ -66,7 +59,7 @@ export const landwatchExtractor: ListingExtractor = {
     return DETAIL_URL_PATTERN.test(url);
   },
 
-  extract(doc: Document): ExtractedListing | null {
+  extract(doc: Document, url: string): ExtractedListing | null {
     // Try structured data first, then fall back to DOM scraping
     const ldJson = extractListingFromLdJson(doc);
     const dom = extractFromDOM(doc);
@@ -79,9 +72,9 @@ export const landwatchExtractor: ListingExtractor = {
       price: merged.price,
       acreage: merged.acreage,
       title: merged.title,
-      url: window.location.href,
+      url,
       source: 'landwatch',
-      externalId: extractExternalId(window.location.href),
+      externalId: extractTrailingId(url),
     };
   },
 

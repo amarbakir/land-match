@@ -4,14 +4,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { zillowExtractor } from '../content/extractors/zillow';
 
-function setUrl(url: string) {
-  Object.defineProperty(window, 'location', {
-    value: { href: url },
-    writable: true,
-    configurable: true,
-  });
-}
-
 function nextDataScript(data: unknown): string {
   return `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify(data)}</script>`;
 }
@@ -39,7 +31,7 @@ describe('zillowExtractor.extract', () => {
   });
 
   it('extracts address, price, and acreage from __NEXT_DATA__ redux state', () => {
-    setUrl('https://www.zillow.com/homedetails/21881-Kale-Rd-Sparta-WI-54656/123456789_zpid/');
+    const url = 'https://www.zillow.com/homedetails/21881-Kale-Rd-Sparta-WI-54656/123456789_zpid/';
 
     document.body.innerHTML = nextDataScript({
       props: {
@@ -60,7 +52,7 @@ describe('zillowExtractor.extract', () => {
       },
     });
 
-    const result = zillowExtractor.extract(document);
+    const result = zillowExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('21881 Kale Rd, Sparta, WI, 54656');
@@ -70,10 +62,11 @@ describe('zillowExtractor.extract', () => {
     expect(result!.acreage).toBe(2);
     expect(result!.source).toBe('zillow');
     expect(result!.externalId).toBe('123456789');
+    expect(result!.url).toBe(url);
   });
 
   it('extracts from gdpClientCache (JSON string) used by current Zillow pages', () => {
-    setUrl('https://www.zillow.com/homedetails/456-Ridge-Ln-Boise-ID-83702/98765_zpid/');
+    const url = 'https://www.zillow.com/homedetails/456-Ridge-Ln-Boise-ID-83702/98765_zpid/';
 
     document.body.innerHTML = nextDataScript({
       props: {
@@ -97,7 +90,7 @@ describe('zillowExtractor.extract', () => {
       },
     });
 
-    const result = zillowExtractor.extract(document);
+    const result = zillowExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('456 Ridge Ln, Boise, ID, 83702');
@@ -107,7 +100,7 @@ describe('zillowExtractor.extract', () => {
   });
 
   it('converts lotAreaValue to acres when its units are sqft', () => {
-    setUrl('https://www.zillow.com/homedetails/1-A-St-Elko-NV-89801/11111_zpid/');
+    const url = 'https://www.zillow.com/homedetails/1-A-St-Elko-NV-89801/11111_zpid/';
 
     document.body.innerHTML = nextDataScript({
       props: {
@@ -125,7 +118,7 @@ describe('zillowExtractor.extract', () => {
       },
     });
 
-    const result = zillowExtractor.extract(document);
+    const result = zillowExtractor.extract(document, url);
 
     expect(result!.acreage).toBe(0.5);
     // listPrice fallback when price is absent
@@ -133,14 +126,14 @@ describe('zillowExtractor.extract', () => {
   });
 
   it('falls back to DOM scraping when __NEXT_DATA__ is missing', () => {
-    setUrl('https://www.zillow.com/homedetails/789-Meadow-Rd-Stowe-VT-05672/22222_zpid/');
+    const url = 'https://www.zillow.com/homedetails/789-Meadow-Rd-Stowe-VT-05672/22222_zpid/';
 
     document.body.innerHTML = `
       <h1>789 Meadow Rd, Stowe, VT 05672</h1>
       <span data-testid="price">$325,000</span>
     `;
 
-    const result = zillowExtractor.extract(document);
+    const result = zillowExtractor.extract(document, url);
 
     expect(result).not.toBeNull();
     expect(result!.address).toBe('789 Meadow Rd, Stowe, VT 05672');
@@ -148,7 +141,7 @@ describe('zillowExtractor.extract', () => {
   });
 
   it('falls back to DOM when __NEXT_DATA__ is malformed JSON', () => {
-    setUrl('https://www.zillow.com/homedetails/5-Oak-Dr-Madison-WI-53703/33333_zpid/');
+    const url = 'https://www.zillow.com/homedetails/5-Oak-Dr-Madison-WI-53703/33333_zpid/';
 
     document.body.innerHTML = `
       <script id="__NEXT_DATA__" type="application/json">{ not valid json</script>
@@ -156,13 +149,13 @@ describe('zillowExtractor.extract', () => {
     `;
 
     // Should not throw
-    const result = zillowExtractor.extract(document);
+    const result = zillowExtractor.extract(document, url);
     expect(result).not.toBeNull();
     expect(result!.address).toBe('5 Oak Dr, Madison, WI 53703');
   });
 
   it('keeps the DOM address when __NEXT_DATA__ has a property without address fields', () => {
-    setUrl('https://www.zillow.com/homedetails/9-Pine-Ct-Sparta-WI-54656/66666_zpid/');
+    const url = 'https://www.zillow.com/homedetails/9-Pine-Ct-Sparta-WI-54656/66666_zpid/';
 
     document.body.innerHTML = `
       ${nextDataScript({
@@ -171,10 +164,10 @@ describe('zillowExtractor.extract', () => {
       <h1>9 Pine Ct, Sparta, WI 54656</h1>
     `;
 
-    const result = zillowExtractor.extract(document);
+    const result = zillowExtractor.extract(document, url);
 
-    // Bug this catches: spreading { address: undefined } from structured data
-    // over the DOM result erases a perfectly good address
+    // Bug this catches: letting structured data with no address override the
+    // DOM result erases a perfectly good address
     expect(result).not.toBeNull();
     expect(result!.address).toBe('9 Pine Ct, Sparta, WI 54656');
     expect(result!.price).toBe(199000);
@@ -183,17 +176,17 @@ describe('zillowExtractor.extract', () => {
   it('returns null when no address can be extracted', () => {
     // Bug this catches: enrichment requests without an address fail server
     // geocoding and burn quota
-    setUrl('https://www.zillow.com/homedetails/44444_zpid/');
+    const url = 'https://www.zillow.com/homedetails/44444_zpid/';
     document.body.innerHTML = '<div>Page is still loading…</div>';
 
-    expect(zillowExtractor.extract(document)).toBeNull();
+    expect(zillowExtractor.extract(document, url)).toBeNull();
   });
 
   it('does not use an h1 that is not an address as the address', () => {
-    setUrl('https://www.zillow.com/homedetails/55555_zpid/');
+    const url = 'https://www.zillow.com/homedetails/55555_zpid/';
     document.body.innerHTML = '<h1>Access denied</h1>';
 
     // No state+zip pattern → not an address → null, not a bogus geocode
-    expect(zillowExtractor.extract(document)).toBeNull();
+    expect(zillowExtractor.extract(document, url)).toBeNull();
   });
 });

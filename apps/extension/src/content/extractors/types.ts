@@ -11,5 +11,5 @@ export interface ExtractedListing {
 export interface ListingExtractor {
   name: string;
   matches(url: string): boolean;
-  extract(document: Document): ExtractedListing | null;
+  extract(document: Document, url: string): ExtractedListing | null;
 }

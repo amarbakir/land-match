@@ -16,7 +16,7 @@ function processCurrentPage() {
     return;
   }
 
-  const listing = extractor.extract(document);
+  const listing = extractor.extract(document, url);
   if (!listing) {
     sendMessage({ type: 'PAGE_CHANGED', payload: { isListing: false, url } });
     return;
