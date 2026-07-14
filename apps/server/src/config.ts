@@ -170,12 +170,17 @@ export const llm = {
     return required('ANTHROPIC_API_KEY');
   },
   model: optional('LLM_SUMMARY_MODEL', 'claude-haiku-4-5-20251001'),
+  dailyLimit: Number(optional('LLM_SUMMARY_DAILY_LIMIT', '25')),
 } as const;
 
 export const features = {
   enableParcelData: featureFlag('ENABLE_PARCEL_DATA', false),
   enableClimateRisk: featureFlag('ENABLE_CLIMATE_RISK', false),
   enableGeodataEnrichment: featureFlag('ENABLE_GEODATA_ENRICHMENT', false),
+  // Lazy: read per access so the flag can flip per test / per Lambda env
+  get enableLlmSummary() {
+    return featureFlag('ENABLE_LLM_SUMMARY', false);
+  },
 } as const;
 
 export const email = {
