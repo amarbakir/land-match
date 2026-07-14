@@ -60,6 +60,19 @@ export async function updateScoreValues(
   return row ?? null;
 }
 
+// Best-effort post-scoring write: summary generation runs outside the
+// score/alert transaction, so this targets the row by id and tolerates the
+// row having been deleted meanwhile (returns null).
+export async function updateLlmSummary(scoreId: string, llmSummary: string, tx?: Tx) {
+  const [row] = await (tx ?? db)
+    .update(scores)
+    .set({ llmSummary })
+    .where(eq(scores.id, scoreId))
+    .returning();
+
+  return row ?? null;
+}
+
 export async function findByListingAndProfile(listingId: string, profileId: string, tx?: Tx) {
   return (tx ?? db).query.scores.findFirst({
     where: and(eq(scores.listingId, listingId), eq(scores.searchProfileId, profileId)),

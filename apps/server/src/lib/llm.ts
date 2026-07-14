@@ -6,7 +6,9 @@ let client: Anthropic | null = null;
 
 function getClient(): Anthropic {
   if (!client) {
-    client = new Anthropic({ apiKey: llmConfig.anthropicApiKey });
+    // Bounded: matching awaits this call inline — a hung request must not
+    // pin the enrich request/Lambda for the SDK's 10-minute default.
+    client = new Anthropic({ apiKey: llmConfig.anthropicApiKey, timeout: 15_000, maxRetries: 1 });
   }
   return client;
 }

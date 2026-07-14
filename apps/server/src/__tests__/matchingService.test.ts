@@ -7,6 +7,8 @@ import * as scoreRepo from '../repos/scoreRepo';
 import * as alertRepo from '../repos/alertRepo';
 import * as userRepo from '../repos/userRepo';
 import * as scoring from '@landmatch/scoring';
+import { llmClient } from '../lib/llm';
+import { consumeSummaryBudget } from '../lib/summaryBudget';
 import { matchListingAgainstProfiles } from '../services/matchingService';
 
 vi.mock('../db/client', () => ({
@@ -18,6 +20,8 @@ vi.mock('../repos/scoreRepo');
 vi.mock('../repos/alertRepo');
 vi.mock('../repos/userRepo');
 vi.mock('@landmatch/scoring');
+vi.mock('../lib/llm', () => ({ llmClient: vi.fn() }));
+vi.mock('../lib/summaryBudget', () => ({ consumeSummaryBudget: vi.fn() }));
 
 const mockListingRepo = vi.mocked(listingRepo);
 const mockProfileRepo = vi.mocked(searchProfileRepo);
@@ -25,6 +29,7 @@ const mockScoreRepo = vi.mocked(scoreRepo);
 const mockAlertRepo = vi.mocked(alertRepo);
 const mockUserRepo = vi.mocked(userRepo);
 const mockScoring = vi.mocked(scoring);
+const mockConsumeBudget = vi.mocked(consumeSummaryBudget);
 
 const LISTING = {
   id: 'listing-1',
@@ -114,7 +119,43 @@ const PROFILE = {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(db.transaction).mockImplementation(async (cb: any) => cb('fake-tx'));
+  process.env.ENABLE_LLM_SUMMARY = 'true';
+  mockConsumeBudget.mockResolvedValue(true);
 });
+
+afterEach(() => {
+  delete process.env.ENABLE_LLM_SUMMARY;
+});
+
+function arrangeAlertWorthyMatch(scoreOverrides: Record<string, unknown> = {}) {
+  mockScoring.scoreListing.mockReturnValueOnce({
+    overallScore: 75,
+    componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+    hardFilterFailed: false,
+    failedFilters: [],
+  });
+  mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+    listing: LISTING,
+    enrichment: ENRICHMENT,
+  });
+  mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+  mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+  mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+  mockScoreRepo.insert.mockResolvedValueOnce({
+    id: 'score-1',
+    listingId: 'listing-1',
+    searchProfileId: 'profile-1',
+    overallScore: 75,
+    componentScores: {},
+    llmSummary: null,
+    status: 'inbox',
+    readAt: null,
+    scoredAt: new Date(),
+    ...scoreOverrides,
+  });
+  mockUserRepo.findById.mockResolvedValueOnce(USER);
+  mockAlertRepo.insert.mockResolvedValue({} as any);
+}
 
 describe('matchListingAgainstProfiles', () => {
   it('scores listing against active profiles and creates alerts above threshold', async () => {
@@ -569,5 +610,170 @@ describe('matchListingAgainstProfiles', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe('Listing not enriched');
     expect(mockScoreRepo.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe('LLM summary generation', () => {
+  it('generates and stores a summary for an alert-worthy inbox score', async () => {
+    arrangeAlertWorthyMatch();
+    mockScoring.generateSummary.mockResolvedValueOnce('A solid homestead candidate.');
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockConsumeBudget).toHaveBeenCalledWith('user-1');
+    expect(mockScoring.generateSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ listingTitle: '10 Acres', listingUrl: 'https://example.com' }),
+      llmClient,
+    );
+    expect(mockScoreRepo.updateLlmSummary).toHaveBeenCalledWith('score-1', 'A solid homestead candidate.');
+  });
+
+  it('skips generation when the feature flag is off', async () => {
+    delete process.env.ENABLE_LLM_SUMMARY;
+    arrangeAlertWorthyMatch();
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockScoring.generateSummary).not.toHaveBeenCalled();
+    expect(mockConsumeBudget).not.toHaveBeenCalled();
+  });
+
+  it('skips generation below the alert threshold', async () => {
+    arrangeAlertWorthyMatch();
+    // Re-arrange the profile with a threshold above the 75 score
+    mockProfileRepo.findActive.mockReset();
+    mockProfileRepo.findActive.mockResolvedValueOnce([{ ...PROFILE, alertThreshold: 95 }]);
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockScoring.generateSummary).not.toHaveBeenCalled();
+  });
+
+  it('skips generation when the hard filter failed even though the score meets threshold', async () => {
+    // Isolate the hardFilterFailed condition: threshold is 0 so the score
+    // (also 0) alone would pass the threshold check.
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 0,
+      componentScores: { soil: 0, flood: 0, price: 0, acreage: 0, zoning: 0, geography: 0, infrastructure: 0, climate: 0 },
+      hardFilterFailed: true,
+      failedFilters: ['flood_zone_excluded'],
+    });
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([{ ...PROFILE, alertThreshold: 0 }]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+    mockScoreRepo.insert.mockResolvedValueOnce({
+      id: 'score-1',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 0,
+      componentScores: {},
+      llmSummary: null,
+      status: 'inbox',
+      readAt: null,
+      scoredAt: new Date(),
+    });
+    mockUserRepo.findById.mockResolvedValueOnce(USER);
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockScoring.generateSummary).not.toHaveBeenCalled();
+    expect(mockConsumeBudget).not.toHaveBeenCalled();
+  });
+
+  it('skips generation when the daily budget is exhausted', async () => {
+    arrangeAlertWorthyMatch();
+    mockConsumeBudget.mockResolvedValue(false);
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockScoring.generateSummary).not.toHaveBeenCalled();
+    expect(mockScoreRepo.updateLlmSummary).not.toHaveBeenCalled();
+  });
+
+  it('LLM failure leaves the score and alerts intact and still returns ok', async () => {
+    arrangeAlertWorthyMatch();
+    mockScoring.generateSummary.mockRejectedValueOnce(new Error('anthropic 529'));
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.scored).toBe(1);
+    expect(result.data.alertsCreated).toBe(1);
+    expect(mockScoreRepo.updateLlmSummary).not.toHaveBeenCalled();
+  });
+
+  it('does not generate for a rescored row the user dismissed', async () => {
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 75,
+      componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+      hardFilterFailed: false,
+      failedFilters: [],
+    });
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({
+      id: 'score-existing',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 75,
+      componentScores: {},
+      llmSummary: null,
+      status: 'dismissed',
+      readAt: new Date(),
+      scoredAt: new Date(),
+    });
+
+    const result = await matchListingAgainstProfiles('listing-1', { rescore: true });
+
+    expect(result.ok).toBe(true);
+    expect(mockScoring.generateSummary).not.toHaveBeenCalled();
+  });
+
+  it('rescore regenerates the summary for an alert-worthy inbox row', async () => {
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 80,
+      componentScores: { soil: 85, flood: 100, price: 80, acreage: 100, zoning: 50, geography: 50, infrastructure: 50, climate: 50 },
+      hardFilterFailed: false,
+      failedFilters: [],
+    });
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([PROFILE]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set(['profile-1']));
+    mockScoreRepo.updateScoreValues.mockResolvedValueOnce({
+      id: 'score-existing',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 80,
+      componentScores: {},
+      llmSummary: 'stale summary',
+      status: 'inbox',
+      readAt: null,
+      scoredAt: new Date(),
+    });
+    mockScoring.generateSummary.mockResolvedValueOnce('fresh summary');
+
+    const result = await matchListingAgainstProfiles('listing-1', { rescore: true });
+
+    expect(result.ok).toBe(true);
+    expect(mockScoreRepo.updateLlmSummary).toHaveBeenCalledWith('score-existing', 'fresh summary');
   });
 });
