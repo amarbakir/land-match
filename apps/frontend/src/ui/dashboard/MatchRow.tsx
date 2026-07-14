@@ -13,6 +13,7 @@ interface MatchRowProps {
   match: MatchItem;
   selected: boolean;
   shortlisted: boolean;
+  floodUnverified?: boolean;
   onPress: () => void;
 }
 
@@ -31,8 +32,10 @@ export function formatTime(iso: string): string {
   return `${days}d`;
 }
 
-export function deriveTags(match: MatchItem): { label: string; tone: TagTone }[] {
+export function deriveTags(match: MatchItem, floodUnverified = false): { label: string; tone: TagTone }[] {
   const tags: { label: string; tone: TagTone }[] = [];
+  // First so the risk marker survives the 3-tag cap (land-match-86r)
+  if (floodUnverified && match.floodZone == null) tags.push({ label: 'Flood unverified', tone: 'clay' });
   if (match.floodZone === 'X') tags.push({ label: 'Zone X', tone: 'green' });
   else if (match.floodZone) tags.push({ label: `Zone ${match.floodZone}`, tone: match.floodZone === 'A' || match.floodZone === 'AE' ? 'clay' : 'default' });
   if (match.primeFarmland) tags.push({ label: 'Prime Soil', tone: 'gold' });
@@ -40,9 +43,9 @@ export function deriveTags(match: MatchItem): { label: string; tone: TagTone }[]
   return tags.slice(0, 3);
 }
 
-export function MatchRow({ match, selected, shortlisted, onPress }: MatchRowProps) {
+export function MatchRow({ match, selected, shortlisted, floodUnverified = false, onPress }: MatchRowProps) {
   const isUnread = !match.readAt;
-  const tags = deriveTags(match);
+  const tags = deriveTags(match, floodUnverified);
 
   return (
     <Pressable onPress={onPress}>

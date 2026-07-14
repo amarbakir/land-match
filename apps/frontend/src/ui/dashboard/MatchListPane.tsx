@@ -23,6 +23,14 @@ interface MatchListPaneProps {
   onFilterChange: (key: FilterKey) => void;
 }
 
+// Badge predicate: the profile opted into unverified flood zones AND has a
+// flood exclusion (without one the hard filter never fires, so the badge
+// would be noise on every unmapped parcel).
+export function profileAcceptsUnverifiedFlood(profile: SearchProfileResponse | null): boolean {
+  return !!profile?.criteria.includeUnverifiedFloodZone
+    && (profile.criteria.floodZoneExclude?.length ?? 0) > 0;
+}
+
 export function criteriaSummary(profile: SearchProfileResponse): string {
   const c = profile.criteria;
   const parts: string[] = [];
@@ -51,6 +59,8 @@ export function MatchListPane({
   onSelectMatch,
   onFilterChange,
 }: MatchListPaneProps) {
+  const floodUnverified = profileAcceptsUnverifiedFlood(profile);
+
   return (
     <YStack
       width={400}
@@ -117,6 +127,7 @@ export function MatchListPane({
               match={match}
               selected={selectedScoreId === match.scoreId}
               shortlisted={shortlistedIds.has(match.scoreId)}
+              floodUnverified={floodUnverified}
               onPress={() => onSelectMatch(match)}
             />
           ))}

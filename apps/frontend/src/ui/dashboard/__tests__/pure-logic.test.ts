@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MatchItem, SearchProfileResponse } from '@landmatch/api';
 
-import { criteriaSummary } from '../MatchListPane';
+import { criteriaSummary, profileAcceptsUnverifiedFlood } from '../MatchListPane';
 import { deriveTags, formatPrice, formatTime } from '../MatchRow';
 import { scoreColor } from '../ScoreRing';
 
@@ -277,5 +277,40 @@ describe('criteriaSummary', () => {
     // The implementation uses `if (c.price?.max)` which is falsy for 0
     const profile = makeProfile({ price: { max: 0 } });
     expect(criteriaSummary(profile)).toBe('No criteria set');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// flood-unverified badge
+// ---------------------------------------------------------------------------
+
+describe('flood-unverified badge', () => {
+  it('deriveTags adds the badge first when profile accepts unverified and zone is null', () => {
+    const tags = deriveTags(makeMatch({ floodZone: null }), true);
+    expect(tags[0]).toEqual({ label: 'Flood unverified', tone: 'clay' });
+  });
+
+  it('deriveTags omits the badge when the zone is known, even if the profile opted in', () => {
+    const tags = deriveTags(makeMatch({ floodZone: 'X' }), true);
+    expect(tags.some((t) => t.label === 'Flood unverified')).toBe(false);
+  });
+
+  it('deriveTags omits the badge by default — non-toggled profiles unchanged', () => {
+    const tags = deriveTags(makeMatch({ floodZone: null }));
+    expect(tags.some((t) => t.label === 'Flood unverified')).toBe(false);
+  });
+
+  it('profileAcceptsUnverifiedFlood requires both the toggle AND a flood exclusion', () => {
+    expect(profileAcceptsUnverifiedFlood(makeProfile({
+      floodZoneExclude: ['A'], includeUnverifiedFloodZone: true,
+    }))).toBe(true);
+    // Toggle without exclusions: the hard filter never fires, badge is noise
+    expect(profileAcceptsUnverifiedFlood(makeProfile({
+      floodZoneExclude: [], includeUnverifiedFloodZone: true,
+    }))).toBe(false);
+    expect(profileAcceptsUnverifiedFlood(makeProfile({
+      floodZoneExclude: ['A'],
+    }))).toBe(false);
+    expect(profileAcceptsUnverifiedFlood(null)).toBe(false);
   });
 });
