@@ -21,6 +21,10 @@ export const SearchCriteria = z.object({
   price: Range.optional(),
   soilCapabilityClass: z.object({ max: z.number() }).optional(),
   floodZoneExclude: filterList.optional(),
+  // Opt-in: accept listings whose FEMA zone is unverified (null) despite a
+  // flood exclusion. Optional, not default(false), so stored criteria rows
+  // are untouched; absent means false (fail closed, land-match-8zd).
+  includeUnverifiedFloodZone: z.boolean().optional(),
   geography: z
     .object({
       type: z.enum(['radius', 'counties', 'driveTime']),

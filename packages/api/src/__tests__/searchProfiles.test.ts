@@ -73,3 +73,23 @@ describe('SearchCriteria validation', () => {
     expect(CreateSearchProfile.safeParse({ name: 'Hudson Valley', criteria: {} }).success).toBe(true);
   });
 });
+
+describe('SearchCriteria.includeUnverifiedFloodZone', () => {
+  it('accepts a boolean and preserves it', () => {
+    const parsed = SearchCriteria.parse({
+      floodZoneExclude: ['A'],
+      includeUnverifiedFloodZone: true,
+    });
+    expect(parsed.includeUnverifiedFloodZone).toBe(true);
+  });
+
+  it('is absent when omitted — existing stored criteria stay valid', () => {
+    const parsed = SearchCriteria.parse({ floodZoneExclude: ['A'] });
+    expect(parsed.includeUnverifiedFloodZone).toBeUndefined();
+  });
+
+  it('rejects non-boolean values', () => {
+    const result = SearchCriteria.safeParse({ includeUnverifiedFloodZone: 'yes' });
+    expect(result.success).toBe(false);
+  });
+});

@@ -13,10 +13,12 @@ export function scoreListing(listing: ListingData, enrichment: EnrichmentData, c
     if (!enrichment.floodZone) {
       // Zone unknown = adapter failed or FEMA never mapped the parcel. The
       // user drew a hard line on flood risk — an unverified listing must not
-      // cross it. Adapter failures heal via re-enrichment + rescoring;
-      // genuinely FEMA-unmapped parcels stay excluded by design (product
-      // call on land-match-8zd: unverifiable = fail closed).
-      failedFilters.push('flood_zone_unverified');
+      // cross it unless this profile explicitly opted in (land-match-86r);
+      // fail closed remains the default (land-match-8zd). Adapter failures
+      // heal via re-enrichment + rescoring.
+      if (!criteria.includeUnverifiedFloodZone) {
+        failedFilters.push('flood_zone_unverified');
+      }
     } else if (criteria.floodZoneExclude.includes(enrichment.floodZone)) {
       failedFilters.push('flood_zone_excluded');
     }

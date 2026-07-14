@@ -1,9 +1,10 @@
 import { ActivityIndicator } from 'react-native';
 
-import { ScrollView, Text, YStack } from 'tamagui';
+import { ScrollView, Text, XStack, YStack } from 'tamagui';
 
 import { useMatchDetail } from '@/src/api/hooks';
 import { colors } from '@/src/theme/colors';
+import { Tag } from '@/src/ui/dashboard/Tag';
 
 import { EnrichmentCards } from './EnrichmentCards';
 import { KeyStats } from './KeyStats';
@@ -15,9 +16,10 @@ import { VerdictSection } from './VerdictSection';
 
 interface ReportProps {
   scoreId: string;
+  floodUnverified?: boolean;
 }
 
-export function Report({ scoreId }: ReportProps) {
+export function Report({ scoreId, floodUnverified = false }: ReportProps) {
   const { data: match, isLoading, error } = useMatchDetail(scoreId);
 
   if (isLoading) {
@@ -48,6 +50,11 @@ export function Report({ scoreId }: ReportProps) {
         gap={32}
       >
         <ReportHero match={match} />
+        {floodUnverified && match.floodZone == null && (
+          <XStack>
+            <Tag label="Flood zone unverified" tone="clay" />
+          </XStack>
+        )}
         <KeyStats match={match} />
         <VerdictSection match={match} />
         <ScoreBreakdown match={match} />

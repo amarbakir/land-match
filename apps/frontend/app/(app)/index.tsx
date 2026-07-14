@@ -11,7 +11,7 @@ import {
 import { AppShell } from '@/src/ui/dashboard/AppShell';
 import { EmptyState } from '@/src/ui/dashboard/EmptyState';
 import { type FilterKey } from '@/src/ui/dashboard/FilterChips';
-import { MatchListPane } from '@/src/ui/dashboard/MatchListPane';
+import { MatchListPane, profileAcceptsUnverifiedFlood } from '@/src/ui/dashboard/MatchListPane';
 import { SavedView } from '@/src/ui/dashboard/SavedView';
 import { ShortlistView } from '@/src/ui/dashboard/ShortlistView';
 import type { WorkspaceView } from '@/src/ui/dashboard/types';
@@ -146,7 +146,7 @@ function InboxView({ profileId }: { profileId: string | null }) {
       />
 
       {selectedScoreId ? (
-        <Report scoreId={selectedScoreId} />
+        <Report scoreId={selectedScoreId} floodUnverified={profileAcceptsUnverifiedFlood(profile)} />
       ) : (
         <EmptyState title="Select a match" subtitle="Choose a property from the list to view its full report." />
       )}

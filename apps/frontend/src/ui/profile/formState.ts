@@ -15,6 +15,7 @@ export interface FormState {
     price: { max: number };
     soilCapabilityClass: { max: number };
     floodZoneExclude: string[];
+    includeUnverifiedFloodZone: boolean;
     zoning: string[];
     infrastructure: string[];
     weights: Record<string, number>;
@@ -43,6 +44,7 @@ export const DEFAULT_FORM_STATE: FormState = {
     price: { max: 500 },
     soilCapabilityClass: { max: 3 },
     floodZoneExclude: [],
+    includeUnverifiedFloodZone: false,
     zoning: [],
     infrastructure: [],
     weights: { ...DEFAULT_WEIGHTS },
@@ -69,6 +71,7 @@ export function profileToFormState(profile: SearchProfileResponse): FormState {
       price: { max: c.price?.max ?? 500 },
       soilCapabilityClass: { max: c.soilCapabilityClass?.max ?? 3 },
       floodZoneExclude: c.floodZoneExclude ?? [],
+      includeUnverifiedFloodZone: c.includeUnverifiedFloodZone ?? false,
       zoning: c.zoning ?? [],
       infrastructure: c.infrastructure ?? [],
       weights: c.weights ?? { ...DEFAULT_WEIGHTS },
@@ -88,6 +91,7 @@ export function formStateToPayload(state: FormState) {
       price: state.criteria.price,
       soilCapabilityClass: state.criteria.soilCapabilityClass,
       floodZoneExclude: state.criteria.floodZoneExclude,
+      includeUnverifiedFloodZone: state.criteria.includeUnverifiedFloodZone,
       zoning: state.criteria.zoning,
       infrastructure: state.criteria.infrastructure,
       weights: state.criteria.weights,
