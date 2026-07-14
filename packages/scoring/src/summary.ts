@@ -15,16 +15,20 @@ export async function generateSummary(input: SummaryInput, llm: LlmClient): Prom
   return llm(prompt);
 }
 
-// listingTitle/listingUrl are scraped from listing sites — attacker-controlled.
-// Strip <>/control chars and cap length so the value can neither close the
-// <listing-data> fence nor smuggle multi-line instruction blocks.
+// listingTitle/listingUrl are scraped from listing sites and enrichment
+// strings come from third-party vendors (Regrid/FEMA/USDA) — all untrusted.
+// Strip <>/control chars and cap length so a value can neither close the
+// <listing-data> fence nor smuggle multi-line instruction blocks. The cap
+// never splits a surrogate pair (a lone surrogate is ill-formed UTF-16 and
+// can make strict JSON layers reject the whole request).
 function sanitizeUntrusted(value: string, maxLen: number): string {
   return value
     .replace(/[<>]/g, '')
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, maxLen);
+    .slice(0, maxLen)
+    .replace(/[\uD800-\uDBFF]$/, '');
 }
 
 export function buildPrompt(input: SummaryInput): string {
@@ -64,7 +68,9 @@ export function buildPrompt(input: SummaryInput): string {
 
   lines.push('');
   lines.push('### Enrichment Data');
-  const enrichmentFields: Array<[string, string | number | string[] | undefined]> = [
+  // Vendor strings pass through sanitizeUntrusted like the scraped fields;
+  // numeric fields are typed and need no treatment.
+  const enrichmentFields: Array<[string, string | number | undefined]> = [
     ['Soil Capability Class', enrichmentData.soilCapabilityClass],
     ['Flood Zone', enrichmentData.floodZone],
     ['Zoning Code', enrichmentData.zoningCode],
@@ -74,7 +80,8 @@ export function buildPrompt(input: SummaryInput): string {
   ];
 
   const gaps: string[] = [];
-  for (const [label, value] of enrichmentFields) {
+  for (const [label, rawValue] of enrichmentFields) {
+    const value = typeof rawValue === 'string' ? sanitizeUntrusted(rawValue, 300) : rawValue;
     if (value !== undefined && value !== '') {
       lines.push(`- ${label}: ${value}`);
     } else {
