@@ -15,8 +15,7 @@ import { logger } from './lib/logger';
 import { requestLogging } from './middleware/requestLogging';
 import { requireAuth } from './middleware/auth';
 import { rateLimit } from './middleware/rateLimit';
-import { InMemoryRateLimitStore } from './lib/rateLimitStore';
-import { PostgresRateLimitStore } from './lib/postgresRateLimitStore';
+import { getSharedRateLimitStore } from './lib/sharedRateLimitStore';
 import authRouter from './routes/auth';
 import listingsRouter from './routes/listings';
 import searchProfilesRouter from './routes/searchProfiles';
@@ -89,9 +88,7 @@ export function createApp() {
 
   // Rate limits: strict on credential endpoints, looser on enrichment
   // (which fans out to external APIs and must not be hammered)
-  const rateLimitStore = server.rateLimitStore === 'postgres'
-    ? new PostgresRateLimitStore()
-    : new InMemoryRateLimitStore();
+  const rateLimitStore = getSharedRateLimitStore();
   const { trustProxy } = server;
   app.use('/api/v1/auth/*', rateLimit({ windowMs: 60_000, max: 10, scope: 'auth', store: rateLimitStore, trustProxy }));
   app.use('/api/v1/listings/enrich', rateLimit({ windowMs: 60_000, max: 20, scope: 'enrich', store: rateLimitStore, trustProxy }));
