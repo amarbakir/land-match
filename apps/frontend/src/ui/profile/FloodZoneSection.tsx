@@ -33,7 +33,18 @@ export function FloodZoneSection({
       <ToggleButtonRow
         options={FLOOD_OPTIONS}
         selected={excluded}
-        onToggle={(v) => onChange(toggleValue(excluded, v))}
+        onToggle={(v) => {
+          const next = toggleValue(excluded, v);
+          // The opt-in is scoped to the exclusion selection: clearing the
+          // last exclusion resets it, so re-adding a zone later starts from
+          // fail-closed instead of a forgotten latent true (the server
+          // strips it at the write boundary too — this keeps the editor's
+          // visible state in sync within the session).
+          if (next.length === 0 && includeUnverified) {
+            onIncludeUnverifiedChange(false);
+          }
+          onChange(next);
+        }}
         variant="danger"
       />
       {excluded.length > 0 && (

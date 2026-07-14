@@ -1,8 +1,22 @@
 import { err, ok, type Result } from '@landmatch/api';
-import type { CreateSearchProfile, UpdateSearchProfile, SearchProfileResponse } from '@landmatch/api';
+import type { CreateSearchProfile, SearchCriteria, UpdateSearchProfile, SearchProfileResponse } from '@landmatch/api';
 
 import { captureError } from '../lib/captureError';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
+
+// The unverified-flood opt-in is scoped to the exclusion selection it
+// modifies: with no flood exclusions the hard filter never fires, so a
+// latent true would silently re-admit unverified listings whenever
+// exclusions are re-added later (land-match-dyh #3). Stripping at the write
+// boundary makes accepting unverified zones a fresh choice with every
+// exclusion selection, for every client (web, extension, API).
+function normalizeCriteria(criteria: SearchCriteria): SearchCriteria {
+  if ((criteria.floodZoneExclude?.length ?? 0) > 0 || criteria.includeUnverifiedFloodZone === undefined) {
+    return criteria;
+  }
+  const { includeUnverifiedFloodZone: _stripped, ...rest } = criteria;
+  return rest;
+}
 
 type ProfileRow = NonNullable<Awaited<ReturnType<typeof searchProfileRepo.findById>>>;
 
@@ -34,7 +48,7 @@ export async function create(userId: string, input: CreateSearchProfile): Promis
       name: input.name,
       alertFrequency: input.alertFrequency ?? 'daily',
       alertThreshold: input.alertThreshold ?? 60,
-      criteria: input.criteria as Record<string, unknown>,
+      criteria: normalizeCriteria(input.criteria) as Record<string, unknown>,
       isActive: input.isActive ?? true,
     });
     return ok(toResponse(row));
@@ -78,7 +92,7 @@ export async function update(
       ...(input.name !== undefined && { name: input.name }),
       ...(input.alertFrequency !== undefined && { alertFrequency: input.alertFrequency }),
       ...(input.alertThreshold !== undefined && { alertThreshold: input.alertThreshold }),
-      ...(input.criteria !== undefined && { criteria: input.criteria as Record<string, unknown> }),
+      ...(input.criteria !== undefined && { criteria: normalizeCriteria(input.criteria) as Record<string, unknown> }),
       ...(input.isActive !== undefined && { isActive: input.isActive }),
     });
 

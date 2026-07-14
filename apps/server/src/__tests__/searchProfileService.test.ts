@@ -116,6 +116,64 @@ describe('searchProfileService', () => {
     });
   });
 
+  // The unverified-flood opt-in is scoped to the exclusion selection it
+  // modifies (land-match-dyh #3): stored criteria must never keep a latent
+  // includeUnverifiedFloodZone without flood exclusions, or re-adding an
+  // exclusion later silently re-admits unverified listings.
+  describe('unverified-flood opt-in normalization', () => {
+    it('strips the opt-in when created with no flood exclusions', async () => {
+      mockRepo.insert.mockResolvedValueOnce(PROFILE_ROW);
+
+      await searchProfileService.create('user-1', {
+        name: 'No exclusions',
+        alertFrequency: 'daily',
+        alertThreshold: 60,
+        isActive: true,
+        criteria: { includeUnverifiedFloodZone: true, price: { max: 400000 } },
+      });
+
+      expect(mockRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          criteria: { price: { max: 400000 } },
+        }),
+      );
+    });
+
+    it('strips the opt-in when an update clears all flood exclusions', async () => {
+      // The concrete stale-state path: opt in with exclusions, later clear
+      // them — the switch disappears from the UI but true would persist.
+      mockRepo.findById.mockResolvedValueOnce(PROFILE_ROW);
+      mockRepo.update.mockResolvedValueOnce(PROFILE_ROW);
+
+      await searchProfileService.update('user-1', 'profile-1', {
+        criteria: { includeUnverifiedFloodZone: true, floodZoneExclude: [] },
+      });
+
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'profile-1',
+        expect.objectContaining({ criteria: { floodZoneExclude: [] } }),
+      );
+    });
+
+    it('preserves the opt-in while flood exclusions exist', async () => {
+      mockRepo.insert.mockResolvedValueOnce(PROFILE_ROW);
+
+      await searchProfileService.create('user-1', {
+        name: 'With exclusions',
+        alertFrequency: 'daily',
+        alertThreshold: 60,
+        isActive: true,
+        criteria: { includeUnverifiedFloodZone: true, floodZoneExclude: ['A', 'AE'] },
+      });
+
+      expect(mockRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          criteria: { includeUnverifiedFloodZone: true, floodZoneExclude: ['A', 'AE'] },
+        }),
+      );
+    });
+  });
+
   describe('error handling', () => {
     it('returns INTERNAL_ERROR when repo throws', async () => {
       mockRepo.insert.mockRejectedValueOnce(new Error('connection refused'));
