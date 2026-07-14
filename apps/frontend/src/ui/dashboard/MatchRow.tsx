@@ -34,7 +34,7 @@ export function formatTime(iso: string): string {
 
 export function deriveTags(match: MatchItem, floodUnverified = false): { label: string; tone: TagTone }[] {
   const tags: { label: string; tone: TagTone }[] = [];
-  // First so the risk marker survives the 3-tag cap (land-match-86r)
+  // First so the accepted-risk marker leads the row (land-match-86r)
   if (floodUnverified && match.floodZone == null) tags.push({ label: 'Flood unverified', tone: 'clay' });
   if (match.floodZone === 'X') tags.push({ label: 'Zone X', tone: 'green' });
   else if (match.floodZone) tags.push({ label: `Zone ${match.floodZone}`, tone: match.floodZone === 'A' || match.floodZone === 'AE' ? 'clay' : 'default' });

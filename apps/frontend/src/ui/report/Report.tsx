@@ -52,7 +52,7 @@ export function Report({ scoreId, floodUnverified = false }: ReportProps) {
         <ReportHero match={match} />
         {floodUnverified && match.floodZone == null && (
           <XStack>
-            <Tag label="Flood zone unverified — FEMA has no data for this parcel" tone="clay" />
+            <Tag label="Flood zone unverified" tone="clay" />
           </XStack>
         )}
         <KeyStats match={match} />
