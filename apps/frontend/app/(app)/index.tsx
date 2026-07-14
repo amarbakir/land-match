@@ -62,10 +62,10 @@ export default function DashboardScreen() {
         <SavedView />
       )}
       {view === 'shortlist' && (
-        <ShortlistPane profileId={selectedProfileId} />
+        <StatusPane profileId={selectedProfileId} />
       )}
       {view === 'dismissed' && (
-        <DismissedPane profileId={selectedProfileId} />
+        <StatusPane profileId={selectedProfileId} dismissed />
       )}
       {(view === 'profile' || view === 'new-profile') && (
         <ProfileEditorScreen
@@ -154,31 +154,15 @@ function InboxView({ profileId }: { profileId: string | null }) {
   );
 }
 
-function ShortlistPane({ profileId }: { profileId: string | null }) {
-  const { data } = useProfileMatches(profileId, { status: 'shortlisted', limit: 100 });
+function StatusPane({ profileId, dismissed }: { profileId: string | null; dismissed?: boolean }) {
+  const { data } = useProfileMatches(profileId, { status: dismissed ? 'dismissed' : 'shortlisted', limit: 100 });
   const { data: profiles = [] } = useSearchProfiles();
-  const matches = data?.items ?? [];
   const profile = profiles.find((p) => p.id === profileId) ?? null;
 
   return (
     <ShortlistView
-      matches={matches}
-      floodUnverified={profileAcceptsUnverifiedFlood(profile)}
-      onOpenMatch={() => {}}
-    />
-  );
-}
-
-function DismissedPane({ profileId }: { profileId: string | null }) {
-  const { data } = useProfileMatches(profileId, { status: 'dismissed', limit: 100 });
-  const { data: profiles = [] } = useSearchProfiles();
-  const matches = data?.items ?? [];
-  const profile = profiles.find((p) => p.id === profileId) ?? null;
-
-  return (
-    <ShortlistView
-      matches={matches}
-      dismissed
+      matches={data?.items ?? []}
+      dismissed={dismissed}
       floodUnverified={profileAcceptsUnverifiedFlood(profile)}
       onOpenMatch={() => {}}
     />

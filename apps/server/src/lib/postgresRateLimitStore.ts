@@ -1,4 +1,4 @@
-import { and, eq, gt, lte, sql } from 'drizzle-orm';
+import { and, eq, lte, sql } from 'drizzle-orm';
 import { rateLimits } from '@landmatch/db';
 
 import { runBestEffort } from './captureError';
@@ -19,7 +19,10 @@ export class PostgresRateLimitStore implements RateLimitStore {
   private lastSweepAt = 0;
 
   async increment(key: string, windowMs: number): Promise<RateLimitWindow> {
-    const windowInterval = sql`now() + make_interval(secs => ${windowMs / 1000})`;
+    // ms-truncated: resetAt round-trips through the JS epoch-ms in
+    // RateLimitWindow and back into decrement's equality check — microsecond
+    // residue would make every refund silently miss its window.
+    const windowInterval = sql`date_trunc('milliseconds', now() + make_interval(secs => ${windowMs / 1000}))`;
 
     const [row] = await db
       .insert(rateLimits)
@@ -50,12 +53,12 @@ export class PostgresRateLimitStore implements RateLimitStore {
     return { count: row.count, resetAt: row.resetAt.getTime() };
   }
 
-  async decrement(key: string): Promise<void> {
-    // Floored at 0 and gated on a live window: refunding into an expired row
-    // would pre-spend the next window's budget.
+  async decrement(key: string, resetAt: number): Promise<void> {
+    // Floored at 0 and scoped to the exact window the unit was consumed in:
+    // refunding into a successor window would mint budget across days.
     await db
       .update(rateLimits)
       .set({ count: sql`GREATEST(${rateLimits.count} - 1, 0)` })
-      .where(and(eq(rateLimits.key, key), gt(rateLimits.resetAt, sql`now()`)));
+      .where(and(eq(rateLimits.key, key), eq(rateLimits.resetAt, new Date(resetAt))));
   }
 }

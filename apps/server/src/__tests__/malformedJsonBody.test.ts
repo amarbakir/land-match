@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../app';
+import { resetSharedRateLimitStore } from '../lib/sharedRateLimitStore';
+
+// These posts hit the rate-limited /auth scope on a process-wide store —
+// reset so this file cannot 429 based on test execution order.
+beforeEach(() => {
+  resetSharedRateLimitStore();
+});
 
 function post(app: ReturnType<typeof createApp>, body: string) {
   return app.request('/api/v1/auth/login', {

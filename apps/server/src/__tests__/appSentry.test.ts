@@ -1,8 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as Sentry from '@sentry/node';
 
 import { createApp } from '../app';
+import { resetSharedRateLimitStore } from '../lib/sharedRateLimitStore';
+
+// Posts below hit the rate-limited /auth scope on a process-wide store —
+// reset so this file cannot 429 based on test execution order.
+beforeEach(() => {
+  resetSharedRateLimitStore();
+});
 
 vi.mock('@sentry/node', () => ({
   captureException: vi.fn(),

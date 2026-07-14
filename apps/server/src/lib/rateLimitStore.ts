@@ -6,10 +6,12 @@ export interface RateLimitWindow {
 export interface RateLimitStore {
   /** Record one hit against the key, opening a fresh window if the current one expired. */
   increment(key: string, windowMs: number): Promise<RateLimitWindow>;
-  /** Return one hit to the key's live window (floored at 0; no-op if the
-   *  window is missing or expired). Required: a store that silently lacked
-   *  refunds would leak summary budget on every failed generation. */
-  decrement(key: string): Promise<void>;
+  /** Return one hit to the window identified by `resetAt` (the value the
+   *  consuming increment returned). Floored at 0; a no-op when that window
+   *  has rolled over — refunding into a successor window would mint budget
+   *  across days. Required: a store that silently lacked refunds would leak
+   *  summary budget on every failed generation. */
+  decrement(key: string, resetAt: number): Promise<void>;
 }
 
 // Sweep expired entries once the map grows past this size, so long-running
@@ -39,10 +41,15 @@ export class InMemoryRateLimitStore implements RateLimitStore {
     return entry;
   }
 
-  async decrement(key: string): Promise<void> {
+  async decrement(key: string, resetAt: number): Promise<void> {
     const entry = this.windows.get(key);
-    if (entry && Date.now() < entry.resetAt && entry.count > 0) {
+    if (entry && entry.resetAt === resetAt && entry.count > 0) {
       entry.count--;
     }
+  }
+
+  /** Test-only: wipe all windows (mirrors truncating the rate_limits table). */
+  clear(): void {
+    this.windows.clear();
   }
 }

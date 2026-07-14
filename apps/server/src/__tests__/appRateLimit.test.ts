@@ -1,9 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../app';
+import { resetSharedRateLimitStore } from '../lib/sharedRateLimitStore';
 // Distinct clients are simulated the way production sees them: via the trusted
 // Lambda event sourceIp (X-Forwarded-For is client-controlled and ignored).
 import { lambdaEnv } from './lambdaEnv';
+
+// The rate-limit store is a process-wide singleton — without the reset, tests
+// in this file would share spent windows and 429 depending on order.
+beforeEach(() => {
+  resetSharedRateLimitStore();
+});
 
 function login(app: ReturnType<typeof createApp>, ip: string) {
   return app.request('/api/v1/auth/login', {

@@ -121,7 +121,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(db.transaction).mockImplementation(async (cb: any) => cb('fake-tx'));
   process.env.ENABLE_LLM_SUMMARY = 'true';
-  mockConsumeBudget.mockResolvedValue(true);
+  mockConsumeBudget.mockResolvedValue({ allowed: true, resetAt: 1_777_000_000_000 });
 });
 
 afterEach(() => {
@@ -690,7 +690,7 @@ describe('LLM summary generation', () => {
 
   it('skips generation when the daily budget is exhausted', async () => {
     arrangeAlertWorthyMatch();
-    mockConsumeBudget.mockResolvedValue(false);
+    mockConsumeBudget.mockResolvedValue({ allowed: false, resetAt: 1_777_000_000_000 });
 
     const result = await matchListingAgainstProfiles('listing-1');
 
@@ -721,7 +721,7 @@ describe('LLM summary generation', () => {
     const result = await matchListingAgainstProfiles('listing-1');
 
     expect(result.ok).toBe(true);
-    expect(mockRefundBudget).toHaveBeenCalledWith('user-1');
+    expect(mockRefundBudget).toHaveBeenCalledWith('user-1', 1_777_000_000_000);
   });
 
   it('does not refund when generation succeeds but the summary write fails', async () => {

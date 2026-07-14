@@ -19,12 +19,15 @@ export async function generateSummary(input: SummaryInput, llm: LlmClient): Prom
 
 // listingTitle/listingUrl are scraped from listing sites and enrichment
 // strings come from third-party vendors (Regrid/FEMA/USDA) — all untrusted.
-// Strip <>/control chars and cap length so a value can neither close the
-// <listing-data> fence nor smuggle multi-line instruction blocks. The cap
-// never splits a surrogate pair.
+// Angle brackets become guillemets (not deleted: '<0.2% annual chance' must
+// not read as '0.2% annual chance') so a value can neither close the
+// <listing-data> fence nor smuggle tag-like instruction blocks; control
+// chars collapse so multi-line blocks can't form. The cap never splits a
+// surrogate pair.
 function sanitizeUntrusted(value: string, maxLen: number): string {
   const collapsed = value
-    .replace(/[<>]/g, '')
+    .replace(/</g, '‹')
+    .replace(/>/g, '›')
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();

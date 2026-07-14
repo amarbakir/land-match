@@ -144,15 +144,16 @@ export async function matchListingAgainstProfiles(
 
 function generateSummaryBestEffort(scoreId: string, userId: string, input: SummaryInput): Promise<void> {
   return runBestEffort('matchingService.generateSummaryBestEffort', async () => {
-    if (!(await consumeSummaryBudget(userId))) return;
+    const budget = await consumeSummaryBudget(userId);
+    if (!budget.allowed) return;
     let summary: string;
     try {
       summary = await generateSummary(input, llmClient);
     } catch (error) {
-      // Nothing was generated, so nothing was spent — refund the unit. A
-      // successful generation whose DB write fails below is NOT refunded:
-      // the LLM cost is real either way.
-      await refundSummaryBudget(userId);
+      // Nothing was generated, so nothing was spent — refund the unit into
+      // the window it came from. A successful generation whose DB write
+      // fails below is NOT refunded: the LLM cost is real either way.
+      await refundSummaryBudget(userId, budget.resetAt);
       throw error;
     }
     if (summary) await scoreRepo.updateLlmSummary(scoreId, summary);

@@ -37,23 +37,35 @@ describe('PostgresRateLimitStore (integration)', () => {
     expect(fresh.resetAt).toBeGreaterThan(Date.now());
   });
 
-  it('decrement returns one unit to the live window', async () => {
+  it('decrement returns one unit to the window it was consumed in', async () => {
     // Bug this catches: summary-budget refunds that never reach the shared
     // store — each Lambda container would refund only its own phantom copy.
     const store = new PostgresRateLimitStore();
 
     await store.increment('llm-summary:int-user', WINDOW);
-    await store.increment('llm-summary:int-user', WINDOW);
-    await store.decrement('llm-summary:int-user');
+    const consumed = await store.increment('llm-summary:int-user', WINDOW);
+    await store.decrement('llm-summary:int-user', consumed.resetAt);
 
     const next = await store.increment('llm-summary:int-user', WINDOW);
     expect(next.count).toBe(2);
   });
 
+  it('decrement scoped to a different window is a no-op', async () => {
+    // Bug this catches (561 review): a refund straddling the window rollover
+    // subtracting from the NEW window's count — budget minted across days.
+    const store = new PostgresRateLimitStore();
+
+    const live = await store.increment('llm-summary:int-stale', WINDOW);
+    await store.decrement('llm-summary:int-stale', live.resetAt - 5_000); // stale window id
+
+    const next = await store.increment('llm-summary:int-stale', WINDOW);
+    expect(next.count).toBe(2); // untouched by the stale refund
+  });
+
   it('decrement on a missing key mints no negative budget', async () => {
     const store = new PostgresRateLimitStore();
 
-    await store.decrement('llm-summary:ghost');
+    await store.decrement('llm-summary:ghost', Date.now() + WINDOW);
 
     const first = await store.increment('llm-summary:ghost', WINDOW);
     expect(first.count).toBe(1);

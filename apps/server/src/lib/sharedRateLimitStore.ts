@@ -17,9 +17,11 @@ export function getSharedRateLimitStore(): RateLimitStore {
   return store;
 }
 
-/** Test-only: drop the singleton so each test starts with fresh windows —
- *  integration tests wipe DB state between tests and need the in-memory
- *  windows wiped to match. */
+/** Test-only: wipe the in-memory windows so each test starts fresh. Clears
+ *  in place (not just the pointer) because createApp() captures the instance
+ *  in middleware closures — module-scope apps must see the wipe too. The
+ *  postgres store needs no reset here; tests truncate rate_limits directly. */
 export function resetSharedRateLimitStore(): void {
+  if (store instanceof InMemoryRateLimitStore) store.clear();
   store = undefined;
 }
