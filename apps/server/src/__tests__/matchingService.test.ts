@@ -652,6 +652,42 @@ describe('LLM summary generation', () => {
     expect(mockScoring.generateSummary).not.toHaveBeenCalled();
   });
 
+  it('skips generation when the hard filter failed even though the score meets threshold', async () => {
+    // Isolate the hardFilterFailed condition: threshold is 0 so the score
+    // (also 0) alone would pass the threshold check.
+    mockScoring.scoreListing.mockReturnValueOnce({
+      overallScore: 0,
+      componentScores: { soil: 0, flood: 0, price: 0, acreage: 0, zoning: 0, geography: 0, infrastructure: 0, climate: 0 },
+      hardFilterFailed: true,
+      failedFilters: ['flood_zone_excluded'],
+    });
+    mockListingRepo.findListingWithEnrichment.mockResolvedValueOnce({
+      listing: LISTING,
+      enrichment: ENRICHMENT,
+    });
+    mockProfileRepo.findActive.mockResolvedValueOnce([{ ...PROFILE, alertThreshold: 0 }]);
+    mockScoreRepo.findScoredProfileIds.mockResolvedValueOnce(new Set());
+    mockAlertRepo.findAlertedProfileIds.mockResolvedValueOnce(new Set());
+    mockScoreRepo.insert.mockResolvedValueOnce({
+      id: 'score-1',
+      listingId: 'listing-1',
+      searchProfileId: 'profile-1',
+      overallScore: 0,
+      componentScores: {},
+      llmSummary: null,
+      status: 'inbox',
+      readAt: null,
+      scoredAt: new Date(),
+    });
+    mockUserRepo.findById.mockResolvedValueOnce(USER);
+
+    const result = await matchListingAgainstProfiles('listing-1');
+
+    expect(result.ok).toBe(true);
+    expect(mockScoring.generateSummary).not.toHaveBeenCalled();
+    expect(mockConsumeBudget).not.toHaveBeenCalled();
+  });
+
   it('skips generation when the daily budget is exhausted', async () => {
     arrangeAlertWorthyMatch();
     mockConsumeBudget.mockResolvedValue(false);

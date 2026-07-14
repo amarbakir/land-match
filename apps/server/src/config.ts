@@ -170,7 +170,11 @@ export const llm = {
     return required('ANTHROPIC_API_KEY');
   },
   model: optional('LLM_SUMMARY_MODEL', 'claude-haiku-4-5-20251001'),
-  dailyLimit: Number(optional('LLM_SUMMARY_DAILY_LIMIT', '25')),
+  // NaN (malformed env) would silently deny every summary — fall back to the default
+  dailyLimit: (() => {
+    const n = Number(optional('LLM_SUMMARY_DAILY_LIMIT', '25'));
+    return Number.isFinite(n) ? n : 25;
+  })(),
 } as const;
 
 export const features = {

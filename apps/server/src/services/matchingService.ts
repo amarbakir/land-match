@@ -43,6 +43,7 @@ export async function matchListingAgainstProfiles(
 
     let scored = 0;
     let alertsCreated = 0;
+    const pendingSummaries: { scoreId: string; userId: string; input: SummaryInput }[] = [];
 
     // TODO: iterations are independent — could parallelize with Promise.all if profile count grows
     for (const profile of profiles) {
@@ -100,23 +101,38 @@ export async function matchListingAgainstProfiles(
       scored++;
       alertsCreated += written.alerts;
 
-      // Post-commit, best-effort: an alert-worthy match the user will see
-      // gets an LLM verdict. Never inside the transaction and never fatal —
-      // a hung or failed LLM call must not lose the score or the alert.
+      // Queue, don't generate here: an alert-worthy match the user will see
+      // gets an LLM verdict, but on Lambda the caller's matching promise is
+      // fire-and-forget, so generating inline would make a slow LLM call for
+      // this profile delay (or, on a frozen instance, lose) the next
+      // profile's score/alert transaction. Collecting and generating after
+      // all transactions commit keeps every profile's score safe regardless
+      // of how long summary generation takes.
       if (
         features.enableLlmSummary &&
         !result.hardFilterFailed &&
         result.overallScore >= profile.alertThreshold &&
         written.scoreRow.status === 'inbox'
       ) {
-        await generateSummaryBestEffort(written.scoreRow.id, profile.userId, {
-          scoringResult: result,
-          enrichmentData,
-          criteria,
-          listingTitle: data.listing.title ?? data.listing.address ?? 'Untitled listing',
-          listingUrl: data.listing.url ?? undefined,
+        pendingSummaries.push({
+          scoreId: written.scoreRow.id,
+          userId: profile.userId,
+          input: {
+            scoringResult: result,
+            enrichmentData,
+            criteria,
+            listingTitle: data.listing.title ?? data.listing.address ?? 'Untitled listing',
+            listingUrl: data.listing.url ?? undefined,
+          },
         });
       }
+    }
+
+    // Best-effort, post-loop: never fatal — a hung or failed LLM call must
+    // not lose the score or the alert, and by this point every profile's
+    // score/alert transaction has already committed.
+    for (const pending of pendingSummaries) {
+      await generateSummaryBestEffort(pending.scoreId, pending.userId, pending.input);
     }
 
     return ok({ scored, alertsCreated });
