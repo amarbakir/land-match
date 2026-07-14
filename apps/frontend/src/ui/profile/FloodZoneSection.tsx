@@ -1,3 +1,9 @@
+import { Switch } from 'react-native';
+
+import { Text, XStack, YStack } from 'tamagui';
+
+import { colors } from '@/src/theme/colors';
+
 import { SectionCard } from './SectionCard';
 import { ToggleButtonRow, toggleValue } from './ToggleButtonRow';
 
@@ -11,10 +17,17 @@ const FLOOD_OPTIONS = [
 
 interface FloodZoneSectionProps {
   excluded: string[];
+  includeUnverified: boolean;
   onChange: (excluded: string[]) => void;
+  onIncludeUnverifiedChange: (value: boolean) => void;
 }
 
-export function FloodZoneSection({ excluded, onChange }: FloodZoneSectionProps) {
+export function FloodZoneSection({
+  excluded,
+  includeUnverified,
+  onChange,
+  onIncludeUnverifiedChange,
+}: FloodZoneSectionProps) {
   return (
     <SectionCard title="Exclude flood zones" hint="HARD FILTER">
       <ToggleButtonRow
@@ -23,6 +36,25 @@ export function FloodZoneSection({ excluded, onChange }: FloodZoneSectionProps) 
         onToggle={(v) => onChange(toggleValue(excluded, v))}
         variant="danger"
       />
+      {excluded.length > 0 && (
+        <XStack alignItems="center" justifyContent="space-between" gap={12} marginTop={12}>
+          <YStack flex={1} gap={2}>
+            <Text fontSize={12.5} color={colors.textPrimary}>
+              Include unverified flood zones
+            </Text>
+            <Text fontSize={10.5} color={colors.textSecondary}>
+              Show listings where FEMA flood data is unavailable — common in rural counties.
+              They appear with a "Flood unverified" badge.
+            </Text>
+          </YStack>
+          <Switch
+            value={includeUnverified}
+            onValueChange={onIncludeUnverifiedChange}
+            trackColor={{ false: colors.borderSoft, true: colors.success }}
+            thumbColor={colors.textPrimary}
+          />
+        </XStack>
+      )}
     </SectionCard>
   );
 }

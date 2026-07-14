@@ -153,3 +153,28 @@ describe('DEFAULT_FORM_STATE', () => {
     expect(DEFAULT_FORM_STATE.criteria.floodZoneExclude).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// includeUnverifiedFloodZone
+// ---------------------------------------------------------------------------
+
+describe('includeUnverifiedFloodZone', () => {
+  it('defaults to false when absent from criteria — fail-closed default preserved', () => {
+    const state = profileToFormState(makeProfile({ criteria: {} }));
+    expect(state.criteria.includeUnverifiedFloodZone).toBe(false);
+  });
+
+  it('round-trips true through form state and payload', () => {
+    const state = profileToFormState(makeProfile({
+      criteria: { floodZoneExclude: ['A'], includeUnverifiedFloodZone: true },
+    }));
+    expect(state.criteria.includeUnverifiedFloodZone).toBe(true);
+
+    const payload = formStateToPayload(state);
+    expect(payload.criteria.includeUnverifiedFloodZone).toBe(true);
+  });
+
+  it('DEFAULT_FORM_STATE starts with the toggle off', () => {
+    expect(DEFAULT_FORM_STATE.criteria.includeUnverifiedFloodZone).toBe(false);
+  });
+});

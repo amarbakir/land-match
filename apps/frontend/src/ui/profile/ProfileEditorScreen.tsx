@@ -214,7 +214,9 @@ export function ProfileEditorScreen({ profileId, onClose }: ProfileEditorScreenP
       />
       <FloodZoneSection
         excluded={form.criteria.floodZoneExclude}
+        includeUnverified={form.criteria.includeUnverifiedFloodZone}
         onChange={(excluded) => updateCriteria('floodZoneExclude', excluded)}
+        onIncludeUnverifiedChange={(v) => updateCriteria('includeUnverifiedFloodZone', v)}
       />
       <ZoningSection
         selected={form.criteria.zoning}
