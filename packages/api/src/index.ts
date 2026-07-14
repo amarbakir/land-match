@@ -35,6 +35,7 @@ export {
   SearchCriteria,
   SearchProfileResponse,
   UpdateSearchProfile,
+  criteriaAcceptsUnverifiedFlood,
 } from './searchProfiles';
 export {
   MatchItem,

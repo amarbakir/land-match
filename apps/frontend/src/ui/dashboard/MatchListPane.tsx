@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, View } from 'react-native';
 
-import type { MatchItem, SearchProfileResponse } from '@landmatch/api';
+import { criteriaAcceptsUnverifiedFlood, type MatchItem, type SearchProfileResponse } from '@landmatch/api';
 import { Spinner, Text, XStack, YStack } from 'tamagui';
 
 import { colors } from '@/src/theme/colors';
@@ -23,12 +23,9 @@ interface MatchListPaneProps {
   onFilterChange: (key: FilterKey) => void;
 }
 
-// Badge predicate: the profile opted into unverified flood zones AND has a
-// flood exclusion (without one the hard filter never fires, so the badge
-// would be noise on every unmapped parcel).
+// Badge predicate — shared with the alert-email marker (@landmatch/api).
 export function profileAcceptsUnverifiedFlood(profile: SearchProfileResponse | null): boolean {
-  return !!profile?.criteria.includeUnverifiedFloodZone
-    && (profile.criteria.floodZoneExclude?.length ?? 0) > 0;
+  return criteriaAcceptsUnverifiedFlood(profile?.criteria);
 }
 
 export function criteriaSummary(profile: SearchProfileResponse): string {

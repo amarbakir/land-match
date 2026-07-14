@@ -231,6 +231,7 @@ export async function findClaimedWithDetails(alertIds: string[], tx?: Tx) {
       userName: users.name,
       profileName: searchProfiles.name,
       alertFrequency: searchProfiles.alertFrequency,
+      criteria: searchProfiles.criteria,
     })
     .from(alerts)
     .innerJoin(users, eq(users.id, alerts.userId))

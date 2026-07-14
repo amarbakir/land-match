@@ -36,6 +36,7 @@ function baseAlert() {
     profileName: 'Hudson Valley',
     alertFrequency: 'daily',
     attempts: 0,
+    criteria: {} as unknown,
   };
 }
 
@@ -62,6 +63,7 @@ const LISTING = {
   lastSeenAt: new Date(),
   delistedAt: null,
   userId: null,
+  femaFloodZone: 'X' as string | null,
 };
 
 const SCORE = {
@@ -340,5 +342,54 @@ describe('deliverPendingAlerts', () => {
     expect(result.data.alertsProcessed).toBe(0);
     expect(result.data.errors).toHaveLength(0);
     expect(mockAlertRepo.findClaimedWithDetails).not.toHaveBeenCalled();
+  });
+});
+
+describe('unverified-flood marker', () => {
+  const optedInCriteria = { floodZoneExclude: ['A', 'AE'], includeUnverifiedFloodZone: true };
+
+  it('flags an item when the profile admits unverified flood zones and the zone is unknown', async () => {
+    // Bug this catches: the accepted risk being invisible in the alert email
+    // while the inbox shows a badge for the same match.
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ criteria: optedInCriteria }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([{ ...LISTING, femaFloodZone: null }]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
+
+    await deliverPendingAlerts();
+
+    expect(mockRender.renderAlertEmail).toHaveBeenCalledOnce();
+    expect(mockRender.renderAlertEmail.mock.calls[0][0].alerts[0].floodUnverified).toBe(true);
+  });
+
+  it('does not flag an item whose flood zone is verified', async () => {
+    // A marker on every mapped parcel would be noise and dilute the real ones.
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ criteria: optedInCriteria }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([{ ...LISTING, femaFloodZone: 'X' }]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
+
+    await deliverPendingAlerts();
+
+    expect(mockRender.renderAlertEmail.mock.calls[0][0].alerts[0].floodUnverified).toBe(false);
+  });
+
+  it('does not flag when the profile never opted into unverified zones', async () => {
+    // Without the toggle (or without any flood exclusion) the user accepted no
+    // risk — an unknown zone here is ordinary missing data, not a decision.
+    mockAlertRepo.findClaimedWithDetails.mockResolvedValueOnce([
+      makePendingAlert({ criteria: { floodZoneExclude: ['A'] } }),
+    ]);
+    mockAlertRepo.findLastSentAt.mockResolvedValueOnce(null);
+    mockListingRepo.findByIds.mockResolvedValueOnce([{ ...LISTING, femaFloodZone: null }]);
+    mockScoreRepo.findByIds.mockResolvedValueOnce([SCORE]);
+
+    await deliverPendingAlerts();
+
+    expect(mockRender.renderAlertEmail.mock.calls[0][0].alerts[0].floodUnverified).toBe(false);
   });
 });

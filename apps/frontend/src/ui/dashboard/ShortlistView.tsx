@@ -8,14 +8,17 @@ import { colors } from '@/src/theme/colors';
 import { EmptyState } from './EmptyState';
 import { formatPrice } from './MatchRow';
 import { ScoreRing } from './ScoreRing';
+import { Tag } from './Tag';
 
 interface ShortlistViewProps {
   matches: MatchItem[];
   dismissed?: boolean;
+  /** Profile admits unverified flood zones — badge zone-less matches. */
+  floodUnverified?: boolean;
   onOpenMatch: (match: MatchItem) => void;
 }
 
-export function ShortlistView({ matches, dismissed, onOpenMatch }: ShortlistViewProps) {
+export function ShortlistView({ matches, dismissed, floodUnverified = false, onOpenMatch }: ShortlistViewProps) {
   if (matches.length === 0) {
     return (
       <EmptyState
@@ -70,10 +73,14 @@ export function ShortlistView({ matches, dismissed, onOpenMatch }: ShortlistView
                 </Text>
               )}
 
-              <XStack justifyContent="space-between">
+              <XStack justifyContent="space-between" alignItems="center">
                 <Text fontFamily="$mono" fontSize={9.5} color={colors.textFaint}>
                   {m.soilClassLabel ?? '—'} · Zone {m.floodZone ?? '—'}
                 </Text>
+                {/* Same accepted-risk marker as the inbox row (land-match-86r) */}
+                {floodUnverified && m.floodZone == null && (
+                  <Tag label="Flood unverified" tone="clay" />
+                )}
               </XStack>
             </YStack>
           </Pressable>

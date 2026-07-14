@@ -16,6 +16,19 @@ const Range = z
 // element length and list size so criteria jsonb stays bounded (tcd.3 audit).
 const filterList = z.array(z.string().max(100)).max(50);
 
+/**
+ * Whether this profile knowingly admits listings with an unverified (null)
+ * FEMA flood zone: the user flipped includeUnverifiedFloodZone AND has a
+ * flood exclusion. Without an exclusion the hard filter never fires, so a
+ * marker would be noise on every unmapped parcel. Shared by the inbox badge
+ * (frontend) and the alert email marker (server).
+ */
+export function criteriaAcceptsUnverifiedFlood(
+  criteria: Pick<SearchCriteria, 'includeUnverifiedFloodZone' | 'floodZoneExclude'> | null | undefined,
+): boolean {
+  return !!criteria?.includeUnverifiedFloodZone && (criteria.floodZoneExclude?.length ?? 0) > 0;
+}
+
 export const SearchCriteria = z.object({
   acreage: Range.optional(),
   price: Range.optional(),

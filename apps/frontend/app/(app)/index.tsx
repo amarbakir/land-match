@@ -156,11 +156,14 @@ function InboxView({ profileId }: { profileId: string | null }) {
 
 function ShortlistPane({ profileId }: { profileId: string | null }) {
   const { data } = useProfileMatches(profileId, { status: 'shortlisted', limit: 100 });
+  const { data: profiles = [] } = useSearchProfiles();
   const matches = data?.items ?? [];
+  const profile = profiles.find((p) => p.id === profileId) ?? null;
 
   return (
     <ShortlistView
       matches={matches}
+      floodUnverified={profileAcceptsUnverifiedFlood(profile)}
       onOpenMatch={() => {}}
     />
   );
@@ -168,12 +171,15 @@ function ShortlistPane({ profileId }: { profileId: string | null }) {
 
 function DismissedPane({ profileId }: { profileId: string | null }) {
   const { data } = useProfileMatches(profileId, { status: 'dismissed', limit: 100 });
+  const { data: profiles = [] } = useSearchProfiles();
   const matches = data?.items ?? [];
+  const profile = profiles.find((p) => p.id === profileId) ?? null;
 
   return (
     <ShortlistView
       matches={matches}
       dismissed
+      floodUnverified={profileAcceptsUnverifiedFlood(profile)}
       onOpenMatch={() => {}}
     />
   );

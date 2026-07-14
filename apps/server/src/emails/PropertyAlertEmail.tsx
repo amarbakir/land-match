@@ -20,6 +20,8 @@ export interface AlertItem {
   overallScore: number;
   componentScores: Record<string, number>;
   mapUrl: string;
+  /** Profile admits unverified flood zones and this parcel's zone is unknown. */
+  floodUnverified?: boolean;
 }
 
 export interface PropertyAlertEmailProps {
@@ -81,6 +83,23 @@ function AlertCard({ alert }: { alert: AlertItem }) {
           .map(([k, v]) => `${k}: ${v}`)
           .join(' · ')}
       </Text>
+
+      {alert.floodUnverified && (
+        <Text
+          style={{
+            margin: '0 0 12px',
+            fontSize: '12px',
+            color: '#92400e',
+            backgroundColor: '#fef3c7',
+            border: '1px solid #fde68a',
+            borderRadius: '4px',
+            padding: '6px 10px',
+          }}
+        >
+          ⚠ Flood zone unverified — included because your profile accepts
+          listings without FEMA flood data.
+        </Text>
+      )}
 
       <Section>
         <Link href={alert.listingUrl} style={buttonStyle}>

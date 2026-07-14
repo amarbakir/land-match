@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CreateSearchProfile, SearchCriteria } from '../searchProfiles';
+import { CreateSearchProfile, SearchCriteria, criteriaAcceptsUnverifiedFlood } from '../searchProfiles';
 
 describe('SearchCriteria validation', () => {
   // Bug guard: min > max produced a negative divisor in scorePrice's ramp,
@@ -91,5 +91,21 @@ describe('SearchCriteria.includeUnverifiedFloodZone', () => {
   it('rejects non-boolean values', () => {
     const result = SearchCriteria.safeParse({ includeUnverifiedFloodZone: 'yes' });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('criteriaAcceptsUnverifiedFlood', () => {
+  it('is true only when the profile opted in AND has a flood exclusion', () => {
+    // Without an exclusion the hard filter never fires, so the marker would
+    // be noise on every unmapped parcel.
+    expect(criteriaAcceptsUnverifiedFlood({ floodZoneExclude: ['A'], includeUnverifiedFloodZone: true })).toBe(true);
+    expect(criteriaAcceptsUnverifiedFlood({ floodZoneExclude: [], includeUnverifiedFloodZone: true })).toBe(false);
+    expect(criteriaAcceptsUnverifiedFlood({ includeUnverifiedFloodZone: true })).toBe(false);
+    expect(criteriaAcceptsUnverifiedFlood({ floodZoneExclude: ['A'] })).toBe(false);
+  });
+
+  it('handles null/undefined criteria without throwing', () => {
+    expect(criteriaAcceptsUnverifiedFlood(null)).toBe(false);
+    expect(criteriaAcceptsUnverifiedFlood(undefined)).toBe(false);
   });
 });

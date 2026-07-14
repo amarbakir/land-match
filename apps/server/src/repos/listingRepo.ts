@@ -324,9 +324,15 @@ export async function findListingById(id: string, tx?: Tx) {
   });
 }
 
+// Alert-delivery projection: the email needs the enrichment's flood zone to
+// mark toggle-admitted unverified-flood matches.
 export async function findByIds(ids: string[], tx?: Tx) {
   if (ids.length === 0) return [];
-  return (tx ?? db).select().from(listings).where(inArray(listings.id, ids));
+  return (tx ?? db)
+    .select({ ...getTableColumns(listings), femaFloodZone: enrichments.femaFloodZone })
+    .from(listings)
+    .leftJoin(enrichments, eq(enrichments.listingId, listings.id))
+    .where(inArray(listings.id, ids));
 }
 
 export async function findListingWithEnrichment(id: string, tx?: Tx) {

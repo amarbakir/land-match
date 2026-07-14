@@ -63,4 +63,53 @@ describe('renderAlertEmail', () => {
     expect(html).toContain('Vermont Farms');
     expect(html).toContain('Hi there');
   });
+
+  it('marks a toggle-admitted unverified-flood match with an accepted-risk notice', async () => {
+    // Bug this catches: the inbox badges these matches (land-match-86r) but the
+    // email said nothing — the notification channel silently hid the risk the
+    // user accepted when flipping includeUnverifiedFloodZone.
+    const html = await renderAlertEmail({
+      userName: 'Alice',
+      profileName: 'Hudson Valley',
+      frequency: 'instant',
+      alerts: [
+        {
+          listingTitle: 'Unmapped Parcel',
+          listingUrl: 'https://example.com/listing-2',
+          price: 90000,
+          acreage: 25,
+          location: 'Delhi, NY',
+          overallScore: 70,
+          componentScores: { soil: 80 },
+          mapUrl: 'https://www.google.com/maps',
+          floodUnverified: true,
+        },
+      ],
+    });
+
+    expect(html).toContain('Flood zone unverified');
+  });
+
+  it('omits the flood notice for matches with a verified zone', async () => {
+    const html = await renderAlertEmail({
+      userName: 'Alice',
+      profileName: 'Hudson Valley',
+      frequency: 'instant',
+      alerts: [
+        {
+          listingTitle: 'Mapped Parcel',
+          listingUrl: 'https://example.com/listing-3',
+          price: 90000,
+          acreage: 25,
+          location: 'Delhi, NY',
+          overallScore: 70,
+          componentScores: { soil: 80 },
+          mapUrl: 'https://www.google.com/maps',
+          floodUnverified: false,
+        },
+      ],
+    });
+
+    expect(html).not.toContain('Flood zone unverified');
+  });
 });

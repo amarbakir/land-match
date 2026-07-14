@@ -1,4 +1,4 @@
-import { err, isHttpUrl, ok, type Result } from '@landmatch/api';
+import { criteriaAcceptsUnverifiedFlood, err, isHttpUrl, ok, type Result, type SearchCriteria } from '@landmatch/api';
 
 import { captureError } from '../lib/captureError';
 import { FREQUENCY_WINDOW_HOURS } from '../lib/alertWindows';
@@ -29,6 +29,7 @@ interface AlertGroup {
   profileName: string;
   searchProfileId: string;
   alertFrequency: AlertFrequency;
+  criteria: SearchCriteria;
   alerts: PendingAlert[];
 }
 
@@ -104,6 +105,7 @@ export async function deliverPendingAlerts({ deadlineAt }: DeliveryOptions = {})
           profileName: alert.profileName,
           searchProfileId: alert.searchProfileId,
           alertFrequency: alert.alertFrequency as AlertFrequency,
+          criteria: alert.criteria as SearchCriteria,
           alerts: [],
         });
       }
@@ -184,9 +186,13 @@ async function deliverGroup(group: AlertGroup, alertIds: string[]): Promise<void
   const listingMap = new Map(listingsData.map((l) => [l.id, l]));
   const scoreMap = new Map(scoresData.map((s) => [s.id, s]));
 
+  // Mirror of the inbox badge predicate (land-match-86r): the accepted risk
+  // must be visible in the notification channel too.
+  const acceptsUnverifiedFlood = criteriaAcceptsUnverifiedFlood(group.criteria);
+
   // Build alert items
   const alertItems: AlertItem[] = group.alerts
-    .map((alert) => {
+    .map((alert): AlertItem | null => {
       const listing = listingMap.get(alert.listingId);
       const score = scoreMap.get(alert.scoreId);
       if (!listing || !score) return null;
@@ -203,6 +209,7 @@ async function deliverGroup(group: AlertGroup, alertIds: string[]): Promise<void
         overallScore: score.overallScore,
         componentScores: (score.componentScores ?? {}) as Record<string, number>,
         mapUrl: buildMapUrl(listing.latitude, listing.longitude),
+        floodUnverified: acceptsUnverifiedFlood && listing.femaFloodZone == null,
       };
     })
     .filter((item): item is AlertItem => item !== null);
