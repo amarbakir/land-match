@@ -5,7 +5,11 @@
   "description": "Instantly enrich land listings with soil, flood, and scoring data from LandMatch.",
   "permissions": ["storage", "sidePanel"],
   "host_permissions": [
-    "https://www.landwatch.com/*"
+    "https://www.landwatch.com/*",
+    "https://www.zillow.com/*",
+    "https://www.landflip.com/*",
+    "https://landflip.com/*",
+    "https://*.craigslist.org/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -13,7 +17,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.landwatch.com/*"],
+      "matches": [
+        "https://www.landwatch.com/*",
+        "https://www.zillow.com/*",
+        "https://www.landflip.com/*",
+        "https://landflip.com/*",
+        "https://*.craigslist.org/*"
+      ],
       "js": ["content/main.js"],
       "run_at": "document_idle"
     }
@@ -27,7 +37,13 @@
   "web_accessible_resources": [
     {
       "resources": ["chunks/*"],
-      "matches": ["https://www.landwatch.com/*"]
+      "matches": [
+        "https://www.landwatch.com/*",
+        "https://www.zillow.com/*",
+        "https://www.landflip.com/*",
+        "https://landflip.com/*",
+        "https://*.craigslist.org/*"
+      ]
     }
   ],
   "icons": {
