@@ -1,8 +1,11 @@
 import { err, ok, getAlertChannels, type Result } from '@landmatch/api';
-import { mapEnrichmentRow, mapListingRow, scoreListing } from '@landmatch/scoring';
-import type { SearchCriteria } from '@landmatch/scoring';
+import { generateSummary, mapEnrichmentRow, mapListingRow, scoreListing } from '@landmatch/scoring';
+import type { SearchCriteria, SummaryInput } from '@landmatch/scoring';
 
 import { captureError } from '../lib/captureError';
+import { llmClient } from '../lib/llm';
+import { consumeSummaryBudget } from '../lib/summaryBudget';
+import { features } from '../config';
 import { db } from '../db/client';
 import * as listingRepo from '../repos/listingRepo';
 import * as searchProfileRepo from '../repos/searchProfileRepo';
@@ -90,17 +93,45 @@ export async function matchListingAgainstProfiles(
             if (alertRow) alerts++;
           }
         }
-        return { alerts };
+        return { alerts, scoreRow };
       });
 
       if (!written) continue;
       scored++;
       alertsCreated += written.alerts;
+
+      // Post-commit, best-effort: an alert-worthy match the user will see
+      // gets an LLM verdict. Never inside the transaction and never fatal —
+      // a hung or failed LLM call must not lose the score or the alert.
+      if (
+        features.enableLlmSummary &&
+        !result.hardFilterFailed &&
+        result.overallScore >= profile.alertThreshold &&
+        written.scoreRow.status === 'inbox'
+      ) {
+        await generateSummaryBestEffort(written.scoreRow.id, profile.userId, {
+          scoringResult: result,
+          enrichmentData,
+          criteria,
+          listingTitle: data.listing.title ?? data.listing.address ?? 'Untitled listing',
+          listingUrl: data.listing.url ?? undefined,
+        });
+      }
     }
 
     return ok({ scored, alertsCreated });
   } catch (error) {
     captureError(error, 'matchingService.matchListingAgainstProfiles');
     return err('INTERNAL_ERROR');
+  }
+}
+
+async function generateSummaryBestEffort(scoreId: string, userId: string, input: SummaryInput): Promise<void> {
+  try {
+    if (!(await consumeSummaryBudget(userId))) return;
+    const summary = await generateSummary(input, llmClient);
+    if (summary) await scoreRepo.updateLlmSummary(scoreId, summary);
+  } catch (error) {
+    captureError(error, 'matchingService.generateSummaryBestEffort');
   }
 }
